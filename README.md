@@ -12,6 +12,7 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Post-hoc (batch) optimal stopping for retrospective analysis and dataset pruning
 - Live (incremental) optimal stopping for real-time data collection
 - Flexible, parameterized stopping criteria
+- **Flexible column mapping for groupings, sample IDs, and epochs**
 - Bayesian and frequentist hybrid methodology
 
 ## Installation
@@ -49,6 +50,12 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 
 | Parameter                | Default   | Applies to   | Description                                                                 |
 |--------------------------|-----------|--------------|-----------------------------------------------------------------------------|
+| `grouping_columns`       | required  | Both         | List of column names (or single column) to use for grouping                 |
+| `sample_id_column`       | required  | Both         | Column name for sample ID                                                   |
+| `epoch_column`           | required  | Both         | Column name for epoch/trial                                                 |
+| `display_progress`       | True      | Both         | Show a progress bar for groupings (set False to disable)                    |
+| `generate_diagnostics`   | False     | Post-hoc     | Generate diagnostic plots comparing full vs pruned datasets                 |
+| `diagnostics_prefix`     | "optstop_diagnostics" | Post-hoc | Prefix for diagnostic output files (PNG and CSV)                           |
 | `delta_item`             | 0.05      | Both         | Max acceptable CI width for individual items                                |
 | `delta_cap`              | 0.05      | Both         | Max acceptable CI width for task/grouping                                   |
 | `cred_level`             | 0.95      | Both         | Credibility level for intervals (e.g., 0.95 for 95% CI)                     |
@@ -84,6 +91,173 @@ params = {
 **Note:**
 - Parameters not relevant to live mode (e.g., `draws`, `tune`, `stab_window`, etc.) will be ignored if passed to `optimal_stopping_live`.
 - You can set only the parameters you care about; the rest will use defaults.
+- By default, a progress bar is shown for groupings. Set `display_progress=False` to disable it in Python, or use `--no_progress` in the CLI.
+
+## Diagnostic Plots (Post-hoc Only)
+
+When using `optimal_stopping_posthoc`, you can generate comprehensive diagnostic plots comparing your full dataset with the pruned dataset. This helps you understand the efficiency and accuracy of the optimal stopping algorithm.
+
+### Enabling Diagnostics
+
+Set `generate_diagnostics=True` in your function call:
+
+```python
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    generate_diagnostics=True,
+    diagnostics_prefix='my_analysis_diagnostics'
+)
+```
+
+### Diagnostic Output
+
+The diagnostic system generates two files:
+1. **PNG file** (`{prefix}.png`): A comprehensive 5-panel diagnostic plot
+2. **CSV file** (`{prefix}_paired.csv`): Paired data for custom analysis
+
+### Diagnostic Plot Panels
+
+The diagnostic plot includes:
+
+1. **Full vs. Pruned Scatter Plot**: Shows how well the pruned estimates match the full dataset estimates
+2. **Bland-Altman Plot**: Displays the agreement between full and pruned estimates
+3. **Efficiency Distribution**: Histogram of epochs saved per task
+4. **Sample IDs Saved by Grouping**: Bar chart showing percentage of sample IDs saved for each grouping
+5. **Confidence Intervals Comparison**: Side-by-side comparison of CIs from full vs. pruned datasets
+
+### Diagnostic Statistics
+
+The system also logs comprehensive statistics including:
+- **Accuracy metrics**: Bias, MAE, RMSE, Pearson correlation, ICC(3,1)
+- **Efficiency metrics**: Mean epochs saved, percentage of total epochs saved, items saved
+
+### CLI Usage
+
+You can also enable diagnostics via the CLI:
+
+```bash
+optstop-posthoc --csv mydata.csv --output pruned.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --generate_diagnostics --diagnostics_prefix my_diagnostics
+```
+
+## Flexible Column Mapping (NEW)
+
+All main functions now support flexible column mapping. You must specify:
+- `grouping_columns`: List of column names (or a single column name) to use for grouping (e.g., `['subject', 'task']` or `'subject'`)
+- `sample_id_column`: Name of the column for sample ID (e.g., `'item_id'`)
+- `epoch_column`: Name of the column for epoch/trial (e.g., `'trial_num'`)
+
+The functions will internally create the necessary numeric columns for grouping, sample ID, and epoch.
+
+### Example Usage (Post-hoc)
+```python
+import pandas as pd
+from optstop.rule import configure_optstop_logging
+from optstop import optimal_stopping_posthoc
+
+configure_optstop_logging('my_optstop_log.txt')
+
+df = pd.DataFrame({
+    'subject': [1, 1, 2, 2],
+    'task': [1, 1, 1, 1],
+    'item_id': [1, 1, 2, 2],
+    'trial_num': [1, 2, 1, 2],
+    'score': [1, 0, 1, 1],
+})
+
+params = {
+    'delta_item': 0.05,
+    'delta_cap': 0.05,
+    'draws': 1000,
+    'tune': 1000,
+    'CI_delta': 0.0002,
+    'conservatism': 2,
+}
+
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num'
+)
+print(pruned_df)
+print(summary)
+```
+- If you only have one grouping column, you can pass `'subject'` or `['subject']`.
+
+### Example Usage (Live)
+```python
+import pandas as pd
+from optstop.rule import configure_optstop_logging
+from optstop import optimal_stopping_live
+
+configure_optstop_logging('my_optstop_log.txt')
+
+df = pd.DataFrame({
+    'subject': [1, 1, 2, 2],
+    'task': [1, 1, 1, 1],
+    'item_id': [1, 1, 2, 2],
+    'trial_num': [1, 2, 1, 2],
+    'score': [1, 0, 1, 1],
+})
+
+params = {
+    'delta_item': 0.05,
+    'delta_cap': 0.05,
+    'draws': 1000,
+    'tune': 1000,
+    'CI_delta': 0.0002,
+    'conservatism': 2,
+}
+
+result = optimal_stopping_live(
+    df, params,
+    grouping_columns='subject',
+    sample_id_column='item_id',
+    epoch_column='trial_num'
+)
+print(result)
+```
+
+### Example Usage (Convergence)
+```python
+import pandas as pd
+from optstop.rule import configure_optstop_logging
+from optstop import convergence_posthoc
+
+configure_optstop_logging('my_convergence_log.txt')
+
+df = pd.DataFrame({
+    'subject': [1, 1, 2, 2],
+    'task': [1, 1, 1, 1],
+    'item_id': [1, 1, 2, 2],
+    'trial_num': [1, 2, 1, 2],
+    'score': [1, 0, 1, 1],
+})
+
+params = {
+    'delta_item': 0.5,
+    'delta_cap': 0.5,
+    'draws': 50,
+    'tune': 50,
+    'stab_window': 2,
+    'CI_delta': 0.01,
+    'rep_batch_size': 1,
+    'pymc_refresh_every': 1,
+    'item_seqs': 2,
+    'epoch_seqs': 2
+}
+
+result = convergence_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num'
+)
+print(result)
+```
 
 ## Optimal Stopping (Post-hoc & Live)
 
@@ -231,6 +405,38 @@ print(result)
 
 The resulting DataFrame contains all the convergence metrics for each grouping-task, and the analysis is parallelized for speed.
 
+## Convergence Diagnostics (NEW)
+
+When you run `convergence_posthoc`, the package now automatically generates two diagnostic figures by default:
+- **{prefix}_grouped_needed.png**: Two vertically stacked plots showing mean needed items and mean needed epochs (with std error bars) by grouping (descending order).
+- **{prefix}_score_scatter.png**: Scatter plots of mean needed items/epochs vs. performance, as before.
+
+You can control this behavior:
+- **Python:** Pass `generate_diagnostics=False` to `convergence_posthoc` to turn off diagnostics, or set `diagnostics_prefix` to change the output file prefix.
+- **CLI:** Use `--no_diagnostics` to turn off diagnostics, and `--diagnostics_prefix` to set the output file prefix (default: `convergence_eval`).
+
+### Example (Python)
+```python
+result = convergence_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    generate_diagnostics=True,  # default is True
+    diagnostics_prefix='my_convergence_eval'
+)
+```
+
+### Example (CLI)
+```bash
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --no_diagnostics --diagnostics_prefix my_convergence_eval
+```
+
+- By default, diagnostics are ON. Use `--no_diagnostics` to disable.
+- The output files will be named `my_convergence_eval_grouped_needed.png` and `my_convergence_eval_score_scatter.png`.
+
+See the CLI help (`optstop-convergence --help`) for all options.
+
 ## Best Practices & Recommendations
 
 ### Specifying Groupings
@@ -334,31 +540,47 @@ The package provides CLI entry points for all major functions. After installing 
 ### 1. Post-hoc Optimal Stopping
 **Command:**
 ```
-optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42
+optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output pruned CSV file (required)
 - **--summary**: Path to output summary CSV file (optional)
+- **--grouping_columns**: Comma-separated list or single column name for grouping (required)
+- **--sample_id_column**: Column name for sample ID (required)
+- **--epoch_column**: Column name for epoch/trial (required)
 - **--log**: Path to log file (default: optstop_cli.log)
+- **--no_progress**: Disable the progress bar (shown by default)
+- **--generate_diagnostics**: Generate diagnostic plots comparing full vs pruned datasets (optional)
+- **--diagnostics_prefix**: Prefix for diagnostic output files (default: optstop_diagnostics)
 - All other parameters are as described in the Best Practices section.
 
 ### 2. Live Optimal Stopping
 **Command:**
 ```
-optstop-live --csv current_data.csv --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42
+optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42
 ```
 - **--csv**: Path to input CSV file (required)
+- **--grouping_columns**: Comma-separated list or single column name for grouping (required)
+- **--sample_id_column**: Column name for sample ID (required)
+- **--epoch_column**: Column name for epoch/trial (required)
 - **--log**: Path to log file (default: optstop_live.log)
+- **--no_progress**: Disable the progress bar (shown by default)
 - Prints which sample IDs and/or tasks can be stopped.
 
 ### 3. Convergence Analysis
 **Command:**
 ```
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output convergence stats CSV file (required)
+- **--grouping_columns**: Comma-separated list or single column name for grouping (required)
+- **--sample_id_column**: Column name for sample ID (required)
+- **--epoch_column**: Column name for epoch/trial (required)
 - **--log**: Path to log file (default: optstop_convergence.log)
+- **--no_progress**: Disable the progress bar (shown by default)
+- **--no_diagnostics**: Disable diagnostic plots (default: ON)
+- **--diagnostics_prefix**: Prefix for diagnostic output files (default: convergence_eval)
 
 ### CLI Help
 For any command, you can see all options and help text with:
@@ -369,9 +591,12 @@ optstop-convergence --help
 ```
 
 ### Best Practices for CLI Usage
-- **Always check your input CSV for required columns:** `grouping_num`, `task_num`, `sample_id_num`, `epoch`, `score`.
+- **Progress bar is shown by default.** Use `--no_progress` to disable it for silent or script-based runs.
+- **Always check your input CSV for required columns:** Make sure the columns you specify for grouping, sample ID, and epoch exist in your data.
 - **Set a random seed** (`--random_seed`) for reproducible pruned DataFrames.
 - **Use recommended parameter values** for real analyses (see Best Practices above).
 - **Check the log file** for detailed stopping decisions, errors, and parameter validation.
 - **For large datasets, run on a machine with sufficient CPU and memory.**
 - **If you encounter errors, check the FAQ and log file for troubleshooting tips.** 
+
+**Note:** After running any of the main functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, or `convergence_posthoc`), you will see a message printed to the console reminding you where to find the log file with all details and warnings. This log file contains all stopping decisions, errors, and PyMC warnings, even if the terminal output is quiet. 
