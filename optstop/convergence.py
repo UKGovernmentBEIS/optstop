@@ -10,6 +10,13 @@ import arviz as az
 import concurrent.futures
 import logging
 import os
+import sys
+from typing import List
+from tqdm import tqdm
+import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import contextlib
+import io
 
 # --- Helper: Adaptive Beta CI ---
 def _beta_ci_adaptive(successes, trials, cred_level=0.95, conservatism=1.0, 
@@ -212,7 +219,8 @@ def _process_grouping(args):
                             "trials": all_trials,
                             "n_items": np.int64(len(all_successes))
                         })
-                        trace = pm.sample(draws=draws, tune=tune, chains=2, cores=1, progressbar=False, target_accept=0.97)
+                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                            trace = pm.sample(draws=draws, tune=tune, chains=2, cores=1, progressbar=False, target_accept=0.97)
                         theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
@@ -292,8 +300,6 @@ def _process_grouping(args):
         var_needed_epochs = np.var(epochs_shortfalls) if epochs_shortfalls else None
         mean_items_fin_score = np.mean(items_fin_scores) if items_fin_scores else None
         var_items_fin_score = np.var(items_fin_scores) if items_fin_scores else None
-        mean_epochs_fin_score = np.mean(epochs_fin_scores) if epochs_fin_scores else None
-        var_epochs_fin_score = np.var(epochs_fin_scores) if epochs_fin_scores else None
         mean_sample_id_performance = np.mean(agg_sample_id_performance) if agg_sample_id_performance else None
         var_sample_id_performance = np.var(agg_sample_id_performance) if agg_sample_id_performance else None
 
@@ -381,8 +387,40 @@ def _process_grouping(args):
             'error': str(e)
         }
 
+def _get_logfile_path_convergence(default='optstop_convergence.log'):
+    import logging
+    for handler in logging.getLogger().handlers:
+        if hasattr(handler, 'baseFilename'):
+            return handler.baseFilename
+    return default
+
 # --- Main API ---
-def convergence_posthoc(df: pd.DataFrame, params: dict):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
+    """
+    Post-hoc convergence analysis, parallelized across groupings.
+    The user must specify:
+      - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
+      - sample_id_column: column name for sample ID
+      - epoch_column: column name for epoch/trial
+      - display_progress: whether to show a progress bar (default True)
+      - generate_diagnostics: whether to generate diagnostic figures (default True)
+      - diagnostics_prefix: prefix for diagnostic output files
+    Returns a DataFrame of convergence statistics.
+    """
+    # Input validation
+    if isinstance(grouping_columns, str):
+        grouping_columns = [grouping_columns]
+    required = set(grouping_columns + [sample_id_column, epoch_column])
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+    if df.empty:
+        return pd.DataFrame(columns=df.columns)
+    df = df.copy()
+    df['grouping'] = df[grouping_columns].astype(str).agg('-'.join, axis=1)
+    df['grouping_num'] = df['grouping'].astype('category').cat.codes
+    df['sample_id_num'] = df[sample_id_column].astype('category').cat.codes
+    df['epoch_num'] = df[epoch_column].astype(int)
     logger = logging.getLogger('optstop.convergence')
     _check_required_columns(df)
     _validate_params(params)
@@ -390,13 +428,115 @@ def convergence_posthoc(df: pd.DataFrame, params: dict):
     groupings = list(df.groupby(['grouping_num', 'task_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
-        return pd.DataFrame()
+        return pd.DataFrame(columns=df.columns)
     args_list = [(pid, cap, df_part, params) for (pid, cap), df_part in groupings]
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []
     with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        for res in executor.map(_process_grouping, args_list):
+        iterator = executor.map(_process_grouping, args_list)
+        if display_progress:
+            iterator = tqdm(iterator, total=len(args_list), desc="Convergence analysis")
+        for res in iterator:
             results.append(res)
     logger.info('Convergence analysis complete')
-    return pd.DataFrame(results) 
+    output_df = pd.DataFrame(results)
+    if generate_diagnostics:
+        try:
+            generate_convergence_diagnostics(output_df, out_prefix=diagnostics_prefix)
+        except Exception as e:
+            logger = logging.getLogger('optstop.convergence')
+            logger.error(f"Failed to generate convergence diagnostics: {e}")
+    # Only print if in main process
+    if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
+        print(f"Run complete. See the log file for details: {_get_logfile_path_convergence()}")
+    return output_df
+
+def generate_convergence_diagnostics(convergence_data: pd.DataFrame, out_prefix: str = "convergence_eval"):
+    """
+    Generate diagnostic figures for convergence_posthoc output.
+    Saves two PNGs: {out_prefix}_grouped_needed.png and {out_prefix}_score_scatter.png
+    """
+    import numpy as np
+    import logging
+    logger = logging.getLogger('optstop.convergence.diagnostics')
+    try:
+        if convergence_data.empty:
+            logger.warning("Convergence diagnostics: input DataFrame is empty.")
+            fig = plt.figure(figsize=(8, 4))
+            fig.suptitle("No data for convergence diagnostics", fontsize=14)
+            fig.savefig(f"{out_prefix}_grouped_needed.png", dpi=150)
+            fig.savefig(f"{out_prefix}_score_scatter.png", dpi=150)
+            return
+        n_samples = 20  # Used for SEM calculation, as in the script
+        # Calculate standard error from variances (SEM = sqrt(variance)/sqrt(n))
+        convergence_data['sem_needed_items'] = np.sqrt(convergence_data['var_needed_items'] / n_samples)
+        convergence_data['sem_needed_epochs'] = np.sqrt(convergence_data['var_needed_epochs'] / n_samples)
+        # --- NEW GROUPED NEEDED PLOT ---
+        fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=False)
+        # Top: mean_needed_items by grouping
+        items_by_group = convergence_data[['grouping', 'mean_needed_items', 'sem_needed_items']].dropna()
+        items_by_group = items_by_group.groupby('grouping').mean().reset_index()
+        items_by_group = items_by_group.sort_values('mean_needed_items', ascending=False)
+        y_labels_items = items_by_group['grouping'].astype(str)
+        y_pos_items = np.arange(len(items_by_group))
+        ax1.errorbar(items_by_group['mean_needed_items'], y_pos_items, xerr=items_by_group['sem_needed_items'], fmt='o', color='skyblue', ecolor='gray', capsize=4)
+        ax1.set_yticks(y_pos_items)
+        ax1.set_yticklabels(y_labels_items)
+        ax1.set_xlabel('Mean Needed Items (with std error)')
+        ax1.set_ylabel('Grouping')
+        ax1.set_title('Mean Needed Items by Grouping')
+        ax1.invert_yaxis()
+        # Bottom: mean_needed_epochs by grouping
+        epochs_by_group = convergence_data[['grouping', 'mean_needed_epochs', 'sem_needed_epochs']].dropna()
+        epochs_by_group = epochs_by_group.groupby('grouping').mean().reset_index()
+        epochs_by_group = epochs_by_group.sort_values('mean_needed_epochs', ascending=False)
+        y_labels_epochs = epochs_by_group['grouping'].astype(str)
+        y_pos_epochs = np.arange(len(epochs_by_group))
+        ax2.errorbar(epochs_by_group['mean_needed_epochs'], y_pos_epochs, xerr=epochs_by_group['sem_needed_epochs'], fmt='o', color='lightgreen', ecolor='gray', capsize=4)
+        ax2.set_yticks(y_pos_epochs)
+        ax2.set_yticklabels(y_labels_epochs)
+        ax2.set_xlabel('Mean Needed Epochs (with std error)')
+        ax2.set_ylabel('Grouping')
+        ax2.set_title('Mean Needed Epochs by Grouping')
+        ax2.invert_yaxis()
+        plt.tight_layout()
+        fig1.savefig(f"{out_prefix}_grouped_needed.png", dpi=300)
+        # --- SCORE SCATTER PLOT (unchanged) ---
+        fig2 = plt.figure(figsize=(16, 6))
+        gs2 = gridspec.GridSpec(1, 2)
+        ax3 = plt.subplot(gs2[0, 0])
+        if 'task_performance' in convergence_data.columns and 'mean_needed_items' in convergence_data.columns:
+            ax3.errorbar(convergence_data['mean_needed_items'], convergence_data['task_performance'],
+                         xerr=convergence_data['sem_needed_items'], fmt='o', color='blue', 
+                         alpha=0.5, ecolor='gray', capsize=3)
+            ax3.set_xlabel('Mean Needed Items (with std error)')
+            ax3.set_ylabel('Task Performance (Final Scoring)')
+            ax3.set_title('Task Performance vs Mean Needed Items')
+            ax3.set_xlim(left=0)
+        else:
+            ax3.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=12)
+        ax4 = plt.subplot(gs2[0, 1])
+        if 'mean_sample_id_performance' in convergence_data.columns and 'mean_needed_epochs' in convergence_data.columns:
+            ax4.errorbar(convergence_data['mean_needed_epochs'], convergence_data['mean_sample_id_performance'],
+                         xerr=convergence_data['sem_needed_epochs'], fmt='o', color='green', 
+                         alpha=0.5, ecolor='gray', capsize=3)
+            ax4.set_xlabel('Mean Needed Epochs (with std error)')
+            ax4.set_ylabel('Sample Performance (Final Scoring)')
+            ax4.set_title('Sample Performance vs Mean Needed Epochs')
+            ax4.set_xlim(left=0)
+        else:
+            ax4.text(0.5, 0.5, "No data", ha='center', va='center', fontsize=12)
+        plt.tight_layout()
+        fig2.savefig(f"{out_prefix}_score_scatter.png", dpi=300)
+        logger.info(f"Convergence diagnostics saved to {out_prefix}_grouped_needed.png and {out_prefix}_score_scatter.png")
+    except Exception as e:
+        logger.error(f"Error generating convergence diagnostics: {e}")
+        try:
+            fig = plt.figure(figsize=(8, 4))
+            fig.suptitle(f"Diagnostics failed: {e}", fontsize=14)
+            fig.savefig(f"{out_prefix}_grouped_needed.png", dpi=150)
+            fig.savefig(f"{out_prefix}_score_scatter.png", dpi=150)
+        except Exception:
+            pass
+        raise 
