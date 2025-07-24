@@ -44,6 +44,9 @@ def test_cli_posthoc_basic():
             "--output", str(output_path),
             "--summary", str(summary_path),
             "--log", str(log_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -98,6 +101,9 @@ def test_cli_live_basic():
             "optstop-live",
             "--csv", str(csv_path),
             "--log", str(log_path),
+            "--grouping_columns", "grouping_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -144,6 +150,9 @@ def test_cli_convergence_basic():
             "--csv", str(csv_path),
             "--output", str(output_path),
             "--log", str(log_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -177,6 +186,9 @@ def test_cli_posthoc_missing_file():
             "optstop-posthoc",
             "--csv", "nonexistent_file.csv",
             "--output", str(output_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--draws", "50",
             "--tune", "50"
@@ -207,6 +219,9 @@ def test_cli_posthoc_invalid_params():
             "optstop-posthoc",
             "--csv", str(csv_path),
             "--output", str(output_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--draws", "-1",  # Invalid negative value
             "--tune", "50"
         ]
@@ -236,7 +251,10 @@ def test_cli_posthoc_minimal_params():
         test_args = [
             "optstop-posthoc",
             "--csv", str(csv_path),
-            "--output", str(output_path)
+            "--output", str(output_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
         ]
         
         with patch.object(sys, 'argv', test_args):
@@ -272,6 +290,9 @@ def test_cli_convergence_output_structure():
             "optstop-convergence",
             "--csv", str(csv_path),
             "--output", str(output_path),
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--draws", "50",
             "--tune", "50"
         ]

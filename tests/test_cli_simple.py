@@ -48,6 +48,9 @@ def test_cli_posthoc_functionality():
             "--output", test_output,
             "--summary", test_summary,
             "--log", test_log,
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -90,6 +93,72 @@ def test_cli_posthoc_functionality():
                     pass  # Ignore cleanup errors
 
 
+def test_cli_posthoc_with_diagnostics():
+    """Test optstop-posthoc CLI function with diagnostic generation"""
+    from optstop.cli import main
+    
+    # Create test data
+    df = create_test_csv_data()
+    
+    # Save to a temporary file
+    test_csv = "test_cli_data.csv"
+    test_output = "test_cli_output.csv"
+    test_summary = "test_cli_summary.csv"
+    test_log = "test_cli.log"
+    test_diagnostics_prefix = "test_cli_diagnostics"
+    
+    try:
+        df.to_csv(test_csv, index=False)
+        
+        # Mock sys.argv to simulate CLI arguments with diagnostics
+        test_args = [
+            "optstop-posthoc",
+            "--csv", test_csv,
+            "--output", test_output,
+            "--summary", test_summary,
+            "--log", test_log,
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
+            "--delta_item", "0.5",
+            "--delta_cap", "0.5",
+            "--draws", "50",
+            "--tune", "50",
+            "--CI_delta", "0.01",
+            "--conservatism", "1.5",
+            "--random_seed", "42",
+            "--generate_diagnostics",
+            "--diagnostics_prefix", test_diagnostics_prefix
+        ]
+        
+        with patch.object(sys, 'argv', test_args):
+            main()
+        
+        # Check that output files were created
+        assert Path(test_output).exists(), "Output CSV file was not created"
+        assert Path(test_summary).exists(), "Summary CSV file was not created"
+        assert Path(test_log).exists(), "Log file was not created"
+        
+        # Check that diagnostic files were created
+        diagnostic_png = Path(f"{test_diagnostics_prefix}.png")
+        diagnostic_csv = Path(f"{test_diagnostics_prefix}_paired.csv")
+        assert diagnostic_png.exists(), f"Diagnostic PNG file was not created: {diagnostic_png}"
+        assert diagnostic_csv.exists(), f"Diagnostic CSV file was not created: {diagnostic_csv}"
+        
+        # Check that diagnostic files are not empty
+        assert diagnostic_png.stat().st_size > 0, "Diagnostic PNG file is empty"
+        assert diagnostic_csv.stat().st_size > 0, "Diagnostic CSV file is empty"
+        
+    finally:
+        # Clean up test files
+        for file in [test_csv, test_output, test_summary, test_log, f"{test_diagnostics_prefix}.png", f"{test_diagnostics_prefix}_paired.csv"]:
+            if Path(file).exists():
+                try:
+                    Path(file).unlink()
+                except:
+                    pass  # Ignore cleanup errors
+
+
 def test_cli_live_functionality():
     """Test basic functionality of optstop-live CLI function"""
     from optstop.cli import main_live
@@ -109,6 +178,9 @@ def test_cli_live_functionality():
             "optstop-live",
             "--csv", test_csv,
             "--log", test_log,
+            "--grouping_columns", "grouping_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -162,6 +234,9 @@ def test_cli_convergence_functionality():
             "--csv", test_csv,
             "--output", test_output,
             "--log", test_log,
+            "--grouping_columns", "grouping_num,task_num",
+            "--sample_id_column", "sample_id_num",
+            "--epoch_column", "epoch",
             "--delta_item", "0.5",
             "--delta_cap", "0.5",
             "--draws", "50",
@@ -199,6 +274,9 @@ def test_cli_error_handling():
         "optstop-posthoc",
         "--csv", "nonexistent_file.csv",
         "--output", "test_output.csv",
+        "--grouping_columns", "grouping_num,task_num",
+        "--sample_id_column", "sample_id_num",
+        "--epoch_column", "epoch",
         "--delta_item", "0.5",
         "--draws", "50",
         "--tune", "50"

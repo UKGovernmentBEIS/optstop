@@ -2,7 +2,6 @@ import pandas as pd
 from optstop import optimal_stopping_posthoc, optimal_stopping_live
 
 def test_optimal_stopping_posthoc():
-    # Example: minimal DataFrame and params
     df = pd.DataFrame({
         'grouping_num': [1, 1, 1, 1],
         'task_num': [1, 1, 1, 1],
@@ -11,7 +10,7 @@ def test_optimal_stopping_posthoc():
         'score': [1, 0, 1, 1],
     })
     params = {
-        'delta_item': 0.5,  # loose threshold for small test
+        'delta_item': 0.5,
         'delta_cap': 0.5,
         'draws': 100,
         'tune': 100,
@@ -19,11 +18,57 @@ def test_optimal_stopping_posthoc():
         'pymc_refresh_every': 1,
         'stab_window': 2
     }
-    pruned_df, summary = optimal_stopping_posthoc(df, params)
+    pruned_df, summary = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert isinstance(pruned_df, pd.DataFrame)
     assert isinstance(summary, list)
     assert set(pruned_df.columns) == set(df.columns)
     assert len(summary) > 0
+
+def test_optimal_stopping_posthoc_with_diagnostics(tmp_path):
+    """Test optimal stopping posthoc with diagnostic generation."""
+    import os
+    df = pd.DataFrame({
+        'grouping_num': [1, 1, 1, 1, 1, 1],
+        'task_num': [1, 1, 1, 1, 1, 1],
+        'sample_id_num': [1, 1, 2, 2, 3, 3],
+        'epoch': [1, 2, 1, 2, 1, 2],
+        'score': [1, 1, 0, 1, 1, 1],
+    })
+    params = {
+        'delta_item': 0.5,
+        'delta_cap': 0.5,
+        'draws': 100,
+        'tune': 100,
+        'rep_batch_size': 1,
+        'pymc_refresh_every': 1,
+        'stab_window': 2
+    }
+    
+    # Test with diagnostics enabled
+    pruned_df, summary = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch',
+        generate_diagnostics=True,
+        diagnostics_prefix=str(tmp_path / "test_diagnostics")
+    )
+    
+    assert isinstance(pruned_df, pd.DataFrame)
+    assert isinstance(summary, list)
+    assert set(pruned_df.columns) == set(df.columns)
+    assert len(summary) > 0
+    
+    # Check that diagnostic files were created
+    diagnostic_png = tmp_path / "test_diagnostics.png"
+    diagnostic_csv = tmp_path / "test_diagnostics_paired.csv"
+    assert diagnostic_png.exists(), f"Diagnostic PNG file not created: {diagnostic_png}"
+    assert diagnostic_csv.exists(), f"Diagnostic CSV file not created: {diagnostic_csv}"
 
 def test_optimal_stopping_live():
     import numpy as np
@@ -44,7 +89,12 @@ def test_optimal_stopping_live():
         'rep_batch_size': 1,
         'pymc_refresh_every': 1
     }
-    result = optimal_stopping_live(df, params)
+    result = optimal_stopping_live(
+        df, params,
+        grouping_columns='grouping_num',
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert isinstance(result, dict)
     assert 'stop_sample_ids' in result
     assert 'stop_task' in result
@@ -74,7 +124,12 @@ def test_optimal_stopping_live_with_logging(tmp_path):
         'rep_batch_size': 1,
         'pymc_refresh_every': 1
     }
-    result = optimal_stopping_live(df, params)
+    result = optimal_stopping_live(
+        df, params,
+        grouping_columns='grouping_num',
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert os.path.exists(log_path)
     with open(log_path, 'r') as f:
         log_content = f.read()
@@ -85,7 +140,6 @@ def test_optimal_stopping_live_with_logging(tmp_path):
 def test_convergence_posthoc():
     import pandas as pd
     from optstop import convergence_posthoc
-    # Use more data points per group to ensure slope/slope_slopes are initialized
     df = pd.DataFrame({
         'grouping_num': [1]*8 + [2]*8,
         'grouping': ['A']*8 + ['B']*8,
@@ -106,7 +160,12 @@ def test_convergence_posthoc():
         'item_seqs': 2,
         'epoch_seqs': 2
     }
-    result = convergence_posthoc(df, params)
+    result = convergence_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert isinstance(result, pd.DataFrame)
     expected_cols = [
         'grouping', 'group_label', 'task', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width',
@@ -124,7 +183,6 @@ def test_convergence_posthoc():
 def test_optimal_stopping_posthoc_parallel():
     import pandas as pd
     from optstop import optimal_stopping_posthoc
-    # Use multiple groupings and tasks to exercise parallelization
     df = pd.DataFrame({
         'grouping_num': [1]*8 + [2]*8,
         'task_num': [1]*4 + [2]*4 + [1]*4 + [2]*4,
@@ -142,11 +200,15 @@ def test_optimal_stopping_posthoc_parallel():
         'rep_batch_size': 1,
         'pymc_refresh_every': 1
     }
-    pruned_df, summary = optimal_stopping_posthoc(df, params)
+    pruned_df, summary = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert isinstance(pruned_df, pd.DataFrame)
     assert isinstance(summary, list)
     assert set(pruned_df.columns) == set(df.columns)
-    # Should be 4 groupings (2 grouping_num x 2 task_num)
     assert len(summary) == 4
     for s in summary:
         assert 'grouping' in s
@@ -170,7 +232,12 @@ def test_optimal_stopping_posthoc_missing_columns():
     })
     params = {'draws': 10, 'tune': 10}
     try:
-        optimal_stopping_posthoc(df, params)
+        optimal_stopping_posthoc(
+            df, params,
+            grouping_columns=['grouping_num', 'task_num'],
+            sample_id_column='sample_id_num',
+            epoch_column='epoch'
+        )
         assert False, "Should raise ValueError for missing columns"
     except ValueError as e:
         assert 'sample_id_num' in str(e)
@@ -187,7 +254,12 @@ def test_optimal_stopping_posthoc_invalid_params():
     })
     params = {'draws': -1, 'tune': 10}
     try:
-        optimal_stopping_posthoc(df, params)
+        optimal_stopping_posthoc(
+            df, params,
+            grouping_columns=['grouping_num', 'task_num'],
+            sample_id_column='sample_id_num',
+            epoch_column='epoch'
+        )
         assert False, "Should raise ValueError for negative draws"
     except ValueError as e:
         assert 'draws' in str(e)
@@ -195,7 +267,6 @@ def test_optimal_stopping_posthoc_invalid_params():
 def test_optimal_stopping_posthoc_error_handling():
     import pandas as pd
     from optstop import optimal_stopping_posthoc
-    # This will cause an error in the model (all NaN scores)
     df = pd.DataFrame({
         'grouping_num': [1, 2],
         'task_num': [1, 1],
@@ -204,8 +275,12 @@ def test_optimal_stopping_posthoc_error_handling():
         'score': [float('nan'), float('nan')],
     })
     params = {'draws': 10, 'tune': 10}
-    pruned_df, summary = optimal_stopping_posthoc(df, params)
-    # Should have error field set for both groupings
+    pruned_df, summary = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert any(s['error'] is not None for s in summary)
 
 def test_optimal_stopping_posthoc_random_seed_reproducibility():
@@ -219,11 +294,19 @@ def test_optimal_stopping_posthoc_random_seed_reproducibility():
         'score': [1,0,1,1,0,1,1,0],
     })
     params = {'draws': 50, 'tune': 50, 'random_seed': 123}
-    pruned_df1, summary1 = optimal_stopping_posthoc(df, params)
-    pruned_df2, summary2 = optimal_stopping_posthoc(df, params)
-    # Only the pruned DataFrame is guaranteed to be reproducible
+    pruned_df1, summary1 = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
+    pruned_df2, summary2 = optimal_stopping_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert pruned_df1.equals(pruned_df2)
-    # Note: Due to the stochastic nature of MCMC and parallelization, summary statistics are not guaranteed to be bitwise reproducible, even with the same random seed. Users should expect small differences in summary values between runs. 
 
 def test_convergence_posthoc_missing_columns():
     import pandas as pd
@@ -237,7 +320,12 @@ def test_convergence_posthoc_missing_columns():
     })
     params = {'draws': 10, 'tune': 10}
     try:
-        convergence_posthoc(df, params)
+        convergence_posthoc(
+            df, params,
+            grouping_columns=['grouping_num', 'task_num'],
+            sample_id_column='sample_id_num',
+            epoch_column='epoch'
+        )
         assert False, "Should raise ValueError for missing columns"
     except ValueError as e:
         assert 'sample_id_num' in str(e)
@@ -247,7 +335,12 @@ def test_convergence_posthoc_empty_df():
     from optstop import convergence_posthoc
     df = pd.DataFrame(columns=['grouping_num', 'task_num', 'sample_id_num', 'epoch', 'score'])
     params = {'draws': 10, 'tune': 10}
-    result = convergence_posthoc(df, params)
+    result = convergence_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert isinstance(result, pd.DataFrame)
     assert result.empty
 
@@ -263,7 +356,12 @@ def test_convergence_posthoc_invalid_params():
     })
     params = {'draws': -1, 'tune': 10}
     try:
-        convergence_posthoc(df, params)
+        convergence_posthoc(
+            df, params,
+            grouping_columns=['grouping_num', 'task_num'],
+            sample_id_column='sample_id_num',
+            epoch_column='epoch'
+        )
         assert False, "Should raise ValueError for negative draws"
     except ValueError as e:
         assert 'draws' in str(e)
@@ -271,7 +369,6 @@ def test_convergence_posthoc_invalid_params():
 def test_convergence_posthoc_error_handling():
     import pandas as pd
     from optstop import convergence_posthoc
-    # This will cause an error in the model (all NaN scores)
     df = pd.DataFrame({
         'grouping_num': [1, 2],
         'task_num': [1, 1],
@@ -280,7 +377,11 @@ def test_convergence_posthoc_error_handling():
         'score': [float('nan'), float('nan')],
     })
     params = {'draws': 10, 'tune': 10}
-    result = convergence_posthoc(df, params)
-    # Should have error field set for both groupings
+    result = convergence_posthoc(
+        df, params,
+        grouping_columns=['grouping_num', 'task_num'],
+        sample_id_column='sample_id_num',
+        epoch_column='epoch'
+    )
     assert 'error' in result.columns
     assert any(result['error'].notna()) 
