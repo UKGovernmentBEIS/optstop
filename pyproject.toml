@@ -17,7 +17,9 @@ dependencies = [
     "pymc",
     "arviz",
     "scipy",
-    "statsmodels"
+    "statsmodels",
+    "matplotlib",
+    "tqdm"
 ]
 
 [project.scripts]

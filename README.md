@@ -53,6 +53,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `grouping_columns`       | required  | Both         | List of column names (or single column) to use for grouping                 |
 | `sample_id_column`       | required  | Both         | Column name for sample ID                                                   |
 | `epoch_column`           | required  | Both         | Column name for epoch/trial                                                 |
+| `score_column`           | 'score'   | Both         | Column name for score (default: 'score')                                    |
 | `display_progress`       | True      | Both         | Show a progress bar for groupings (set False to disable)                    |
 | `generate_diagnostics`   | False     | Post-hoc     | Generate diagnostic plots comparing full vs pruned datasets                 |
 | `diagnostics_prefix`     | "optstop_diagnostics" | Post-hoc | Prefix for diagnostic output files (PNG and CSV)                           |
@@ -148,6 +149,7 @@ All main functions now support flexible column mapping. You must specify:
 - `grouping_columns`: List of column names (or a single column name) to use for grouping (e.g., `['subject', 'task']` or `'subject'`)
 - `sample_id_column`: Name of the column for sample ID (e.g., `'item_id'`)
 - `epoch_column`: Name of the column for epoch/trial (e.g., `'trial_num'`)
+- `score_column`: Name of the column for score (e.g., `'score'`)
 
 The functions will internally create the necessary numeric columns for grouping, sample ID, and epoch.
 
@@ -180,7 +182,8 @@ pruned_df, summary = optimal_stopping_posthoc(
     df, params,
     grouping_columns=['subject', 'task'],
     sample_id_column='item_id',
-    epoch_column='trial_num'
+    epoch_column='trial_num',
+    score_column='score'
 )
 print(pruned_df)
 print(summary)
@@ -216,7 +219,8 @@ result = optimal_stopping_live(
     df, params,
     grouping_columns='subject',
     sample_id_column='item_id',
-    epoch_column='trial_num'
+    epoch_column='trial_num',
+    score_column='score'
 )
 print(result)
 ```
@@ -254,7 +258,8 @@ result = convergence_posthoc(
     df, params,
     grouping_columns=['subject', 'task'],
     sample_id_column='item_id',
-    epoch_column='trial_num'
+    epoch_column='trial_num',
+    score_column='score'
 )
 print(result)
 ```
@@ -552,6 +557,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--no_progress**: Disable the progress bar (shown by default)
 - **--generate_diagnostics**: Generate diagnostic plots comparing full vs pruned datasets (optional)
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: optstop_diagnostics)
+- **--score_column**: Column name for score (default: score)
 - All other parameters are as described in the Best Practices section.
 
 ### 2. Live Optimal Stopping
@@ -566,6 +572,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--log**: Path to log file (default: optstop_live.log)
 - **--no_progress**: Disable the progress bar (shown by default)
 - Prints which sample IDs and/or tasks can be stopped.
+- **--score_column**: Column name for score (default: score)
 
 ### 3. Convergence Analysis
 **Command:**
@@ -581,6 +588,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--no_progress**: Disable the progress bar (shown by default)
 - **--no_diagnostics**: Disable diagnostic plots (default: ON)
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: convergence_eval)
+- **--score_column**: Column name for score (default: score)
 
 ### CLI Help
 For any command, you can see all options and help text with:

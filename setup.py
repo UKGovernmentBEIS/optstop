@@ -13,6 +13,8 @@ setup(
         'arviz',
         'scipy',
         'statsmodels',
+        'matplotlib',
+        'tqdm',
     ],
     python_requires='>=3.7',
     entry_points={
