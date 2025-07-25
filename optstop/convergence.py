@@ -66,7 +66,7 @@ def _validate_params(params):
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
-    (pid, cap, df_part, params) = args
+    (pid, cap, df_part, params, score_column) = args
     logger = logging.getLogger('optstop.convergence')
     try:
         delta_item = params.get('delta_item', 0.05)
@@ -115,7 +115,7 @@ def _process_grouping(args):
             CI_slope_slopes = []
             item_scores = []
             item_shortfalls = []
-            initial_perf = df_part['score'].mean()
+            initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
             with pm.Model() as model:
                 mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
@@ -150,7 +150,7 @@ def _process_grouping(args):
                         slope_slopes = None
                         for start in range(0, len(df_item), rep_batch_size):
                             batch = df_item.iloc[start:start+rep_batch_size]
-                            successes += batch['score'].sum()
+                            successes += batch[score_column].sum()
                             trials += len(batch)
                             used_reps.extend(batch.itertuples(index=False))
                             lo, hi, width = _beta_ci_adaptive(
@@ -395,13 +395,14 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
     return default
 
 # --- Main API ---
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
     """
     Post-hoc convergence analysis, parallelized across groupings.
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
       - epoch_column: column name for epoch/trial
+      - score_column: column name for score (default: 'score')
       - display_progress: whether to show a progress bar (default True)
       - generate_diagnostics: whether to generate diagnostic figures (default True)
       - diagnostics_prefix: prefix for diagnostic output files
@@ -429,7 +430,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
         return pd.DataFrame(columns=df.columns)
-    args_list = [(pid, cap, df_part, params) for (pid, cap), df_part in groupings]
+    args_list = [(pid, cap, df_part, params, score_column) for (pid, cap), df_part in groupings]
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []

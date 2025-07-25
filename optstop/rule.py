@@ -473,8 +473,8 @@ def _validate_params(params: Dict[str, Any]) -> None:
         raise ValueError("delta_cap must be positive.")
     logger.info(f"Parameters validated: {params}")
 
-def _process_posthoc_grouping(args: Tuple[Any, Any, pd.DataFrame, Dict[str, Any]]) -> Dict[str, Any]:
-    pid, cap, df_part, params = args
+def _process_posthoc_grouping(args: Tuple[Any, Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
+    pid, cap, df_part, params, score_column = args
     logger = logging.getLogger('optstop.posthoc')
     try:
         delta_item = params.get('delta_item', 0.05)
@@ -496,7 +496,7 @@ def _process_posthoc_grouping(args: Tuple[Any, Any, pd.DataFrame, Dict[str, Any]
         theta_lo, theta_hi, theta_width = None, None, None
         CI_record = []
         CI_slopes_hist = []
-        initial_perf = df_part['score'].mean()
+        initial_perf = df_part[score_column].mean()
         current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
         with pm.Model() as model:
             mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
@@ -517,7 +517,7 @@ def _process_posthoc_grouping(args: Tuple[Any, Any, pd.DataFrame, Dict[str, Any]
             used_reps = []
             for start in range(0, len(df_item), rep_batch_size):
                 batch = df_item.iloc[start:start+rep_batch_size]
-                successes += batch['score'].sum()
+                successes += batch[score_column].sum()
                 trials += len(batch)
                 used_reps.extend(batch.itertuples(index=False))
                 lo, hi, width = _beta_ci_adaptive(
@@ -615,13 +615,14 @@ def _get_logfile_path(default='optstop_run.log'):
     return default
 
 # --- Post-hoc mode ---
-def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, display_progress: bool = True, generate_diagnostics: bool = False, diagnostics_prefix: str = "optstop_diagnostics") -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = False, diagnostics_prefix: str = "optstop_diagnostics") -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
     """
     Run optimal stopping in post-hoc mode on a full dataset, parallelizing across groupings.
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
       - epoch_column: column name for epoch/trial
+      - score_column: column name for score (default: 'score')
       - display_progress: whether to show a progress bar (default True)
       - generate_diagnostics: whether to generate diagnostic plots comparing full vs pruned datasets (default False)
       - diagnostics_prefix: prefix for diagnostic output files (default "optstop_diagnostics")
@@ -650,7 +651,7 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame and summary.')
         return pd.DataFrame(columns=df.columns), []
-    args_list = [(pid, cap, df_part, params) for (pid, cap), df_part in groupings]
+    args_list = [(pid, cap, df_part, params, score_column) for (pid, cap), df_part in groupings]
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []
@@ -715,13 +716,14 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     return final_used_df, participant_results
 
 # --- Live mode ---
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score") -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for a task/grouping.
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
       - epoch_column: column name for epoch/trial
+      - score_column: column name for score (default: 'score')
     Returns a dict with 'stop_sample_ids' and 'stop_task'.
     """
     # Input validation
@@ -782,10 +784,10 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         used_reps = []
         ci_record = []
         ci_slopes_hist = []
-        current_conservatism = conservatism if df_item['score'].mean() < low_perf_threshold else 1.0
+        current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
         for start in range(0, len(df_item), rep_batch_size):
             batch = df_item.iloc[start:start+rep_batch_size]
-            successes += batch['score'].sum()
+            successes += batch[score_column].sum()
             trials += len(batch)
             used_reps.extend(batch.itertuples(index=False))
             lo, hi, width = _beta_ci_adaptive(
@@ -802,12 +804,12 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                 recent_widths = ci_record[-stab_window:]
                 slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
                 ci_slopes_hist.append(slope)
-                slope_threshold = CI_delta / current_conservatism if df_item['score'].mean() < low_perf_threshold else CI_delta
+                slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
                 if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
                     recent_slopes = ci_slopes_hist[-3:]
                     slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                     if slope_slopes >= 0:
-                        if df_item['score'].mean() >= low_perf_threshold:
+                        if df_item[score_column].mean() >= low_perf_threshold:
                             logger.info(f"Stopping sample_id {item_id} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
                             stop_sample_ids.append(item_id)
                             break

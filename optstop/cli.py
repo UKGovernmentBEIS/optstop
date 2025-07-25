@@ -25,6 +25,7 @@ def main():
     parser.add_argument('--grouping_columns', required=True, help='Comma-separated list of column names to use for grouping (e.g., "subject,task") or a single column name')
     parser.add_argument('--sample_id_column', required=True, help='Column name for sample ID')
     parser.add_argument('--epoch_column', required=True, help='Column name for epoch/trial')
+    parser.add_argument('--score_column', default='score', help='Column name for score (default: score)')
     parser.add_argument('--delta_item', type=float, default=0.05)
     parser.add_argument('--delta_cap', type=float, default=0.05)
     parser.add_argument('--draws', type=int, default=1000)
@@ -58,7 +59,7 @@ def main():
     # Parse grouping_columns
     grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
     pruned_df, summary = optimal_stopping_posthoc(
-        df, params, grouping_columns, args.sample_id_column, args.epoch_column, 
+        df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
         display_progress=not args.no_progress, 
         generate_diagnostics=args.generate_diagnostics, 
         diagnostics_prefix=args.diagnostics_prefix
@@ -78,6 +79,7 @@ def main_live():
     parser.add_argument('--grouping_columns', required=True, help='Comma-separated list of column names to use for grouping (e.g., "subject,task") or a single column name')
     parser.add_argument('--sample_id_column', required=True, help='Column name for sample ID')
     parser.add_argument('--epoch_column', required=True, help='Column name for epoch/trial')
+    parser.add_argument('--score_column', default='score', help='Column name for score (default: score)')
     parser.add_argument('--delta_item', type=float, default=0.05)
     parser.add_argument('--delta_cap', type=float, default=0.05)
     parser.add_argument('--draws', type=int, default=1000)
@@ -108,7 +110,7 @@ def main_live():
         params['random_seed'] = args.random_seed
     grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
     result = optimal_stopping_live(
-        df, params, grouping_columns, args.sample_id_column, args.epoch_column
+        df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column
     )
     print("Sample IDs to stop:", result['stop_sample_ids'])
     print("Stop task/grouping?", result['stop_task'])
@@ -123,6 +125,7 @@ def main_convergence():
     parser.add_argument('--grouping_columns', required=True, help='Comma-separated list of column names to use for grouping (e.g., "subject,task") or a single column name')
     parser.add_argument('--sample_id_column', required=True, help='Column name for sample ID')
     parser.add_argument('--epoch_column', required=True, help='Column name for epoch/trial')
+    parser.add_argument('--score_column', default='score', help='Column name for score (default: score)')
     parser.add_argument('--delta_item', type=float, default=0.05)
     parser.add_argument('--delta_cap', type=float, default=0.05)
     parser.add_argument('--draws', type=int, default=1000)
@@ -159,7 +162,7 @@ def main_convergence():
         params['random_seed'] = args.random_seed
     grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
     result = convergence_posthoc(
-        df, params, grouping_columns, args.sample_id_column, args.epoch_column,
+        df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
         display_progress=not args.no_progress,
         generate_diagnostics=not args.no_diagnostics,
         diagnostics_prefix=args.diagnostics_prefix
