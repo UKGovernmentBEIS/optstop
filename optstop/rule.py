@@ -28,6 +28,24 @@ import contextlib
 import io
 import sys
 
+# Suppress PyMC logging and warnings
+logging.getLogger('pymc').setLevel(logging.ERROR)
+logging.getLogger('arviz').setLevel(logging.ERROR)
+logging.getLogger('pytensor').setLevel(logging.ERROR)
+logging.getLogger('aesara').setLevel(logging.ERROR)
+
+# Suppress warnings
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='pymc')
+warnings.filterwarnings('ignore', category=UserWarning, module='arviz')
+warnings.filterwarnings('ignore', category=UserWarning, module='pytensor')
+warnings.filterwarnings('ignore', category=UserWarning, module='aesara')
+warnings.filterwarnings('ignore', message='.*effective sample size.*')
+warnings.filterwarnings('ignore', message='.*rhat.*')
+warnings.filterwarnings('ignore', message='.*ess.*')
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+
 REQUIRED_COLUMNS = ['grouping_num', 'task_num', 'sample_id_num', 'epoch', 'score']
 
 # --- Diagnostic Functions ---
@@ -440,18 +458,28 @@ def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.95, con
         effective_width = hi - lo
     return lo, hi, effective_width
 
-def configure_optstop_logging(logfile: str = 'optstop_run.log', level: int = logging.INFO) -> None:
+def configure_optstop_logging(logfile: str = 'optstop_run.log', level: int = logging.INFO, console_output: bool = False) -> None:
     """
-    Configure logging for the optstop package to log to both console and a file.
+    Configure logging for the optstop package to log to file and optionally to console.
+    
+    Args:
+        logfile: Path to the log file
+        level: Logging level (default: INFO)
+        console_output: Whether to also log to console (default: False)
     """
     logger = logging.getLogger()
     logger.setLevel(level)
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
-    ch = logging.StreamHandler()
-    ch.setLevel(level)
-    ch.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
-    logger.addHandler(ch)
+    
+    # Only add console handler if requested
+    if console_output:
+        ch = logging.StreamHandler()
+        ch.setLevel(level)
+        ch.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
+        logger.addHandler(ch)
+    
+    # Always add file handler
     fh = logging.FileHandler(logfile)
     fh.setLevel(level)
     fh.setFormatter(logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s"))
@@ -542,7 +570,7 @@ def _process_posthoc_grouping(args: Tuple[Any, Any, pd.DataFrame, Dict[str, Any]
                         "n_items": np.int64(len(all_successes))
                     })
                     with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                        trace = pm.sample(draws=draws, tune=tune, chains=2, cores=1, progressbar=False, target_accept=0.97)
+                        trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
                     theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                     hdi_indices = list(theta_hdi["Theta"].hdi.values)
                     try:
@@ -832,7 +860,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             "n_items": np.int64(len(all_successes))
         })
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            trace = pm.sample(draws=draws, tune=tune, chains=2, cores=1, progressbar=False, target_accept=0.97)
+            trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
         theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
         hdi_indices = list(theta_hdi["Theta"].hdi.values)
         try:

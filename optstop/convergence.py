@@ -1,22 +1,42 @@
 """
-Post-hoc convergence assessment for sequential testing scenarios.
-Refactored from OptStop_Convergence_v5.py for use in the optstop package.
+Post-hoc convergence analysis for optimal stopping algorithms.
+
+This module provides functions to assess convergence properties of optimal stopping algorithms
+by analyzing how stopping criteria evolve across different data collection scenarios.
 """
 
 import pandas as pd
 import numpy as np
 import pymc as pm
 import arviz as az
-import concurrent.futures
 import logging
+import concurrent.futures
 import os
-import sys
-from typing import List
-from tqdm import tqdm
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from scipy import stats
+from scipy.stats import beta
+from typing import Dict, Any, List, Tuple, Optional
+from tqdm import tqdm
 import contextlib
 import io
+import sys
+
+# Suppress PyMC logging and warnings
+logging.getLogger('pymc').setLevel(logging.ERROR)
+logging.getLogger('arviz').setLevel(logging.ERROR)
+logging.getLogger('pytensor').setLevel(logging.ERROR)
+logging.getLogger('aesara').setLevel(logging.ERROR)
+
+# Suppress warnings
+import warnings
+warnings.filterwarnings('ignore', category=UserWarning, module='pymc')
+warnings.filterwarnings('ignore', category=UserWarning, module='arviz')
+warnings.filterwarnings('ignore', category=UserWarning, module='pytensor')
+warnings.filterwarnings('ignore', category=UserWarning, module='aesara')
+warnings.filterwarnings('ignore', message='.*effective sample size.*')
+warnings.filterwarnings('ignore', message='.*rhat.*')
+warnings.filterwarnings('ignore', message='.*ess.*')
 
 # --- Helper: Adaptive Beta CI ---
 def _beta_ci_adaptive(successes, trials, cred_level=0.95, conservatism=1.0, 
@@ -220,7 +240,7 @@ def _process_grouping(args):
                             "n_items": np.int64(len(all_successes))
                         })
                         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            trace = pm.sample(draws=draws, tune=tune, chains=2, cores=1, progressbar=False, target_accept=0.97)
+                            trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
                         theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:

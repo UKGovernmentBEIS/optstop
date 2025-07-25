@@ -41,7 +41,7 @@ def main():
     parser.add_argument('--diagnostics_prefix', default='optstop_diagnostics', help='Prefix for diagnostic output files')
     args = parser.parse_args()
 
-    configure_optstop_logging(args.log)
+    configure_optstop_logging(args.log, console_output=False)
     df = pd.read_csv(args.csv)
     params = {
         'delta_item': args.delta_item,
@@ -93,7 +93,7 @@ def main_live():
     parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
     args = parser.parse_args()
 
-    configure_optstop_logging(args.log)
+    configure_optstop_logging(args.log, console_output=False)
     df = pd.read_csv(args.csv)
     params = {
         'delta_item': args.delta_item,
@@ -143,7 +143,7 @@ def main_convergence():
     parser.add_argument('--diagnostics_prefix', default='convergence_eval', help='Prefix for convergence diagnostic output files')
     args = parser.parse_args()
 
-    configure_optstop_logging(args.log)
+    configure_optstop_logging(args.log, console_output=False)
     df = pd.read_csv(args.csv)
     params = {
         'delta_item': args.delta_item,
