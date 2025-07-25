@@ -106,7 +106,7 @@ def test_optimal_stopping_live_with_logging(tmp_path):
     import pandas as pd
     from optstop.rule import configure_optstop_logging
     log_path = tmp_path / "test_optstop_live.log"
-    configure_optstop_logging(str(log_path))
+    configure_optstop_logging(str(log_path), console_output=False)
     df = pd.DataFrame({
         'grouping_num': [1, 1, 1, 1, 1, 1],
         'task_num': [1, 1, 1, 1, 1, 1],
