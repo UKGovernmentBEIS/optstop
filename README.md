@@ -23,16 +23,19 @@ pip install .
 
 ## Logging
 
-To log all optimal stopping decisions and details to both the console and a file, call `configure_optstop_logging` before running your analysis:
+To log all optimal stopping decisions and details to a file (and optionally to console), call `configure_optstop_logging` before running your analysis:
 
 ```python
 from optstop.rule import configure_optstop_logging
 
-# Log to both console and 'optstop_run.log' (default)
+# Log to file only (default - suppresses console output)
 configure_optstop_logging()
 
 # Or specify a custom log file
-configure_optstop_logging('my_optstop_log.txt')
+configure_optstop_logging('my_optstop_log.txt', console_output=False)
+
+# To also log to console (shows INFO messages in terminal)
+configure_optstop_logging('my_optstop_log.txt', console_output=True)
 ```
 
 After running, you can open the log file to review all stopping decisions and details. Look for entries such as:
@@ -159,7 +162,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import optimal_stopping_posthoc
 
-configure_optstop_logging('my_optstop_log.txt')
+configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'subject': [1, 1, 2, 2],
@@ -196,7 +199,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import optimal_stopping_live
 
-configure_optstop_logging('my_optstop_log.txt')
+configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'subject': [1, 1, 2, 2],
@@ -231,7 +234,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import convergence_posthoc
 
-configure_optstop_logging('my_convergence_log.txt')
+configure_optstop_logging('my_convergence_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'subject': [1, 1, 2, 2],
@@ -284,7 +287,7 @@ The package provides functions for adaptive optimal stopping, allowing you to de
 - **Reproducibility:**
   - Set a random seed (e.g., `np.random.seed(42)`) for reproducible results.
 - **Logging:**
-  - Use `configure_optstop_logging()` to log all stopping decisions to both console and file.
+  - Use `configure_optstop_logging()` to log all stopping decisions to file (console output is suppressed by default).
 
 ### Example: Recommended Parameters
 ```python
@@ -305,7 +308,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import optimal_stopping_posthoc
 
-configure_optstop_logging('my_optstop_log.txt')
+configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'grouping_num': [1]*8 + [2]*8,
@@ -335,7 +338,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import optimal_stopping_live
 
-configure_optstop_logging('my_optstop_log.txt')
+configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'grouping_num': [1]*4,
@@ -380,7 +383,7 @@ import pandas as pd
 from optstop.rule import configure_optstop_logging
 from optstop import convergence_posthoc
 
-configure_optstop_logging('my_convergence_log.txt')
+configure_optstop_logging('my_convergence_log.txt', console_output=False)
 
 df = pd.DataFrame({
     'grouping_num': [1]*8 + [2]*8,
@@ -533,7 +536,7 @@ print(summary)
 - The package parallelizes across groupings. If you have many groupings, this can use all available CPU cores. You can reduce the number of groupings or run on a machine with more resources.
 
 **Q: How do I get more detailed logs?**
-- Use `configure_optstop_logging()` to log to both console and file. Check the log file for detailed stopping decisions and errors.
+- Use `configure_optstop_logging()` to log to file (console output is suppressed by default). Check the log file for detailed stopping decisions and errors.
 
 **Q: How do I interpret the 'error' field in the output?**
 - If a grouping fails (e.g., due to bad data), the 'error' field will contain the error message. All other fields for that grouping will be None. 
@@ -545,7 +548,7 @@ The package provides CLI entry points for all major functions. After installing 
 ### 1. Post-hoc Optimal Stopping
 **Command:**
 ```
-optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
+optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output pruned CSV file (required)
@@ -553,42 +556,73 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--grouping_columns**: Comma-separated list or single column name for grouping (required)
 - **--sample_id_column**: Column name for sample ID (required)
 - **--epoch_column**: Column name for epoch/trial (required)
+- **--score_column**: Column name for score (default: score)
 - **--log**: Path to log file (default: optstop_cli.log)
 - **--no_progress**: Disable the progress bar (shown by default)
 - **--generate_diagnostics**: Generate diagnostic plots comparing full vs pruned datasets (optional)
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: optstop_diagnostics)
-- **--score_column**: Column name for score (default: score)
-- All other parameters are as described in the Best Practices section.
+- **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
+- **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
+- **--draws**: Number of MCMC samples for PyMC (default: 1000)
+- **--tune**: Number of tuning steps for PyMC (default: 1000)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--conservatism**: Factor for rare event conservatism (default: 2)
+- **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
+- **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
+- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--random_seed**: Random seed for reproducible results (optional)
 
 ### 2. Live Optimal Stopping
 **Command:**
 ```
-optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42
+optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --random_seed 42
 ```
 - **--csv**: Path to input CSV file (required)
 - **--grouping_columns**: Comma-separated list or single column name for grouping (required)
 - **--sample_id_column**: Column name for sample ID (required)
 - **--epoch_column**: Column name for epoch/trial (required)
+- **--score_column**: Column name for score (default: score)
 - **--log**: Path to log file (default: optstop_live.log)
 - **--no_progress**: Disable the progress bar (shown by default)
+- **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
+- **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
+- **--draws**: Number of MCMC samples for PyMC (default: 1000)
+- **--tune**: Number of tuning steps for PyMC (default: 1000)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--conservatism**: Factor for rare event conservatism (default: 2)
+- **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
+- **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
+- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--random_seed**: Random seed for reproducible results (optional)
 - Prints which sample IDs and/or tasks can be stopped.
-- **--score_column**: Column name for score (default: score)
 
 ### 3. Convergence Analysis
 **Command:**
 ```
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --delta_item 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --CI_delta 0.0002 --conservatism 2 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --item_seqs 20 --epoch_seqs 20 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output convergence stats CSV file (required)
 - **--grouping_columns**: Comma-separated list or single column name for grouping (required)
 - **--sample_id_column**: Column name for sample ID (required)
 - **--epoch_column**: Column name for epoch/trial (required)
+- **--score_column**: Column name for score (default: score)
 - **--log**: Path to log file (default: optstop_convergence.log)
 - **--no_progress**: Disable the progress bar (shown by default)
 - **--no_diagnostics**: Disable diagnostic plots (default: ON)
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: convergence_eval)
-- **--score_column**: Column name for score (default: score)
+- **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
+- **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
+- **--draws**: Number of MCMC samples for PyMC (default: 1000)
+- **--tune**: Number of tuning steps for PyMC (default: 1000)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--conservatism**: Factor for rare event conservatism (default: 2)
+- **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
+- **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
+- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--item_seqs**: Number of randomized item orderings per grouping (default: 20)
+- **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
+- **--random_seed**: Random seed for reproducible results (optional)
 
 ### CLI Help
 For any command, you can see all options and help text with:
