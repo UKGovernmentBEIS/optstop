@@ -143,7 +143,7 @@ The system also logs comprehensive statistics including:
 You can also enable diagnostics via the CLI:
 
 ```bash
-optstop-posthoc --csv mydata.csv --output pruned.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --generate_diagnostics --diagnostics_prefix my_diagnostics
+optstop-posthoc --csv mydata.csv --output pruned.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 
 ## Flexible Column Mapping (NEW)
@@ -272,12 +272,12 @@ print(result)
 The package provides functions for adaptive optimal stopping, allowing you to determine when enough data has been collected for reliable inference, either retrospectively (post-hoc) or during live data collection.
 
 ### Parallelization (Post-hoc)
-- The `optimal_stopping_posthoc` function now parallelizes across groupings (unique combinations of `grouping_num` and `task_num`), using all available CPU cores for efficient processing of large datasets.
+- The `optimal_stopping_posthoc` function now parallelizes across groupings (unique combinations of the columns you specify for grouping), using all available CPU cores for efficient processing of large datasets.
 - Each grouping-task is processed independently and in parallel, with results aggregated at the end.
 
 ### Best Practices & Recommendations
 - **Specifying Groupings:**
-  - Your DataFrame must include `grouping_num`, `task_num`, `sample_id_num`, `epoch`, and `score`.
+  - Your DataFrame must include the columns you specify for grouping, sample ID, epoch, and score (see Flexible Column Mapping section above).
   - For parallelization to be effective, ensure your data contains multiple groupings and/or tasks.
 - **Recommended Parameter Settings:**
   - `draws` & `tune`: Use at least 1000 for real analyses; lower values are for testing only.
@@ -311,10 +311,10 @@ from optstop import optimal_stopping_posthoc
 configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
-    'grouping_num': [1]*8 + [2]*8,
-    'task_num': [1]*4 + [2]*4 + [1]*4 + [2]*4,
-    'sample_id_num': [1,1,2,2,1,1,2,2]*2,
-    'epoch': [1,2,1,2]*4,
+    'subject': [1]*8 + [2]*8,
+    'task': [1]*4 + [2]*4 + [1]*4 + [2]*4,
+    'item_id': [1,1,2,2,1,1,2,2]*2,
+    'trial_num': [1,2,1,2]*4,
     'score': [1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1],
 })
 
@@ -327,7 +327,13 @@ params = {
     'conservatism': 2,
 }
 
-pruned_df, summary = optimal_stopping_posthoc(df, params)
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    score_column='score'
+)
 print(pruned_df)
 print(summary)
 ```
@@ -341,10 +347,10 @@ from optstop import optimal_stopping_live
 configure_optstop_logging('my_optstop_log.txt', console_output=False)
 
 df = pd.DataFrame({
-    'grouping_num': [1]*4,
-    'task_num': [1]*4,
-    'sample_id_num': [1,1,2,2],
-    'epoch': [1,2,1,2],
+    'subject': [1]*4,
+    'task': [1]*4,
+    'item_id': [1,1,2,2],
+    'trial_num': [1,2,1,2],
     'score': [1,0,1,1],
 })
 
@@ -357,7 +363,13 @@ params = {
     'conservatism': 2,
 }
 
-result = optimal_stopping_live(df, params)
+result = optimal_stopping_live(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    score_column='score'
+)
 print(result)
 ```
 
@@ -386,11 +398,11 @@ from optstop import convergence_posthoc
 configure_optstop_logging('my_convergence_log.txt', console_output=False)
 
 df = pd.DataFrame({
-    'grouping_num': [1]*8 + [2]*8,
+    'subject': [1]*8 + [2]*8,
     'grouping': ['A']*8 + ['B']*8,
-    'task_num': [1]*16,
-    'sample_id_num': [1,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2],
-    'epoch': [1,2,3,4,1,2,3,4]*2,
+    'task': [1]*16,
+    'item_id': [1,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2],
+    'trial_num': [1,2,3,4,1,2,3,4]*2,
     'score': [1,0,1,1,0,1,1,0,1,1,0,1,0,1,1,1],
 })
 
@@ -407,7 +419,13 @@ params = {
     'epoch_seqs': 2
 }
 
-result = convergence_posthoc(df, params)
+result = convergence_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    score_column='score'
+)
 print(result)
 ```
 
@@ -437,7 +455,7 @@ result = convergence_posthoc(
 
 ### Example (CLI)
 ```bash
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --no_diagnostics --diagnostics_prefix my_convergence_eval
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 
 - By default, diagnostics are ON. Use `--no_diagnostics` to disable.
@@ -448,9 +466,9 @@ See the CLI help (`optstop-convergence --help`) for all options.
 ## Best Practices & Recommendations
 
 ### Specifying Groupings
-- **Required columns:** Your input DataFrame must include `grouping_num`, `task_num`, `sample_id_num`, `epoch`, and `score`.
-- **Group labels:** If you want human-readable group labels in your output, include a `grouping` column (e.g., system/model name) in addition to `grouping_num`.
-- **Parallelization:** Each unique combination of `grouping_num` and `task_num` will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
+- **Required columns:** Your input DataFrame must include the columns you specify for grouping, sample ID, epoch, and score (see Flexible Column Mapping section above).
+- **Group labels:** If you want human-readable group labels in your output, include a `grouping` column (e.g., system/model name) in addition to your grouping columns.
+- **Parallelization:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
 
 ### Recommended Parameter Settings
 - **draws & tune:** For reliable Bayesian inference, use at least `draws=1000` and `tune=1000` (per chain) for real analyses. Lower values (e.g., 50) are only for quick tests or debugging.
@@ -496,12 +514,12 @@ from optstop import optimal_stopping_posthoc
 configure_optstop_logging('optstop_example.log')
 
 # Create a minimal DataFrame
-# Required columns: grouping_num, task_num, sample_id_num, epoch, score
+# Required columns: specify your own column names for grouping, sample ID, epoch, and score
 df = pd.DataFrame({
-    'grouping_num': [1, 1, 1, 1],
-    'task_num': [1, 1, 1, 1],
-    'sample_id_num': [1, 1, 2, 2],
-    'epoch': [1, 2, 1, 2],
+    'subject': [1, 1, 1, 1],
+    'task': [1, 1, 1, 1],
+    'item_id': [1, 1, 2, 2],
+    'trial_num': [1, 2, 1, 2],
     'score': [1, 0, 1, 1],
 })
 
@@ -515,7 +533,13 @@ params = {
     'random_seed': 42
 }
 
-pruned_df, summary = optimal_stopping_posthoc(df, params)
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    score_column='score'
+)
 print(pruned_df)
 print(summary)
 ```
@@ -523,7 +547,7 @@ print(summary)
 ## FAQ & Troubleshooting
 
 **Q: I get a ValueError about missing columns.**
-- Make sure your DataFrame includes all required columns: `grouping_num`, `task_num`, `sample_id_num`, `epoch`, and `score`.
+- Make sure your DataFrame includes all required columns that you specify for grouping, sample ID, epoch, and score.
 
 **Q: My summary statistics are not exactly reproducible, even with the same random seed.**
 - This is expected due to the stochastic nature of MCMC and parallelization. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
