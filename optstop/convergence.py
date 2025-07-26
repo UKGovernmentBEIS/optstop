@@ -63,12 +63,7 @@ def _beta_ci_adaptive(successes, trials, cred_level=0.95, conservatism=1.0,
         effective_width = hi - lo
     return lo, hi, effective_width
 
-REQUIRED_COLUMNS = ['grouping_num', 'task_num', 'sample_id_num', 'epoch', 'score']
-
-def _check_required_columns(df):
-    missing = [col for col in REQUIRED_COLUMNS if col not in df.columns]
-    if missing:
-        raise ValueError(f"Missing required columns: {missing}")
+# Note: Column validation is now done at the beginning of convergence_posthoc function
 
 def _validate_params(params):
     logger = logging.getLogger('optstop.convergence')
@@ -86,9 +81,13 @@ def _validate_params(params):
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
-    (pid, cap, df_part, params, score_column) = args
-    logger = logging.getLogger('optstop.convergence')
+    import sys, io
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = io.StringIO()
     try:
+        (pid, df_part, params, score_column) = args
+        logger = logging.getLogger('optstop.convergence')
         delta_item = params.get('delta_item', 0.05)
         delta_cap = params.get('delta_cap', 0.05)
         CI_delta = params.get('CI_delta', 0.0002)
@@ -105,7 +104,7 @@ def _process_grouping(args):
         # Set random seed if provided
         if 'random_seed' in params:
             np.random.seed(params['random_seed'])
-        logger.info(f"Processing grouping {pid}, task {cap}")
+        logger.info(f"Processing grouping {pid}")
 
         # Initialize all output variables
         items_fin_CI_widths = []
@@ -320,6 +319,8 @@ def _process_grouping(args):
         var_needed_epochs = np.var(epochs_shortfalls) if epochs_shortfalls else None
         mean_items_fin_score = np.mean(items_fin_scores) if items_fin_scores else None
         var_items_fin_score = np.var(items_fin_scores) if items_fin_scores else None
+        mean_epochs_fin_score = np.mean(epochs_fin_scores) if epochs_fin_scores else None
+        var_epochs_fin_score = np.var(epochs_fin_scores) if epochs_fin_scores else None
         mean_sample_id_performance = np.mean(agg_sample_id_performance) if agg_sample_id_performance else None
         var_sample_id_performance = np.var(agg_sample_id_performance) if agg_sample_id_performance else None
 
@@ -334,7 +335,6 @@ def _process_grouping(args):
         result = {
             'grouping': pid,
             'group_label': df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid),
-            'task': cap,
             'n_items_used': n_items_used,
             'theta_ci_low': theta_lo,
             'theta_ci_high': theta_hi,
@@ -368,13 +368,12 @@ def _process_grouping(args):
         result['error'] = None
         return result
     except Exception as e:
-        logger.error(f"Error processing grouping {pid}, task {cap}: {e}")
+        logger.error(f"Error processing grouping {pid}: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return {
             'grouping': pid,
             'group_label': df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid),
-            'task': cap,
             'n_items_used': None,
             'theta_ci_low': None,
             'theta_ci_high': None,
@@ -406,6 +405,9 @@ def _process_grouping(args):
             'var_sample_id_performance': None,
             'error': str(e)
         }
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
 
 def _get_logfile_path_convergence(default='optstop_convergence.log'):
     import logging
@@ -443,14 +445,13 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     df['sample_id_num'] = df[sample_id_column].astype('category').cat.codes
     df['epoch_num'] = df[epoch_column].astype(int)
     logger = logging.getLogger('optstop.convergence')
-    _check_required_columns(df)
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
-    groupings = list(df.groupby(['grouping_num', 'task_num']))
+    groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
         return pd.DataFrame(columns=df.columns)
-    args_list = [(pid, cap, df_part, params, score_column) for (pid, cap), df_part in groupings]
+    args_list = [(pid, df_part, params, score_column) for pid, df_part in groupings]
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []
