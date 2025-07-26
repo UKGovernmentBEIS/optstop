@@ -76,7 +76,7 @@ def test_cli_posthoc_basic():
         
         # Check that summary CSV has expected structure
         summary_df = pd.read_csv(summary_path)
-        expected_summary_columns = ['grouping', 'task', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width', 'percent_items_used', 'avg_reps_per_item']
+        expected_summary_columns = ['grouping', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width', 'percent_items_used', 'avg_reps_per_item']
         assert all(col in summary_df.columns for col in expected_summary_columns), "Summary CSV missing expected columns"
 
 
@@ -307,7 +307,6 @@ def test_cli_convergence_output_structure():
         # Check for expected columns (basic structure)
         assert len(output_df) > 0, "Convergence stats should have at least one row"
         assert 'grouping' in output_df.columns, "Should have grouping column"
-        assert 'task' in output_df.columns, "Should have task column"
 
 
 def test_cli_help_text():

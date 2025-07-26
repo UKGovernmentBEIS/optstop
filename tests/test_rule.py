@@ -168,7 +168,7 @@ def test_convergence_posthoc():
     )
     assert isinstance(result, pd.DataFrame)
     expected_cols = [
-        'grouping', 'group_label', 'task', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width',
+        'grouping', 'group_label', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width',
         'percent_items_used', 'avg_reps_per_item', 'mean_fin_CI_width_item', 'var_fin_CI_width_item',
         'mean_fin_CI_slope_item', 'var_fin_CI_slope_item', 'mean_fin_slope_slope_item', 'var_fin_slope_slope_item',
         'mean_needed_items', 'var_needed_items', 'mean_items_fin_score', 'var_items_fin_score',
@@ -212,7 +212,6 @@ def test_optimal_stopping_posthoc_parallel():
     assert len(summary) == 4
     for s in summary:
         assert 'grouping' in s
-        assert 'task' in s
         assert 'n_items_used' in s
         assert 'theta_ci_low' in s
         assert 'theta_ci_high' in s
