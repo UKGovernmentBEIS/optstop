@@ -14,8 +14,6 @@ The functions internally create numeric versions for processing.
 
 import pandas as pd
 import numpy as np
-import pymc as pm
-import arviz as az
 import logging
 import concurrent.futures
 import os
@@ -28,6 +26,13 @@ from tqdm import tqdm
 import contextlib
 import io
 import sys
+import warnings
+
+# Suppress all warnings before importing PyMC
+warnings.filterwarnings('ignore')
+
+import pymc as pm
+import arviz as az
 
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
@@ -35,8 +40,12 @@ logging.getLogger('arviz').setLevel(logging.ERROR)
 logging.getLogger('pytensor').setLevel(logging.ERROR)
 logging.getLogger('aesara').setLevel(logging.ERROR)
 
-# Suppress warnings
-import warnings
+# Additional suppression for PyMC-related modules
+for logger_name in ['pymc', 'arviz', 'pytensor', 'aesara', 'numba', 'theano']:
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+    logging.getLogger(logger_name).propagate = False
+
+# Additional warning suppression
 warnings.filterwarnings('ignore', category=UserWarning, module='pymc')
 warnings.filterwarnings('ignore', category=UserWarning, module='arviz')
 warnings.filterwarnings('ignore', category=UserWarning, module='pytensor')
@@ -44,6 +53,11 @@ warnings.filterwarnings('ignore', category=UserWarning, module='aesara')
 warnings.filterwarnings('ignore', message='.*effective sample size.*')
 warnings.filterwarnings('ignore', message='.*rhat.*')
 warnings.filterwarnings('ignore', message='.*ess.*')
+warnings.filterwarnings('ignore', message='.*divergence.*')
+warnings.filterwarnings('ignore', message='.*target_accept.*')
+warnings.filterwarnings('ignore', message='.*reparameterize.*')
+warnings.filterwarnings('ignore', message='.*smaller than 100.*')
+warnings.filterwarnings('ignore', message='.*needed for reliable.*')
 warnings.filterwarnings('ignore', category=FutureWarning)
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
@@ -602,15 +616,18 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
                     all_successes = np.array([s['successes'] for s in item_summaries])
                     all_trials = np.array([s['trials'] for s in item_summaries])
-                    with model:
-                        pm.set_data({
-                            "successes": all_successes,
-                            "trials": all_trials,
-                            "n_items": np.int64(len(all_successes))
-                        })
-                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
-                        theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        with model:
+                            pm.set_data({
+                                "successes": all_successes,
+                                "trials": all_trials,
+                                "n_items": np.int64(len(all_successes))
+                            })
+                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
                             theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
@@ -671,6 +688,189 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 'used_reps_dfs': [],
                 'error': str(e)
             }
+    finally:
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
+
+def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str]) -> Dict[str, Any]:
+    """
+    Worker function for processing a single grouping in live mode.
+    Returns stop_sample_ids and stop_task results for this grouping.
+    """
+    import sys, io
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = io.StringIO()
+    try:
+        grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns = args
+        logger = logging.getLogger('optstop.live')
+        logger.info(f"Processing grouping: {grouping}")
+        
+        # Extract parameters
+        delta_item = params.get('delta_item', 0.05)
+        delta_cap = params.get('delta_cap', 0.05)
+        CI_delta = params.get('CI_delta', 0.0002)
+        cred_level = params.get('cred_level', 0.95)
+        conservatism = params.get('conservatism', 2)
+        low_perf_threshold = params.get('low_performance_threshold', 0.1)
+        draws = params.get('draws', 3000)
+        tune = params.get('tune', 3000)
+        chains = params.get('chains', 4)
+        cores = params.get('cores', 4)
+        rep_batch_size = params.get('rep_batch_size', 1)
+        pymc_refresh_every = params.get('pymc_refresh_every', 2)
+        stab_window = params.get('stab_window', 5)
+        
+        # Create numeric columns for processing
+        df_grouping = df_grouping.copy()
+        df_grouping['grouping'] = df_grouping[grouping_columns].astype(str).agg('-'.join, axis=1)
+        df_grouping['grouping_num'] = df_grouping['grouping'].astype('category').cat.codes
+        df_grouping['sample_id_num'] = df_grouping[sample_id_column].astype('category').cat.codes
+        df_grouping['epoch_num'] = df_grouping[epoch_column].astype(int)
+        
+        stop_sample_ids = []
+        sample_ci_records = {}
+        sample_ci_slopes = {}
+        used_reps_dfs = {}
+        item_summaries = []
+        item_ids = list(df_grouping['sample_id_num'].unique())
+        
+        # PyMC model for group-level
+        with pm.Model() as model:
+            mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+            sigma_group = pm.Exponential("sigma_group", lam=1.0)
+            successes_data = pm.Data("successes", np.array([0]))
+            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+            trials_data = pm.Data("trials", np.array([1]))
+            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+            mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+            mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+            Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+            obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+        
+        # Per-sample_id stopping (width and slope)
+        for item_id in item_ids:
+            df_item = df_grouping[df_grouping['sample_id_num'] == item_id].sort_values('epoch_num')
+            successes = 0
+            trials = 0
+            used_reps = []
+            ci_record = []
+            ci_slopes_hist = []
+            current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
+            for start in range(0, len(df_item), rep_batch_size):
+                batch = df_item.iloc[start:start+rep_batch_size]
+                successes += batch[score_column].sum()
+                trials += len(batch)
+                used_reps.extend(batch.itertuples(index=False))
+                lo, hi, width = _beta_ci_adaptive(
+                    successes, trials, cred_level=cred_level,
+                    conservatism=current_conservatism,
+                    low_perf_threshold=low_perf_threshold
+                )
+                ci_record.append(width)
+                if width < delta_item:
+                    logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+                    # Get the original sample_id value for this numeric ID
+                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                    break
+                if len(ci_record) >= stab_window:
+                    recent_widths = ci_record[-stab_window:]
+                    slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                    ci_slopes_hist.append(slope)
+                    slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+                    if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
+                        recent_slopes = ci_slopes_hist[-3:]
+                        slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                        if slope_slopes >= 0:
+                            if df_item[score_column].mean() >= low_perf_threshold:
+                                logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
+                                original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                break
+                            elif abs(slope) <= slope_threshold / 2:
+                                logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
+                                original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                break
+            sample_ci_records[item_id] = ci_record
+            sample_ci_slopes[item_id] = ci_slopes_hist
+            used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
+            item_summaries.append({'successes': successes, 'trials': trials})
+        
+        # Group-level stopping (width and slope, using PyMC)
+        all_successes = np.array([s['successes'] for s in item_summaries])
+        all_trials = np.array([s['trials'] for s in item_summaries])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            with model:
+                pm.set_data({
+                    "successes": all_successes,
+                    "trials": all_trials,
+                    "n_items": np.int64(len(all_successes))
+                })
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                    theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+            hdi_indices = list(theta_hdi["Theta"].hdi.values)
+            try:
+                theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
+                theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+            except Exception:
+                theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
+            try:
+                theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
+                theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
+            except Exception:
+                theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+            theta_width = theta_hi - theta_lo
+            CI_record = [theta_width]
+            CI_slopes_hist = []
+            effective_width = theta_width
+            current_perf_estimate = np.sum(all_successes) / np.sum(all_trials) if np.sum(all_trials) > 0 else 0
+            if current_perf_estimate < low_perf_threshold:
+                effective_width = theta_width * conservatism
+            stop_this_grouping = False
+            if effective_width < delta_cap:
+                logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                stop_this_grouping = True
+            else:
+                # CI stabilization check
+                for _ in range(stab_window):
+                    CI_record.append(theta_width)
+                    if len(CI_record) >= stab_window:
+                        recent_widths = CI_record[-stab_window:]
+                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                        CI_slopes_hist.append(slope)
+                        slope_threshold = CI_delta / conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                        if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                            recent_slopes = CI_slopes_hist[-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if current_perf_estimate >= low_perf_threshold:
+                                    logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
+                                    stop_this_grouping = True
+                                    break
+                                elif abs(slope) <= slope_threshold / 2:
+                                    logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                    stop_this_grouping = True
+                                    break
+        
+        return {
+            'grouping': grouping,
+            'stop_sample_ids': stop_sample_ids,
+            'stop_this_grouping': stop_this_grouping
+        }
+    except Exception as e:
+        logger.error(f"Error processing grouping {grouping}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'grouping': grouping,
+            'stop_sample_ids': [],
+            'stop_this_grouping': False
+        }
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr
@@ -782,15 +982,16 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     return final_used_df, participant_results
 
 # --- Live mode ---
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score") -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True) -> Dict[str, Any]:
     """
-    Run optimal stopping in live mode on current data for a task/grouping.
+    Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
       - epoch_column: column name for epoch/trial
       - score_column: column name for score (default: 'score')
-    Returns a dict with 'stop_sample_ids' and 'stop_task'.
+      - display_progress: whether to show a progress bar (default True)
+    Returns a dict with 'stop_sample_ids' (list of "grouping_sample_id" strings) and 'stop_task' (list of grouping names that have reached stopping criteria).
     """
     import sys, io
     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -805,154 +1006,57 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         if missing:
             raise ValueError(f"Missing required columns: {missing}")
         if df.empty:
-            return {'stop_sample_ids': [], 'stop_task': False}
+            return {'stop_sample_ids': [], 'stop_task': []}
+        
         df = df.copy()
         df['grouping'] = df[grouping_columns].astype(str).agg('-'.join, axis=1)
-        df['grouping_num'] = df['grouping'].astype('category').cat.codes
-        df['sample_id_num'] = df[sample_id_column].astype('category').cat.codes
-        df['epoch_num'] = df[epoch_column].astype(int)
         _validate_params(params)
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
-        delta_item = params.get('delta_item', 0.05)
-        delta_cap = params.get('delta_cap', 0.05)
-        CI_delta = params.get('CI_delta', 0.0002)
-        cred_level = params.get('cred_level', 0.95)
-        conservatism = params.get('conservatism', 2)
-        low_perf_threshold = params.get('low_performance_threshold', 0.1)
-        draws = params.get('draws', 3000)
-        tune = params.get('tune', 3000)
-        chains = params.get('chains', 4)
-        cores = params.get('cores', 4)
-        rep_batch_size = params.get('rep_batch_size', 1)
-        pymc_refresh_every = params.get('pymc_refresh_every', 2)
-        stab_window = params.get('stab_window', 5)
-
+        
+        # Get unique groupings
+        all_groupings = df['grouping'].unique()
+        if not all_groupings.size:
+            logger.info('No groupings to process; returning empty results.')
+            return {'stop_sample_ids': [], 'stop_task': []}
+        
+        # Prepare arguments for parallel processing
+        args_list = []
+        for grouping in all_groupings:
+            df_grouping = df[df['grouping'] == grouping].copy()
+            if not df_grouping.empty:
+                args_list.append((grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns))
+        
+        if not args_list:
+            logger.info('No valid groupings to process; returning empty results.')
+            return {'stop_sample_ids': [], 'stop_task': []}
+        
+        # Determine number of workers
+        max_workers = min(len(args_list), os.cpu_count() or 1)
+        logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
+        
+        # Process groupings in parallel
+        results = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            iterator = executor.map(_process_live_grouping, args_list)
+            if display_progress:
+                iterator = tqdm(iterator, total=len(args_list), desc="Live optimal stopping")
+            for res in iterator:
+                results.append(res)
+        
+        # Aggregate results
         stop_sample_ids = []
-        sample_ci_records = {}
-        sample_ci_slopes = {}
-        used_reps_dfs = {}
-        item_summaries = []
-        item_ids = list(df['sample_id_num'].unique())
-
-        # PyMC model for group-level
-        with pm.Model() as model:
-            mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
-            sigma_group = pm.Exponential("sigma_group", lam=1.0)
-            successes_data = pm.Data("successes", np.array([0]))
-            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-            trials_data = pm.Data("trials", np.array([1]))
-            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-            mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-            mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-            Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-            obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
-
-        # Per-sample_id stopping (width and slope)
-        for item_id in item_ids:
-            df_item = df[df['sample_id_num'] == item_id].sort_values('epoch')
-            successes = 0
-            trials = 0
-            used_reps = []
-            ci_record = []
-            ci_slopes_hist = []
-            current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
-            for start in range(0, len(df_item), rep_batch_size):
-                batch = df_item.iloc[start:start+rep_batch_size]
-                successes += batch[score_column].sum()
-                trials += len(batch)
-                used_reps.extend(batch.itertuples(index=False))
-                lo, hi, width = _beta_ci_adaptive(
-                    successes, trials, cred_level=cred_level,
-                    conservatism=current_conservatism,
-                    low_perf_threshold=low_perf_threshold
-                )
-                ci_record.append(width)
-                if width < delta_item:
-                    logger.info(f"Stopping sample_id {item_id}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
-                    stop_sample_ids.append(item_id)
-                    break
-                if len(ci_record) >= stab_window:
-                    recent_widths = ci_record[-stab_window:]
-                    slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
-                    ci_slopes_hist.append(slope)
-                    slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
-                    if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
-                        recent_slopes = ci_slopes_hist[-3:]
-                        slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
-                        if slope_slopes >= 0:
-                            if df_item[score_column].mean() >= low_perf_threshold:
-                                logger.info(f"Stopping sample_id {item_id} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
-                                stop_sample_ids.append(item_id)
-                                break
-                            elif abs(slope) <= slope_threshold / 2:
-                                logger.info(f"Stopping low-performance sample_id {item_id} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
-                                stop_sample_ids.append(item_id)
-                                break
-            sample_ci_records[item_id] = ci_record
-            sample_ci_slopes[item_id] = ci_slopes_hist
-            used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
-            item_summaries.append({'successes': successes, 'trials': trials})
-
-        # Group-level stopping (width and slope, using PyMC)
-        all_successes = np.array([s['successes'] for s in item_summaries])
-        all_trials = np.array([s['trials'] for s in item_summaries])
-        with model:
-            pm.set_data({
-                "successes": all_successes,
-                "trials": all_trials,
-                "n_items": np.int64(len(all_successes))
-            })
-            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
-            theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-            hdi_indices = list(theta_hdi["Theta"].hdi.values)
-            try:
-                theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
-            except Exception:
-                theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-            try:
-                theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-            except Exception:
-                theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
-            theta_width = theta_hi - theta_lo
-            CI_record = [theta_width]
-            CI_slopes_hist = []
-            effective_width = theta_width
-            current_perf_estimate = np.sum(all_successes) / np.sum(all_trials) if np.sum(all_trials) > 0 else 0
-            if current_perf_estimate < low_perf_threshold:
-                effective_width = theta_width * conservatism
-            stop_task = False
-            if effective_width < delta_cap:
-                logger.info(f"Stopping task/grouping: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
-                stop_task = True
-            else:
-                # CI stabilization check
-                for _ in range(stab_window):
-                    CI_record.append(theta_width)
-                    if len(CI_record) >= stab_window:
-                        recent_widths = CI_record[-stab_window:]
-                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
-                        CI_slopes_hist.append(slope)
-                        slope_threshold = CI_delta / conservatism if current_perf_estimate < low_perf_threshold else CI_delta
-                        if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
-                            recent_slopes = CI_slopes_hist[-3:]
-                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
-                            if slope_slopes >= 0:
-                                if current_perf_estimate >= low_perf_threshold:
-                                    logger.info(f"Stopping task/grouping due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_task = True
-                                    break
-                                elif abs(slope) <= slope_threshold / 2:
-                                    logger.info(f"Stopping low-performance task/grouping due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_task = True
-                                    break
+        stop_task_groupings = []
+        
+        for res in results:
+            stop_sample_ids.extend(res['stop_sample_ids'])
+            if res['stop_this_grouping']:
+                stop_task_groupings.append(res['grouping'])
+        
         logger.info('Live optimal stopping complete')
         if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
             print(f"Run complete. See the log file for details: {_get_logfile_path()}")
-        return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task}
+        return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr 

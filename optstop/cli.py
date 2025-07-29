@@ -118,7 +118,8 @@ def main_live():
         params['random_seed'] = args.random_seed
     grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
     result = optimal_stopping_live(
-        df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column
+        df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
+        display_progress=not args.no_progress
     )
     print("Sample IDs to stop:", result['stop_sample_ids'])
     print("Stop task/grouping?", result['stop_task'])

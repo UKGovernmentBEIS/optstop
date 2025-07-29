@@ -7,8 +7,6 @@ by analyzing how stopping criteria evolve across different data collection scena
 
 import pandas as pd
 import numpy as np
-import pymc as pm
-import arviz as az
 import logging
 import concurrent.futures
 import os
@@ -21,6 +19,13 @@ from tqdm import tqdm
 import contextlib
 import io
 import sys
+import warnings
+
+# Suppress all warnings before importing PyMC
+warnings.filterwarnings('ignore')
+
+import pymc as pm
+import arviz as az
 
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
@@ -28,8 +33,12 @@ logging.getLogger('arviz').setLevel(logging.ERROR)
 logging.getLogger('pytensor').setLevel(logging.ERROR)
 logging.getLogger('aesara').setLevel(logging.ERROR)
 
-# Suppress warnings
-import warnings
+# Additional suppression for PyMC-related modules
+for logger_name in ['pymc', 'arviz', 'pytensor', 'aesara', 'numba', 'theano']:
+    logging.getLogger(logger_name).setLevel(logging.ERROR)
+    logging.getLogger(logger_name).propagate = False
+
+# Additional warning suppression
 warnings.filterwarnings('ignore', category=UserWarning, module='pymc')
 warnings.filterwarnings('ignore', category=UserWarning, module='arviz')
 warnings.filterwarnings('ignore', category=UserWarning, module='pytensor')
@@ -37,6 +46,11 @@ warnings.filterwarnings('ignore', category=UserWarning, module='aesara')
 warnings.filterwarnings('ignore', message='.*effective sample size.*')
 warnings.filterwarnings('ignore', message='.*rhat.*')
 warnings.filterwarnings('ignore', message='.*ess.*')
+warnings.filterwarnings('ignore', message='.*divergence.*')
+warnings.filterwarnings('ignore', message='.*target_accept.*')
+warnings.filterwarnings('ignore', message='.*reparameterize.*')
+warnings.filterwarnings('ignore', message='.*smaller than 100.*')
+warnings.filterwarnings('ignore', message='.*needed for reliable.*')
 
 # --- Helper: Adaptive Beta CI ---
 def _beta_ci_adaptive(successes, trials, cred_level=0.95, conservatism=1.0, 
@@ -234,15 +248,18 @@ def _process_grouping(args):
                 if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
                     all_successes = np.array([s['successes'] for s in item_summaries])
                     all_trials = np.array([s['trials'] for s in item_summaries])
-                    with model:
-                        pm.set_data({
-                            "successes": all_successes,
-                            "trials": all_trials,
-                            "n_items": np.int64(len(all_successes))
-                        })
-                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
-                        theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        with model:
+                            pm.set_data({
+                                "successes": all_successes,
+                                "trials": all_trials,
+                                "n_items": np.int64(len(all_successes))
+                            })
+                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
                             theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
