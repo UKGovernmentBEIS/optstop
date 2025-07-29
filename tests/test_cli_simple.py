@@ -80,7 +80,7 @@ def test_cli_posthoc_functionality():
         
         # Check that summary CSV has expected structure
         summary_df = pd.read_csv(test_summary)
-        expected_summary_columns = ['grouping', 'task', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width', 'percent_items_used', 'avg_reps_per_item']
+        expected_summary_columns = ['grouping', 'n_items_used', 'theta_ci_low', 'theta_ci_high', 'theta_ci_width', 'percent_items_used', 'avg_reps_per_item', 'error']
         assert all(col in summary_df.columns for col in expected_summary_columns), "Summary CSV missing expected columns"
         
     finally:
