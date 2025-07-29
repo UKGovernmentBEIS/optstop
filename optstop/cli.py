@@ -30,6 +30,8 @@ def main():
     parser.add_argument('--delta_cap', type=float, default=0.05, help='Max acceptable CI width for task/grouping (default: 0.05)')
     parser.add_argument('--draws', type=int, default=1000, help='Number of MCMC samples for PyMC (default: 1000)')
     parser.add_argument('--tune', type=int, default=1000, help='Number of tuning steps for PyMC (default: 1000)')
+    parser.add_argument('--chains', type=int, default=4, help='Number of MCMC chains for PyMC (default: 4)')
+    parser.add_argument('--cores', type=int, default=4, help='Number of CPU cores for PyMC (default: 4)')
     parser.add_argument('--CI_delta', type=float, default=0.0002, help='Slope threshold for determining CI stabilization (default: 0.0002)')
     parser.add_argument('--conservatism', type=float, default=2, help='Factor for rare event conservatism (default: 2)')
     parser.add_argument('--rep_batch_size', type=int, default=1, help='Number of repetitions to process in each batch (default: 1)')
@@ -48,6 +50,8 @@ def main():
         'delta_cap': args.delta_cap,
         'draws': args.draws,
         'tune': args.tune,
+        'chains': args.chains,
+        'cores': args.cores,
         'CI_delta': args.CI_delta,
         'conservatism': args.conservatism,
         'rep_batch_size': args.rep_batch_size,
@@ -84,6 +88,8 @@ def main_live():
     parser.add_argument('--delta_cap', type=float, default=0.05, help='Max acceptable CI width for task/grouping (default: 0.05)')
     parser.add_argument('--draws', type=int, default=1000, help='Number of MCMC samples for PyMC (default: 1000)')
     parser.add_argument('--tune', type=int, default=1000, help='Number of tuning steps for PyMC (default: 1000)')
+    parser.add_argument('--chains', type=int, default=4, help='Number of MCMC chains for PyMC (default: 4)')
+    parser.add_argument('--cores', type=int, default=4, help='Number of CPU cores for PyMC (default: 4)')
     parser.add_argument('--CI_delta', type=float, default=0.0002, help='Slope threshold for determining CI stabilization (default: 0.0002)')
     parser.add_argument('--conservatism', type=float, default=2, help='Factor for rare event conservatism (default: 2)')
     parser.add_argument('--rep_batch_size', type=int, default=1, help='Number of repetitions to process in each batch (default: 1)')
@@ -100,6 +106,8 @@ def main_live():
         'delta_cap': args.delta_cap,
         'draws': args.draws,
         'tune': args.tune,
+        'chains': args.chains,
+        'cores': args.cores,
         'CI_delta': args.CI_delta,
         'conservatism': args.conservatism,
         'rep_batch_size': args.rep_batch_size,
@@ -130,6 +138,8 @@ def main_convergence():
     parser.add_argument('--delta_cap', type=float, default=0.05, help='Max acceptable CI width for task/grouping (default: 0.05)')
     parser.add_argument('--draws', type=int, default=1000, help='Number of MCMC samples for PyMC (default: 1000)')
     parser.add_argument('--tune', type=int, default=1000, help='Number of tuning steps for PyMC (default: 1000)')
+    parser.add_argument('--chains', type=int, default=4, help='Number of MCMC chains for PyMC (default: 4)')
+    parser.add_argument('--cores', type=int, default=4, help='Number of CPU cores for PyMC (default: 4)')
     parser.add_argument('--CI_delta', type=float, default=0.0002, help='Slope threshold for determining CI stabilization (default: 0.0002)')
     parser.add_argument('--conservatism', type=float, default=2, help='Factor for rare event conservatism (default: 2)')
     parser.add_argument('--rep_batch_size', type=int, default=1, help='Number of repetitions to process in each batch (default: 1)')
@@ -150,6 +160,8 @@ def main_convergence():
         'delta_cap': args.delta_cap,
         'draws': args.draws,
         'tune': args.tune,
+        'chains': args.chains,
+        'cores': args.cores,
         'CI_delta': args.CI_delta,
         'conservatism': args.conservatism,
         'rep_batch_size': args.rep_batch_size,

@@ -96,6 +96,8 @@ def _process_grouping(args):
         low_perf_threshold = params.get('low_performance_threshold', 0.1)
         draws = params.get('draws', 3000)
         tune = params.get('tune', 3000)
+        chains = params.get('chains', 4)
+        cores = params.get('cores', 4)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
@@ -239,7 +241,7 @@ def _process_grouping(args):
                             "n_items": np.int64(len(all_successes))
                         })
                         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
+                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
                         theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
@@ -444,6 +446,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     df['grouping_num'] = df['grouping'].astype('category').cat.codes
     df['sample_id_num'] = df[sample_id_column].astype('category').cat.codes
     df['epoch_num'] = df[epoch_column].astype(int)
+    
     logger = logging.getLogger('optstop.convergence')
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')

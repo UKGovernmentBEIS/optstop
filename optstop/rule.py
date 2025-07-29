@@ -138,23 +138,42 @@ def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95) -
 
 def _intraclass_corr(x: np.ndarray, y: np.ndarray) -> float:
     """ICC(3,1) two-way mixed, single score."""
-    data = np.column_stack([x, y])
-    n, k = data.shape
-    mean_subject = data.mean(axis=1, keepdims=True)
-    mean_rater = data.mean(axis=0, keepdims=True)
-    grand_mean = data.mean()
+    try:
+        data = np.column_stack([x, y])
+        n, k = data.shape
+        
+        # Handle edge cases
+        if n < 2 or k < 2:
+            return float('nan')
+        
+        mean_subject = data.mean(axis=1, keepdims=True)
+        mean_rater = data.mean(axis=0, keepdims=True)
+        grand_mean = data.mean()
 
-    ss_subject = k * ((mean_subject - grand_mean) ** 2).sum()
-    ss_rater = n * ((mean_rater - grand_mean) ** 2).sum()
-    ss_total = ((data - grand_mean) ** 2).sum()
-    ss_error = ss_total - ss_subject - ss_rater
+        ss_subject = k * ((mean_subject - grand_mean) ** 2).sum()
+        ss_rater = n * ((mean_rater - grand_mean) ** 2).sum()
+        ss_total = ((data - grand_mean) ** 2).sum()
+        ss_error = ss_total - ss_subject - ss_rater
 
-    df_subject = n - 1
-    df_error = (n - 1) * (k - 1)
-    ms_subject = ss_subject / df_subject
-    ms_error = ss_error / df_error
-    icc = (ms_subject - ms_error) / (ms_subject + (k - 1) * ms_error)
-    return icc
+        df_subject = n - 1
+        df_error = (n - 1) * (k - 1)
+        
+        # Handle division by zero
+        if df_subject <= 0 or df_error <= 0:
+            return float('nan')
+            
+        ms_subject = ss_subject / df_subject
+        ms_error = ss_error / df_error
+        
+        # Handle division by zero in ICC calculation
+        denominator = ms_subject + (k - 1) * ms_error
+        if denominator == 0:
+            return float('nan')
+            
+        icc = (ms_subject - ms_error) / denominator
+        return icc
+    except (ValueError, ZeroDivisionError, RuntimeError):
+        return float('nan')
 
 def _bland_altman(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kw) -> Tuple[float, np.ndarray]:
     """Create Bland-Altman plot."""
@@ -258,14 +277,29 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
         rmse = np.sqrt((merged["diff"] ** 2).mean()) if len(merged) > 0 else float('nan')
         r = icc = float('nan')
         if len(merged) > 1:
-            r, _ = stats.pearsonr(merged["prop_full"], merged["prop_pruned"])
-            icc = _intraclass_corr(merged["prop_full"].values, merged["prop_pruned"].values)
+            try:
+                r, _ = stats.pearsonr(merged["prop_full"], merged["prop_pruned"])
+            except (ValueError, ZeroDivisionError):
+                r = float('nan')
+            try:
+                icc = _intraclass_corr(merged["prop_full"].values, merged["prop_pruned"].values)
+            except (ValueError, ZeroDivisionError):
+                icc = float('nan')
 
         # Calculate efficiency metrics
         merged["rep_saving"] = merged["n_reps_full"] - merged["n_reps_pruned"] if len(merged) > 0 else 0
-        merged["rep_saving_prcnt"] = (merged["rep_saving"] / merged["n_reps_full"]) * 100 if len(merged) > 0 else 0
+        # Handle division by zero for percentage calculation
+        merged["rep_saving_prcnt"] = 0
+        if len(merged) > 0:
+            total_reps_full = merged["n_reps_full"].sum()
+            if total_reps_full > 0:
+                merged["rep_saving_prcnt"] = (merged["rep_saving"] / merged["n_reps_full"]) * 100
         avg_save = merged["rep_saving"].mean() if len(merged) > 0 else float('nan')
-        pct_save = merged["rep_saving"].sum() / merged["n_reps_full"].sum() if len(merged) > 0 else float('nan')
+        pct_save = float('nan')
+        if len(merged) > 0:
+            total_reps_full = merged["n_reps_full"].sum()
+            if total_reps_full > 0:
+                pct_save = merged["rep_saving"].sum() / total_reps_full
         n_items_full = len(full_item)
         n_items_pruned = len(pruned_item)
         n_items_saved = n_items_full - n_items_pruned
@@ -516,6 +550,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             low_perf_threshold = params.get('low_performance_threshold', 0.1)
             draws = params.get('draws', 3000)
             tune = params.get('tune', 3000)
+            chains = params.get('chains', 4)
+            cores = params.get('cores', 4)
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
@@ -573,7 +609,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             "n_items": np.int64(len(all_successes))
                         })
                         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                            trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
+                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
                         theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
@@ -786,6 +822,8 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         low_perf_threshold = params.get('low_performance_threshold', 0.1)
         draws = params.get('draws', 3000)
         tune = params.get('tune', 3000)
+        chains = params.get('chains', 4)
+        cores = params.get('cores', 4)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
@@ -866,7 +904,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                 "n_items": np.int64(len(all_successes))
             })
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                trace = pm.sample(draws=draws, tune=tune, chains=4, cores=4, progressbar=False, target_accept=0.97)
+                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
             theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
             hdi_indices = list(theta_hdi["Theta"].hdi.values)
             try:
