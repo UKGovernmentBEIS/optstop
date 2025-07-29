@@ -151,7 +151,7 @@ You can also enable diagnostics via the CLI:
 optstop-posthoc --csv mydata.csv --output pruned.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 
-## Flexible Column Mapping (NEW)
+## Flexible Column Mapping
 
 All main functions now support flexible column mapping. You must specify:
 - `grouping_columns`: List of column names (or a single column name) to use for grouping (e.g., `['subject', 'task']` or `'subject'`)
@@ -501,7 +501,7 @@ print(result)
 
 The resulting DataFrame contains all the convergence metrics for each grouping-task, and the analysis is parallelized for speed.
 
-## Convergence Diagnostics (NEW)
+## Convergence Diagnostics
 
 When you run `convergence_posthoc`, the package now automatically generates two diagnostic figures by default:
 - **{prefix}_grouped_needed.png**: Two vertically stacked plots showing mean needed items and mean needed epochs (with std error bars) by grouping (descending order).
@@ -672,6 +672,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 5)
 - **--random_seed**: Random seed for reproducible results (optional)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.1)
 
 ### 2. Live Optimal Stopping
 **Command:**
@@ -697,6 +698,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 5)
 - **--random_seed**: Random seed for reproducible results (optional)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.1)
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
 ### 3. Convergence Analysis
@@ -728,6 +730,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--item_seqs**: Number of randomized item orderings per grouping (default: 20)
 - **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
 - **--random_seed**: Random seed for reproducible results (optional)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.1)
 
 ### CLI Help
 For any command, you can see all options and help text with:
