@@ -65,12 +65,14 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `cred_level`             | 0.95      | Both         | Credibility level for intervals (e.g., 0.95 for 95% CI)                     |
 | `conservatism`           | 2         | Both         | Factor for rare event conservatism (higher = more conservative)             |
 | `low_performance_threshold` | 0.1    | Both         | Below this success rate, use conservative stopping                          |
-| `draws`                  | 3000      | Post-hoc     | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
-| `tune`                   | 3000      | Post-hoc     | Number of tuning steps for PyMC                                             |
-| `rep_batch_size`         | 1         | Post-hoc     | Number of repetitions to process in each batch                              |
-| `pymc_refresh_every`     | 2         | Post-hoc     | How often to run the PyMC model (every N items)                             |
-| `stab_window`            | 5         | Post-hoc     | Window size for assessing CI stabilization                                  |
-| `CI_delta`               | 0.0002    | Post-hoc     | Slope threshold for determining CI stabilization                            |
+| `draws`                  | 3000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
+| `tune`                   | 3000      | Both         | Number of tuning steps for PyMC                                             |
+| `chains`                 | 4         | Both         | Number of MCMC chains for PyMC                                              |
+| `cores`                  | 4         | Both         | Number of CPU cores for PyMC sampling                                       |
+| `rep_batch_size`         | 1         | Both         | Number of repetitions to process in each batch                              |
+| `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
+| `stab_window`            | 5         | Both         | Window size for assessing CI stabilization                                  |
+| `CI_delta`               | 0.0002    | Both         | Slope threshold for determining CI stabilization                            |
 
 ### Example: Setting Parameters
 
@@ -95,7 +97,8 @@ params = {
 ```
 
 **Note:**
-- Parameters not relevant to live mode (e.g., `draws`, `tune`, `stab_window`, etc.) will be ignored if passed to `optimal_stopping_live`.
+- Both live and post-hoc modes support the same core parameters for optimal stopping logic.
+- Live mode does not support diagnostic plot generation (`generate_diagnostics`, `diagnostics_prefix`).
 - You can set only the parameters you care about; the rest will use defaults.
 - By default, a progress bar is shown for groupings. Set `display_progress=False` to disable it in Python, or use `--no_progress` in the CLI.
 
@@ -229,9 +232,60 @@ result = optimal_stopping_live(
     grouping_columns='subject',
     sample_id_column='item_id',
     epoch_column='trial_num',
-    score_column='score'
+    score_column='score',
+    display_progress=True  # Optional: show progress bar
 )
 print(result)
+# Returns: {'stop_sample_ids': ['1-1_1', '1-1_2'], 'stop_task': ['1-1']}
+# - stop_sample_ids: List of "grouping_sample_id" strings for sample IDs that have reached stopping criteria
+# - stop_task: List of grouping names that have reached stopping criteria
+```
+
+### Live Mode Output Explanation
+
+The `optimal_stopping_live` function returns a dictionary with two key outputs:
+
+#### **stop_sample_ids** (List of strings)
+- **Format**: `"grouping_sample_id"` (e.g., `"1-1_2"` for grouping `1-1`, sample ID `2`)
+- **Purpose**: Sample IDs that have reached stopping criteria and no longer need additional epochs
+- **Usage**: Use these to stop data collection for specific sample IDs within their groupings
+- **Example**: `['1-1_1', '1-1_2', '2-1_3']` means sample IDs 1 and 2 in grouping 1-1, and sample ID 3 in grouping 2-1 have reached stopping criteria
+
+#### **stop_task** (List of strings)
+- **Format**: Grouping names (e.g., `"1-1"`, `"2-1"`)
+- **Purpose**: Groupings that have reached stopping criteria and no longer need additional sample IDs
+- **Usage**: Use these to stop data collection for entire groupings
+- **Example**: `['1-1', '2-1']` means both groupings 1-1 and 2-1 have reached stopping criteria
+
+#### **Multiple Groupings Support**
+- The function processes each unique grouping combination independently
+- Each grouping can reach stopping criteria independently of others
+- Sample IDs are prefixed with their grouping to avoid confusion across multiple groupings
+
+#### **Empty Results**
+- If no stopping criteria are met: `{'stop_sample_ids': [], 'stop_task': []}`
+- Continue data collection for all sample IDs and groupings
+
+#### **Practical Usage Example**
+```python
+result = optimal_stopping_live(df, params, grouping_columns=['subject', 'task'], ...)
+
+# Check for sample IDs to stop
+if result['stop_sample_ids']:
+    print("Stop collecting epochs for these sample IDs:")
+    for sample_id in result['stop_sample_ids']:
+        grouping, original_id = sample_id.split('_', 1)
+        print(f"  - Sample ID {original_id} in grouping {grouping}")
+
+# Check for groupings to stop
+if result['stop_task']:
+    print("Stop collecting sample IDs for these groupings:")
+    for grouping in result['stop_task']:
+        print(f"  - Grouping {grouping}")
+
+# If both lists are empty, continue data collection
+if not result['stop_sample_ids'] and not result['stop_task']:
+    print("Continue data collection - no stopping criteria met")
 ```
 
 ### Example Usage (Convergence)
@@ -282,6 +336,14 @@ The package provides functions for adaptive optimal stopping, allowing you to de
 ### Parallelization (Post-hoc)
 - The `optimal_stopping_posthoc` function now parallelizes across groupings (unique combinations of the columns you specify for grouping), using all available CPU cores for efficient processing of large datasets.
 - Each grouping-task is processed independently and in parallel, with results aggregated at the end.
+
+### Live Mode (Multiple Groupings)
+- The `optimal_stopping_live` function processes each unique grouping combination independently
+- **Parallel Processing**: Uses adaptive parallel processing across groupings, similar to post-hoc mode
+- Returns sample IDs with grouping prefixes (e.g., `"1-1_2"`) to clearly identify which sample IDs belong to which groupings
+- Returns a list of grouping names that have reached stopping criteria, allowing you to stop entire groupings
+- Supports multiple groupings in a single function call, with independent stopping decisions per grouping
+- **Progress Tracking**: Optional progress bar display (controlled by `display_progress` parameter)
 
 ### Best Practices & Recommendations
 - **Specifying Groupings:**
@@ -635,7 +697,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 5)
 - **--random_seed**: Random seed for reproducible results (optional)
-- Prints which sample IDs and/or tasks can be stopped.
+- Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
 ### 3. Convergence Analysis
 **Command:**
