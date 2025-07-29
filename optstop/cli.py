@@ -41,6 +41,7 @@ def main():
     parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
     parser.add_argument('--generate_diagnostics', action='store_true', help='Generate diagnostic plots comparing full vs pruned datasets')
     parser.add_argument('--diagnostics_prefix', default='optstop_diagnostics', help='Prefix for diagnostic output files')
+    parser.add_argument('--low_performance_threshold', type=float, default=0.1, help='Success rate below which conservative stopping is applied (default: 0.1)')
     args = parser.parse_args()
 
     configure_optstop_logging(args.log, console_output=False)
@@ -57,6 +58,7 @@ def main():
         'rep_batch_size': args.rep_batch_size,
         'pymc_refresh_every': args.pymc_refresh_every,
         'stab_window': args.stab_window,
+        'low_performance_threshold': args.low_performance_threshold,
     }
     if args.random_seed is not None:
         params['random_seed'] = args.random_seed
@@ -97,6 +99,7 @@ def main_live():
     parser.add_argument('--stab_window', type=int, default=5, help='Window size for assessing CI stabilization (default: 5)')
     parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducible results (optional)')
     parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
+    parser.add_argument('--low_performance_threshold', type=float, default=0.1, help='Success rate below which conservative stopping is applied (default: 0.1)')
     args = parser.parse_args()
 
     configure_optstop_logging(args.log, console_output=False)
@@ -113,6 +116,7 @@ def main_live():
         'rep_batch_size': args.rep_batch_size,
         'pymc_refresh_every': args.pymc_refresh_every,
         'stab_window': args.stab_window,
+        'low_performance_threshold': args.low_performance_threshold,
     }
     if args.random_seed is not None:
         params['random_seed'] = args.random_seed
@@ -152,6 +156,7 @@ def main_convergence():
     parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
     parser.add_argument('--no_diagnostics', action='store_true', help='Disable generation of convergence diagnostic figures (default: diagnostics ON)')
     parser.add_argument('--diagnostics_prefix', default='convergence_eval', help='Prefix for convergence diagnostic output files')
+    parser.add_argument('--low_performance_threshold', type=float, default=0.1, help='Success rate below which conservative stopping is applied (default: 0.1)')
     args = parser.parse_args()
 
     configure_optstop_logging(args.log, console_output=False)
@@ -170,6 +175,7 @@ def main_convergence():
         'stab_window': args.stab_window,
         'item_seqs': args.item_seqs,
         'epoch_seqs': args.epoch_seqs,
+        'low_performance_threshold': args.low_performance_threshold,
     }
     if args.random_seed is not None:
         params['random_seed'] = args.random_seed

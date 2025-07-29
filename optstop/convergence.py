@@ -170,9 +170,8 @@ def _process_grouping(args):
                 sample_ID_performances = []
                 for epoch_seq in range(epoch_seqs):
                     if epoch_seqs >= 1:
-                        epoch_ids = list(df_item['epoch'].unique())
-                        np.random.shuffle(epoch_ids)
-                        df_item = df_item.set_index('epoch').reindex(epoch_ids).reset_index()
+                        # Use sample to shuffle the DataFrame instead of set_index/reindex
+                        df_item_shuffled = df_item.sample(frac=1.0, random_state=np.random.randint(0, 10000)).reset_index(drop=True)
                         successes = 0
                         trials = 0
                         used_reps = []
@@ -183,8 +182,8 @@ def _process_grouping(args):
                         epoch_shortfalls = []
                         slope = None  # Ensure slope is always defined
                         slope_slopes = None
-                        for start in range(0, len(df_item), rep_batch_size):
-                            batch = df_item.iloc[start:start+rep_batch_size]
+                        for start in range(0, len(df_item_shuffled), rep_batch_size):
+                            batch = df_item_shuffled.iloc[start:start+rep_batch_size]
                             successes += batch[score_column].sum()
                             trials += len(batch)
                             used_reps.extend(batch.itertuples(index=False))
@@ -213,7 +212,7 @@ def _process_grouping(args):
                             else:
                                 slope = None
                                 slope_slopes = None
-                            if (start + rep_batch_size >= len(df_item)):
+                            if (start + rep_batch_size >= len(df_item_shuffled)):
                                 slope_threshold = CI_delta / current_conservatism if curr_perf_estimate < low_perf_threshold else CI_delta
                                 if (epoch_seq == epoch_seqs - 1) and (item_seq == item_seqs - 1):
                                     agg_sample_id_performance.append(curr_perf_estimate)
