@@ -229,7 +229,7 @@ def test_optimal_stopping_posthoc_missing_columns():
         'epoch': [1, 2],
         'score': [1, 0],
     })
-    params = {'draws': 10, 'tune': 10}
+    params = {'draws': 10, 'tune': 10, 'chains': 2, 'cores': 2}
     try:
         optimal_stopping_posthoc(
             df, params,
@@ -251,7 +251,7 @@ def test_optimal_stopping_posthoc_invalid_params():
         'epoch': [1, 2],
         'score': [1, 0],
     })
-    params = {'draws': -1, 'tune': 10}
+    params = {'draws': -1, 'tune': 10, 'chains': 2, 'cores': 2}
     try:
         optimal_stopping_posthoc(
             df, params,
@@ -273,7 +273,7 @@ def test_optimal_stopping_posthoc_error_handling():
         'epoch': [1, 1],
         'score': [float('nan'), float('nan')],
     })
-    params = {'draws': 10, 'tune': 10}
+    params = {'draws': 10, 'tune': 10, 'chains': 2, 'cores': 2}
     pruned_df, summary = optimal_stopping_posthoc(
         df, params,
         grouping_columns=['grouping_num', 'task_num'],
@@ -292,7 +292,7 @@ def test_optimal_stopping_posthoc_random_seed_reproducibility():
         'epoch': [1,2,1,2,3,4,3,4],
         'score': [1,0,1,1,0,1,1,0],
     })
-    params = {'draws': 50, 'tune': 50, 'random_seed': 123}
+    params = {'draws': 50, 'tune': 50, 'chains': 2, 'cores': 2, 'random_seed': 123}
     pruned_df1, summary1 = optimal_stopping_posthoc(
         df, params,
         grouping_columns=['grouping_num', 'task_num'],
@@ -317,7 +317,7 @@ def test_convergence_posthoc_missing_columns():
         'epoch': [1, 2],
         'score': [1, 0],
     })
-    params = {'draws': 10, 'tune': 10}
+    params = {'draws': 10, 'tune': 10, 'chains': 2, 'cores': 2}
     try:
         convergence_posthoc(
             df, params,
@@ -333,7 +333,7 @@ def test_convergence_posthoc_empty_df():
     import pandas as pd
     from optstop import convergence_posthoc
     df = pd.DataFrame(columns=['grouping_num', 'task_num', 'sample_id_num', 'epoch', 'score'])
-    params = {'draws': 10, 'tune': 10}
+    params = {'draws': 10, 'tune': 10, 'chains': 2, 'cores': 2}
     result = convergence_posthoc(
         df, params,
         grouping_columns=['grouping_num', 'task_num'],
@@ -375,7 +375,7 @@ def test_convergence_posthoc_error_handling():
         'epoch': [1, 1],
         'score': [float('nan'), float('nan')],
     })
-    params = {'draws': 10, 'tune': 10}
+    params = {'draws': 10, 'tune': 10, 'chains': 2, 'cores': 2}
     result = convergence_posthoc(
         df, params,
         grouping_columns=['grouping_num', 'task_num'],
