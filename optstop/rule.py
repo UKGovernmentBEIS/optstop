@@ -596,6 +596,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 successes = 0
                 trials = 0
                 used_reps = []
+                ci_record = []
+                ci_slopes_hist = []
                 for start in range(0, len(df_item), rep_batch_size):
                     batch = df_item.iloc[start:start+rep_batch_size]
                     successes += batch[score_column].sum()
@@ -606,9 +608,25 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         conservatism=current_conservatism,
                         low_perf_threshold=low_perf_threshold
                     )
+                    ci_record.append(width)
                     if width < delta_item:
                         logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
                         break
+                    if len(ci_record) >= stab_window:
+                        recent_widths = ci_record[-stab_window:]
+                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                        ci_slopes_hist.append(slope)
+                        slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+                        if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
+                            recent_slopes = ci_slopes_hist[-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if df_item[score_column].mean() >= low_perf_threshold:
+                                    logger.info(f"Stopping sample_id {item_id} (group {pid}) due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
+                                    break
+                                elif abs(slope) <= slope_threshold / 2:
+                                    logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
+                                    break
                 item_summaries.append({'successes': successes, 'trials': trials})
                 used_reps_dfs.append(pd.DataFrame(used_reps, columns=df_item.columns))
                 current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
@@ -721,6 +739,10 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
         
+        # Initialize variables
+        stop_sample_ids = []
+        stop_this_grouping = False
+        
         # Create numeric columns for processing
         df_grouping = df_grouping.copy()
         df_grouping['grouping'] = df_grouping[grouping_columns].astype(str).agg('-'.join, axis=1)
@@ -728,7 +750,6 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         df_grouping['sample_id_num'] = df_grouping[sample_id_column].astype('category').cat.codes
         df_grouping['epoch_num'] = df_grouping[epoch_column].astype(int)
         
-        stop_sample_ids = []
         sample_ci_records = {}
         sample_ci_slopes = {}
         used_reps_dfs = {}
@@ -749,7 +770,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
             obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
         
         # Per-sample_id stopping (width and slope)
-        for item_id in item_ids:
+        for item_idx, item_id in enumerate(item_ids):
             df_item = df_grouping[df_grouping['sample_id_num'] == item_id].sort_values('epoch_num')
             successes = 0
             trials = 0
@@ -797,53 +818,49 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
             sample_ci_slopes[item_id] = ci_slopes_hist
             used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
             item_summaries.append({'successes': successes, 'trials': trials})
-        
-        # Group-level stopping (width and slope, using PyMC)
-        all_successes = np.array([s['successes'] for s in item_summaries])
-        all_trials = np.array([s['trials'] for s in item_summaries])
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            with model:
-                pm.set_data({
-                    "successes": all_successes,
-                    "trials": all_trials,
-                    "n_items": np.int64(len(all_successes))
-                })
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
-                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-                    theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-            hdi_indices = list(theta_hdi["Theta"].hdi.values)
-            try:
-                theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
-            except Exception:
-                theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-            try:
-                theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-            except Exception:
-                theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
-            theta_width = theta_hi - theta_lo
-            CI_record = [theta_width]
-            CI_slopes_hist = []
-            effective_width = theta_width
-            current_perf_estimate = np.sum(all_successes) / np.sum(all_trials) if np.sum(all_trials) > 0 else 0
-            if current_perf_estimate < low_perf_threshold:
-                effective_width = theta_width * conservatism
-            stop_this_grouping = False
-            if effective_width < delta_cap:
-                logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
-                stop_this_grouping = True
-            else:
-                # CI stabilization check
-                for _ in range(stab_window):
-                    CI_record.append(theta_width)
+            
+            # Group-level stopping check (periodic)
+            current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
+            current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+            if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
+                all_successes = np.array([s['successes'] for s in item_summaries])
+                all_trials = np.array([s['trials'] for s in item_summaries])
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    with model:
+                        pm.set_data({
+                            "successes": all_successes,
+                            "trials": all_trials,
+                            "n_items": np.int64(len(all_successes))
+                        })
+                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                            theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+                    hdi_indices = list(theta_hdi["Theta"].hdi.values)
+                    try:
+                        theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
+                        theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                    except Exception:
+                        theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
+                    try:
+                        theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
+                        theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
+                    except Exception:
+                        theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                    theta_width = theta_hi - theta_lo
+                    CI_record = [theta_width]
+                    CI_slopes_hist = []
+                    effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                    if effective_width < delta_cap:
+                        logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                        stop_this_grouping = True
+                        break
                     if len(CI_record) >= stab_window:
                         recent_widths = CI_record[-stab_window:]
                         slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
                         CI_slopes_hist.append(slope)
-                        slope_threshold = CI_delta / conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                        slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
                         if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
                             recent_slopes = CI_slopes_hist[-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
