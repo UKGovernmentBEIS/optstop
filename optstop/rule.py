@@ -741,7 +741,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         
         # Initialize variables
         stop_sample_ids = []
-        stop_this_grouping = False
+        stop_this_grouping = []
         
         # Create numeric columns for processing
         df_grouping = df_grouping.copy()
@@ -854,7 +854,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
                     if effective_width < delta_cap:
                         logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
-                        stop_this_grouping = True
+                        stop_this_grouping.append(grouping)
                         break
                     if len(CI_record) >= stab_window:
                         recent_widths = CI_record[-stab_window:]
@@ -867,11 +867,11 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             if slope_slopes >= 0:
                                 if current_perf_estimate >= low_perf_threshold:
                                     logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_this_grouping = True
+                                    stop_this_grouping.append(grouping)
                                     break
                                 elif abs(slope) <= slope_threshold / 2:
                                     logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_this_grouping = True
+                                    stop_this_grouping.append(grouping)
                                     break
         
         return {
@@ -886,7 +886,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         return {
             'grouping': grouping,
             'stop_sample_ids': [],
-            'stop_this_grouping': False
+            'stop_this_grouping': []
         }
     finally:
         sys.stdout = old_stdout
@@ -1067,8 +1067,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         
         for res in results:
             stop_sample_ids.extend(res['stop_sample_ids'])
-            if res['stop_this_grouping']:
-                stop_task_groupings.append(res['grouping'])
+            stop_task_groupings.extend(res['stop_this_grouping'])
         
         logger.info('Live optimal stopping complete')
         if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
