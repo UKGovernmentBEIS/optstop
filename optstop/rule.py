@@ -742,6 +742,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         # Initialize variables
         stop_sample_ids = []
         stop_this_grouping = []
+        CI_record = []
+        CI_slopes_hist = []
         
         # Create numeric columns for processing
         df_grouping = df_grouping.copy()
@@ -849,8 +851,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     except Exception:
                         theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
                     theta_width = theta_hi - theta_lo
-                    CI_record = [theta_width]
-                    CI_slopes_hist = []
+                    CI_record.append(theta_width)
                     effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
                     if effective_width < delta_cap:
                         logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
