@@ -516,10 +516,10 @@ def generate_convergence_diagnostics(convergence_data: pd.DataFrame, out_prefix:
         # --- NEW GROUPED NEEDED PLOT ---
         fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=False)
         # Top: mean_needed_items by grouping
-        items_by_group = convergence_data[['grouping', 'mean_needed_items', 'sem_needed_items']].dropna()
-        items_by_group = items_by_group.groupby('grouping').mean().reset_index()
+        items_by_group = convergence_data[['group_label', 'mean_needed_items', 'sem_needed_items']].dropna()
+        items_by_group = items_by_group.groupby('group_label').mean().reset_index()
         items_by_group = items_by_group.sort_values('mean_needed_items', ascending=False)
-        y_labels_items = items_by_group['grouping'].astype(str)
+        y_labels_items = items_by_group['group_label'].astype(str)
         y_pos_items = np.arange(len(items_by_group))
         ax1.errorbar(items_by_group['mean_needed_items'], y_pos_items, xerr=items_by_group['sem_needed_items'], fmt='o', color='skyblue', ecolor='gray', capsize=4)
         ax1.set_yticks(y_pos_items)
@@ -529,10 +529,10 @@ def generate_convergence_diagnostics(convergence_data: pd.DataFrame, out_prefix:
         ax1.set_title('Mean Needed Items by Grouping')
         ax1.invert_yaxis()
         # Bottom: mean_needed_epochs by grouping
-        epochs_by_group = convergence_data[['grouping', 'mean_needed_epochs', 'sem_needed_epochs']].dropna()
-        epochs_by_group = epochs_by_group.groupby('grouping').mean().reset_index()
+        epochs_by_group = convergence_data[['group_label', 'mean_needed_epochs', 'sem_needed_epochs']].dropna()
+        epochs_by_group = epochs_by_group.groupby('group_label').mean().reset_index()
         epochs_by_group = epochs_by_group.sort_values('mean_needed_epochs', ascending=False)
-        y_labels_epochs = epochs_by_group['grouping'].astype(str)
+        y_labels_epochs = epochs_by_group['group_label'].astype(str)
         y_pos_epochs = np.arange(len(epochs_by_group))
         ax2.errorbar(epochs_by_group['mean_needed_epochs'], y_pos_epochs, xerr=epochs_by_group['sem_needed_epochs'], fmt='o', color='lightgreen', ecolor='gray', capsize=4)
         ax2.set_yticks(y_pos_epochs)
