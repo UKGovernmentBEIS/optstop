@@ -451,7 +451,7 @@ The package provides a function for post-hoc convergence analysis, allowing you 
 
 - **Purpose:**
   - Runs a post-hoc convergence analysis on a full dataset, parallelizing across groupings (using all available CPU cores).
-  - Returns a DataFrame matching the structure of the original `convergence_stats_v6.csv` output.
+  - Returns a DataFrame detailing the required numbers of trials at epoch and sample_ID levels, split by the users desired grouping.
 - **Parameters:**
   - Accepts the same `params` dictionary as other functions (see table above), plus:
     - `item_seqs`: Number of randomized item orderings per grouping (default: 20)
