@@ -592,7 +592,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             item_ids = list(df_part['sample_id_num'].unique())
             for item_idx, item_id in enumerate(item_ids):
-                df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch')
+                df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
                 successes = 0
                 trials = 0
                 used_reps = []
@@ -610,7 +610,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     )
                     ci_record.append(width)
                     if width < delta_item:
-                        logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+                        logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
                         break
                     if len(ci_record) >= stab_window:
                         recent_widths = ci_record[-stab_window:]

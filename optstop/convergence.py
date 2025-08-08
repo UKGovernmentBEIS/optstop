@@ -166,7 +166,7 @@ def _process_grouping(args):
             item_ids = list(df_part['sample_id_num'].unique())
             np.random.shuffle(item_ids)
             for item_idx, item_id in enumerate(item_ids):
-                df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch')
+                df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
                 sample_ID_performances = []
                 for epoch_seq in range(epoch_seqs):
                     if epoch_seqs >= 1:
