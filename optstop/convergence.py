@@ -47,10 +47,47 @@ warnings.filterwarnings('ignore', message='.*effective sample size.*')
 warnings.filterwarnings('ignore', message='.*rhat.*')
 warnings.filterwarnings('ignore', message='.*ess.*')
 warnings.filterwarnings('ignore', message='.*divergence.*')
+warnings.filterwarnings('ignore', message='.*divergences.*')
 warnings.filterwarnings('ignore', message='.*target_accept.*')
 warnings.filterwarnings('ignore', message='.*reparameterize.*')
 warnings.filterwarnings('ignore', message='.*smaller than 100.*')
 warnings.filterwarnings('ignore', message='.*needed for reliable.*')
+warnings.filterwarnings('ignore', message='.*There was.*divergence.*')
+warnings.filterwarnings('ignore', message='.*There were.*divergence.*')
+warnings.filterwarnings('ignore', message='.*after tuning.*')
+warnings.filterwarnings('ignore', category=FutureWarning)
+warnings.filterwarnings('ignore', category=DeprecationWarning)
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='pymc')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='arviz')
+warnings.filterwarnings('ignore', category=RuntimeWarning, module='pytensor')
+
+@contextlib.contextmanager
+def suppress_all_output():
+    """Context manager that suppresses all stdout, stderr, and warnings from PyMC sampling"""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        # Temporarily redirect stdout and stderr
+        old_stdout, old_stderr = sys.stdout, sys.stderr
+        try:
+            # Create string buffers to capture output
+            stdout_buffer = io.StringIO()
+            stderr_buffer = io.StringIO()
+            sys.stdout = stdout_buffer
+            sys.stderr = stderr_buffer
+            yield
+        finally:
+            # Restore original stdout/stderr
+            sys.stdout = old_stdout
+            sys.stderr = old_stderr
+            # Log any captured output to file instead of console
+            stdout_content = stdout_buffer.getvalue()
+            stderr_content = stderr_buffer.getvalue()
+            if stdout_content.strip() or stderr_content.strip():
+                logger = logging.getLogger('optstop.convergence.sampling_output')
+                if stdout_content.strip():
+                    logger.debug(f"PyMC stdout: {stdout_content.strip()}")
+                if stderr_content.strip():
+                    logger.debug(f"PyMC stderr: {stderr_content.strip()}")
 
 # --- Helper: Adaptive Beta CI ---
 def _beta_ci_adaptive(successes, trials, cred_level=0.95, conservatism=1.0, 
@@ -255,9 +292,9 @@ def _process_grouping(args):
                                 "trials": all_trials,
                                 "n_items": np.int64(len(all_successes))
                             })
-                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                            with suppress_all_output():
                                 trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
-                            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                            with suppress_all_output():
                                 theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
