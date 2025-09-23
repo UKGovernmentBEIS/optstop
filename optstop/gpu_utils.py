@@ -200,7 +200,17 @@ def check_gpu_availability() -> Tuple[bool, str, Dict[str, Any]]:
 
         gpu_info['jax_backend'] = jax_backend
         gpu_info['jax_devices'] = [str(d) for d in devices]
-        jax_gpu_count = len([d for d in devices if d.device_kind in ('gpu', 'cuda')])
+        # Count GPU/CUDA devices more robustly
+        jax_gpu_count = 0
+        for d in devices:
+            device_str = str(d).lower()
+            if 'gpu' in device_str or 'cuda' in device_str:
+                jax_gpu_count += 1
+
+        # Alternative: also check device_kind if available
+        if hasattr(devices[0], 'device_kind') and devices:
+            kind_gpu_count = len([d for d in devices if d.device_kind in ('gpu', 'cuda')])
+            jax_gpu_count = max(jax_gpu_count, kind_gpu_count)
 
         if jax_backend == 'gpu' and jax_gpu_count > 0:
             # Test JAX GPU functionality
