@@ -160,7 +160,8 @@ def _process_grouping(args):
 
         # Get GPU-optimized sampling parameters
         gpu_available = params.get('gpu_available', False)
-        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
+        gpu_backend = params.get('gpu_backend', 'cpu')
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
         # Set random seed if provided
         if 'random_seed' in params:
@@ -523,6 +524,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     # Get GPU-optimized parameters and add GPU info to params
     params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
     params['gpu_available'] = gpu_available
+    params['gpu_backend'] = backend
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')

@@ -610,7 +610,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
             # Get GPU-optimized sampling parameters
             gpu_available = params.get('gpu_available', False)
-            sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
+            gpu_backend = params.get('gpu_backend', 'cpu')
+            sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
             if 'random_seed' in params:
                 np.random.seed(params['random_seed'])
             logger.info(f"Processing grouping {pid}")
@@ -783,7 +784,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
         # Get GPU-optimized sampling parameters
         gpu_available = params.get('gpu_available', False)
-        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
+        gpu_backend = params.get('gpu_backend', 'cpu')
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
         # Initialize variables
         stop_sample_ids = []
@@ -990,6 +992,7 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     # Get GPU-optimized parameters and add GPU info to params
     params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
     params['gpu_available'] = gpu_available
+    params['gpu_backend'] = backend
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame and summary.')
@@ -1101,6 +1104,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         # Get GPU-optimized parameters and add GPU info to params
         params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
         params['gpu_available'] = gpu_available
+        params['gpu_backend'] = backend
         
         # Get unique groupings
         all_groupings = df['grouping'].unique()
