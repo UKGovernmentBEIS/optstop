@@ -200,7 +200,7 @@ def check_gpu_availability() -> Tuple[bool, str, Dict[str, Any]]:
 
         gpu_info['jax_backend'] = jax_backend
         gpu_info['jax_devices'] = [str(d) for d in devices]
-        jax_gpu_count = len([d for d in devices if d.device_kind == 'gpu'])
+        jax_gpu_count = len([d for d in devices if d.device_kind in ('gpu', 'cuda')])
 
         if jax_backend == 'gpu' and jax_gpu_count > 0:
             # Test JAX GPU functionality
