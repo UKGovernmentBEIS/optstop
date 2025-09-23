@@ -22,6 +22,12 @@ dependencies = [
     "tqdm"
 ]
 
+[project.optional-dependencies]
+gpu = [
+    "jax[cuda12_pip] ; sys_platform != 'darwin'",
+    "jax[metal] ; sys_platform == 'darwin'"
+]
+
 [project.scripts]
 optstop-posthoc = "optstop.cli:main"
 optstop-live = "optstop.cli:main_live"

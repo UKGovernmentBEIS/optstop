@@ -34,6 +34,9 @@ warnings.filterwarnings('ignore')
 import pymc as pm
 import arviz as az
 
+# Import GPU utilities
+from . import gpu_utils
+
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
 logging.getLogger('arviz').setLevel(logging.ERROR)
@@ -604,6 +607,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
+
+            # Get GPU-optimized sampling parameters
+            gpu_available = params.get('gpu_available', False)
+            sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
             if 'random_seed' in params:
                 np.random.seed(params['random_seed'])
             logger.info(f"Processing grouping {pid}")
@@ -678,7 +685,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 "n_items": np.int64(len(all_successes))
                             })
                             with suppress_all_output():
-                                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                                trace = pm.sample(**sampling_kwargs)
                             with suppress_all_output():
                                 theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
@@ -773,7 +780,11 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
-        
+
+        # Get GPU-optimized sampling parameters
+        gpu_available = params.get('gpu_available', False)
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
+
         # Initialize variables
         stop_sample_ids = []
         stop_this_grouping = []
@@ -871,7 +882,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             "n_items": np.int64(len(all_successes))
                         })
                         with suppress_all_output():
-                            trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                            trace = pm.sample(**sampling_kwargs)
                         with suppress_all_output():
                             theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                     hdi_indices = list(theta_hdi["Theta"].hdi.values)
@@ -967,6 +978,18 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     _validate_params(params)
     logger = logging.getLogger('optstop.posthoc')
     logger.info('Starting post-hoc optimal stopping')
+
+    # Initialize GPU detection and configure parameters
+    gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
+    gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
+
+    # Configure JAX for GPU if available
+    if gpu_available:
+        gpu_utils.configure_jax_for_gpu()
+
+    # Get GPU-optimized parameters and add GPU info to params
+    params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
+    params['gpu_available'] = gpu_available
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame and summary.')
@@ -1066,6 +1089,18 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         _validate_params(params)
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
+
+        # Initialize GPU detection and configure parameters
+        gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
+        gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
+
+        # Configure JAX for GPU if available
+        if gpu_available:
+            gpu_utils.configure_jax_for_gpu()
+
+        # Get GPU-optimized parameters and add GPU info to params
+        params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
+        params['gpu_available'] = gpu_available
         
         # Get unique groupings
         all_groupings = df['grouping'].unique()

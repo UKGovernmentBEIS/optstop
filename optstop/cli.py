@@ -60,6 +60,8 @@ def main():
         parser.add_argument('--generate_diagnostics', action='store_true', help='Generate diagnostic plots comparing full vs pruned datasets')
         parser.add_argument('--diagnostics_prefix', default='optstop_diagnostics', help='Prefix for diagnostic output files')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
+        parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
 
         configure_optstop_logging(args.log, console_output=False)
@@ -80,6 +82,14 @@ def main():
         }
         if args.random_seed is not None:
             params['random_seed'] = args.random_seed
+
+        # Handle GPU settings
+        if args.disable_gpu:
+            params['use_gpu'] = False
+        elif args.force_gpu:
+            params['use_gpu'] = True
+            params['force_gpu'] = True
+
         # Parse grouping_columns
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         pruned_df, summary = optimal_stopping_posthoc(
@@ -136,6 +146,8 @@ def main_live():
         parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducible results (optional)')
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
+        parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
 
         configure_optstop_logging(args.log, console_output=False)
@@ -156,6 +168,14 @@ def main_live():
         }
         if args.random_seed is not None:
             params['random_seed'] = args.random_seed
+
+        # Handle GPU settings
+        if args.disable_gpu:
+            params['use_gpu'] = False
+        elif args.force_gpu:
+            params['use_gpu'] = True
+            params['force_gpu'] = True
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = optimal_stopping_live(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
@@ -211,6 +231,8 @@ def main_convergence():
         parser.add_argument('--no_diagnostics', action='store_true', help='Disable generation of convergence diagnostic figures (default: diagnostics ON)')
         parser.add_argument('--diagnostics_prefix', default='convergence_eval', help='Prefix for convergence diagnostic output files')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
+        parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
 
         configure_optstop_logging(args.log, console_output=False)
@@ -233,6 +255,14 @@ def main_convergence():
         }
         if args.random_seed is not None:
             params['random_seed'] = args.random_seed
+
+        # Handle GPU settings
+        if args.disable_gpu:
+            params['use_gpu'] = False
+        elif args.force_gpu:
+            params['use_gpu'] = True
+            params['force_gpu'] = True
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = convergence_posthoc(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,

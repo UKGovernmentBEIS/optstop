@@ -27,6 +27,9 @@ warnings.filterwarnings('ignore')
 import pymc as pm
 import arviz as az
 
+# Import GPU utilities
+from . import gpu_utils
+
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
 logging.getLogger('arviz').setLevel(logging.ERROR)
@@ -154,6 +157,11 @@ def _process_grouping(args):
         stab_window = params.get('stab_window', 5)
         item_seqs = params.get('item_seqs', 20)
         epoch_seqs = params.get('epoch_seqs', 20)
+
+        # Get GPU-optimized sampling parameters
+        gpu_available = params.get('gpu_available', False)
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available)
+
         # Set random seed if provided
         if 'random_seed' in params:
             np.random.seed(params['random_seed'])
@@ -293,7 +301,7 @@ def _process_grouping(args):
                                 "n_items": np.int64(len(all_successes))
                             })
                             with suppress_all_output():
-                                trace = pm.sample(draws=draws, tune=tune, chains=chains, cores=cores, progressbar=False, target_accept=0.97)
+                                trace = pm.sample(**sampling_kwargs)
                             with suppress_all_output():
                                 theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
                         hdi_indices = list(theta_hdi["Theta"].hdi.values)
@@ -503,6 +511,18 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     logger = logging.getLogger('optstop.convergence')
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
+
+    # Initialize GPU detection and configure parameters
+    gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
+    gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
+
+    # Configure JAX for GPU if available
+    if gpu_available:
+        gpu_utils.configure_jax_for_gpu()
+
+    # Get GPU-optimized parameters and add GPU info to params
+    params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
+    params['gpu_available'] = gpu_available
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
