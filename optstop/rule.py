@@ -588,9 +588,11 @@ def _validate_params(params: Dict[str, Any]) -> None:
 def _worker_initializer_posthoc():
     """Initialize worker process with clean PyTensor environment for posthoc analysis."""
     import os
+    import sys
     import tempfile
     import atexit
     import shutil
+    import logging
 
     # Set unique PyTensor directory for this worker process
     worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_')
@@ -598,15 +600,22 @@ def _worker_initializer_posthoc():
     # Clean up temp directory when process exits
     atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
 
-    # Set comprehensive PyTensor isolation flags
+    # CRITICAL: Set environment variables BEFORE any PyTensor import
     os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # PyTensor will automatically use environment variables on import
-    # No need to set config at runtime - env vars are sufficient
+    # Force reload of pytensor if already imported
+    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
+    for mod in modules_to_reload:
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+    # Debug logging
+    logger = logging.getLogger('optstop.worker_posthoc')
+    logger.info(f"Posthoc worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
 
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
     # Environment variables are now set by the worker initializer
@@ -778,9 +787,11 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 def _worker_initializer_live():
     """Initialize worker process with clean PyTensor environment for live analysis."""
     import os
+    import sys
     import tempfile
     import atexit
     import shutil
+    import logging
 
     # Set unique PyTensor directory for this worker process
     worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_')
@@ -788,15 +799,22 @@ def _worker_initializer_live():
     # Clean up temp directory when process exits
     atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
 
-    # Set comprehensive PyTensor isolation flags
+    # CRITICAL: Set environment variables BEFORE any PyTensor import
     os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # PyTensor will automatically use environment variables on import
-    # No need to set config at runtime - env vars are sufficient
+    # Force reload of pytensor if already imported
+    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
+    for mod in modules_to_reload:
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+    # Debug logging
+    logger = logging.getLogger('optstop.worker_live')
+    logger.info(f"Live worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
 
 def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str]) -> Dict[str, Any]:
     """

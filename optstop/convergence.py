@@ -134,6 +134,7 @@ def _validate_params(params):
 def _worker_initializer():
     """Initialize worker process with clean PyTensor environment."""
     import os
+    import sys
     import tempfile
     import atexit
     import shutil
@@ -144,21 +145,37 @@ def _worker_initializer():
     # Clean up temp directory when process exits
     atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
 
-    # Set comprehensive PyTensor isolation flags
+    # CRITICAL: Set environment variables BEFORE any PyTensor import
     os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # PyTensor will automatically use environment variables on import
-    # No need to set config at runtime - env vars are sufficient
+    # Force reload of pytensor if already imported to pick up new environment
+    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
+    for mod in modules_to_reload:
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+    # Debug: verify environment is set
+    import logging
+    logger = logging.getLogger('optstop.worker_init')
+    logger.info(f"Worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
+    logger.info(f"PYTENSOR_FLAGS: {os.environ.get('PYTENSOR_FLAGS', 'NOT_SET')}")
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
     # Environment variables are now set by the worker initializer
     import sys
     import io
+    import os
+    import logging
+
+    # Verify environment is still set in worker process
+    logger = logging.getLogger('optstop.process')
+    logger.info(f"Process {os.getpid()} PYTENSOR_FLAGS: {os.environ.get('PYTENSOR_FLAGS', 'NOT_SET')}")
+
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
@@ -536,7 +553,13 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     logger.info('Starting post-hoc convergence analysis')
 
     # Environment configuration is now handled by worker initializers only
-    # Remove global configuration to prevent race conditions
+    # Clear any existing PyTensor modules from main process to prevent conflicts
+    import sys
+    modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
+    for mod in modules_to_clear:
+        if mod in sys.modules:
+            logger.info(f"Clearing {mod} from main process before spawning workers")
+            del sys.modules[mod]
 
     # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
