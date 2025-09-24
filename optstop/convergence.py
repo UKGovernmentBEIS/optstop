@@ -152,8 +152,17 @@ def _worker_initializer():
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # Note: Module reloading removed to preserve PyMC model context
-    # Environment variables set above are sufficient for PyTensor isolation
+    # Force PyTensor to use our compiledir by setting config directly after import
+    # This handles cases where PyTensor is already imported
+    try:
+        import pytensor
+        pytensor.config.compiledir = worker_dir
+        # Also try clearing any existing module cache
+        if hasattr(pytensor.link.c.basic, '_module_cache'):
+            pytensor.link.c.basic._module_cache = None
+    except Exception as e:
+        # If this fails, we still have environment variables as fallback
+        pass
 
     # Debug: verify environment is set
     import logging
