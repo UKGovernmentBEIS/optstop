@@ -589,12 +589,31 @@ def _worker_initializer_posthoc():
     """Initialize worker process with clean PyTensor environment for posthoc analysis."""
     import os
     import tempfile
+    import atexit
+    import shutil
 
     # Set unique PyTensor directory for this worker process
     worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
+
+    # Clean up temp directory when process exits
+    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+
+    # Set comprehensive PyTensor isolation flags
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32,force_device=True'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+
+    # Clear any existing PyTensor configuration
+    if 'pytensor' in globals():
+        del globals()['pytensor']
+
+    # Force PyTensor to use our settings on import
+    import pytensor
+    pytensor.config.compiledir = worker_dir
+    pytensor.config.device = 'cpu'
+    pytensor.config.force_device = True
 
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
     # Environment variables are now set by the worker initializer
@@ -767,12 +786,31 @@ def _worker_initializer_live():
     """Initialize worker process with clean PyTensor environment for live analysis."""
     import os
     import tempfile
+    import atexit
+    import shutil
 
     # Set unique PyTensor directory for this worker process
     worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
+
+    # Clean up temp directory when process exits
+    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+
+    # Set comprehensive PyTensor isolation flags
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32,force_device=True'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+
+    # Clear any existing PyTensor configuration
+    if 'pytensor' in globals():
+        del globals()['pytensor']
+
+    # Force PyTensor to use our settings on import
+    import pytensor
+    pytensor.config.compiledir = worker_dir
+    pytensor.config.device = 'cpu'
+    pytensor.config.force_device = True
 
 def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str]) -> Dict[str, Any]:
     """

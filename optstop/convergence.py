@@ -135,12 +135,31 @@ def _worker_initializer():
     """Initialize worker process with clean PyTensor environment."""
     import os
     import tempfile
+    import atexit
+    import shutil
 
     # Set unique PyTensor directory for this worker process
     worker_dir = tempfile.mkdtemp(prefix=f'optstop_worker_{os.getpid()}_')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
+
+    # Clean up temp directory when process exits
+    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+
+    # Set comprehensive PyTensor isolation flags
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32,force_device=True'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+
+    # Clear any existing PyTensor configuration
+    if 'pytensor' in globals():
+        del globals()['pytensor']
+
+    # Force PyTensor to use our settings on import
+    import pytensor
+    pytensor.config.compiledir = worker_dir
+    pytensor.config.device = 'cpu'
+    pytensor.config.force_device = True
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
