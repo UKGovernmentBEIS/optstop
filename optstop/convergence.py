@@ -152,11 +152,8 @@ def _worker_initializer():
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # Force reload of pytensor if already imported to pick up new environment
-    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
-    for mod in modules_to_reload:
-        if mod in sys.modules:
-            del sys.modules[mod]
+    # Note: Module reloading removed to preserve PyMC model context
+    # Environment variables set above are sufficient for PyTensor isolation
 
     # Debug: verify environment is set
     import logging

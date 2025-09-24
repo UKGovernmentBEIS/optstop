@@ -614,11 +614,8 @@ def _worker_initializer_posthoc():
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # Force reload of pytensor if already imported
-    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
-    for mod in modules_to_reload:
-        if mod in sys.modules:
-            del sys.modules[mod]
+    # Note: Module reloading removed to preserve PyMC model context
+    # Environment variables set above are sufficient for PyTensor isolation
 
     # Debug logging
     logger = logging.getLogger('optstop.worker_posthoc')
@@ -813,11 +810,8 @@ def _worker_initializer_live():
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
-    # Force reload of pytensor if already imported
-    modules_to_reload = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc'))]
-    for mod in modules_to_reload:
-        if mod in sys.modules:
-            del sys.modules[mod]
+    # Note: Module reloading removed to preserve PyMC model context
+    # Environment variables set above are sufficient for PyTensor isolation
 
     # Debug logging
     logger = logging.getLogger('optstop.worker_live')
