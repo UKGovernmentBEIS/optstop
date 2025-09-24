@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='optstop',
-    version='0.1.0',
+    version='0.1.1',
     description='Adaptive optimal stopping rule algorithms for efficient data collection and analysis',
     author='Toby D. Pilditch, PhD',
     packages=find_packages(),
