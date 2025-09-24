@@ -599,7 +599,7 @@ def _worker_initializer_posthoc():
     atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
 
     # Set comprehensive PyTensor isolation flags
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32,force_device=True'
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['OMP_NUM_THREADS'] = '1'
@@ -789,7 +789,7 @@ def _worker_initializer_live():
     atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
 
     # Set comprehensive PyTensor isolation flags
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32,force_device=True'
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
     os.environ['OMP_NUM_THREADS'] = '1'
