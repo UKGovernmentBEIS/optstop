@@ -586,12 +586,24 @@ def _validate_params(params: Dict[str, Any]) -> None:
     logger.info(f"Parameters validated: {params}")
 
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
-    import sys, io
+    import sys
+    import io
+    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         pid, df_part, params, score_column = args
+
+        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
+        base_compiledir = os.path.expanduser('~/.pytensor')
+        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+
+        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
         logger = logging.getLogger('optstop.posthoc')
         try:
             delta_item = params.get('delta_item', 0.05)
@@ -600,17 +612,13 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             cred_level = params.get('cred_level', 0.95)
             conservatism = params.get('conservatism', 5)
             low_perf_threshold = params.get('low_performance_threshold', 0.05)
-            draws = params.get('draws', 3000)
-            tune = params.get('tune', 3000)
-            chains = params.get('chains', 4)
-            cores = params.get('cores', 4)
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
 
-            # Get GPU-optimized sampling parameters
-            gpu_available = params.get('gpu_available', False)
-            gpu_backend = params.get('gpu_backend', 'cpu')
+            # Force CPU usage in worker processes to avoid GPU conflicts
+            gpu_available = False
+            gpu_backend = 'cpu'
             sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
             if 'random_seed' in params:
                 np.random.seed(params['random_seed'])
@@ -758,15 +766,27 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
     Worker function for processing a single grouping in live mode.
     Returns stop_sample_ids and stop_task results for this grouping.
     """
-    import sys, io
+    import sys
+    import io
+    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns = args
+
+        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
+        base_compiledir = os.path.expanduser('~/.pytensor')
+        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+
+        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
         logger = logging.getLogger('optstop.live')
         logger.info(f"Processing grouping: {grouping}")
-        
+
         # Extract parameters
         delta_item = params.get('delta_item', 0.05)
         delta_cap = params.get('delta_cap', 0.05)
@@ -774,17 +794,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         cred_level = params.get('cred_level', 0.95)
         conservatism = params.get('conservatism', 5)
         low_perf_threshold = params.get('low_performance_threshold', 0.05)
-        draws = params.get('draws', 3000)
-        tune = params.get('tune', 3000)
-        chains = params.get('chains', 4)
-        cores = params.get('cores', 4)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
 
-        # Get GPU-optimized sampling parameters
-        gpu_available = params.get('gpu_available', False)
-        gpu_backend = params.get('gpu_backend', 'cpu')
+        # Force CPU usage in worker processes to avoid GPU conflicts
+        gpu_available = False
+        gpu_backend = 'cpu'
         sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
         # Initialize variables
@@ -981,18 +997,7 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     logger = logging.getLogger('optstop.posthoc')
     logger.info('Starting post-hoc optimal stopping')
 
-    # Initialize GPU detection and configure parameters
-    gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
-    gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
-
-    # Configure JAX for GPU if available
-    if gpu_available:
-        gpu_utils.configure_jax_for_gpu()
-
-    # Get GPU-optimized parameters and add GPU info to params
-    params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
-    params['gpu_available'] = gpu_available
-    params['gpu_backend'] = backend
+    # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame and summary.')
@@ -1093,18 +1098,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
 
-        # Initialize GPU detection and configure parameters
-        gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
-        gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
-
-        # Configure JAX for GPU if available
-        if gpu_available:
-            gpu_utils.configure_jax_for_gpu()
-
-        # Get GPU-optimized parameters and add GPU info to params
-        params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
-        params['gpu_available'] = gpu_available
-        params['gpu_backend'] = backend
+        # Note: GPU detection moved to worker processes to avoid file lock conflicts
         
         # Get unique groupings
         all_groupings = df['grouping'].unique()

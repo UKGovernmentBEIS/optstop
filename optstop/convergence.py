@@ -12,9 +12,7 @@ import concurrent.futures
 import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from scipy import stats
-from scipy.stats import beta
-from typing import Dict, Any, List, Tuple, Optional
+from typing import List
 from tqdm import tqdm
 import contextlib
 import io
@@ -135,12 +133,24 @@ def _validate_params(params):
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
-    import sys, io
+    import sys
+    import io
+    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         (pid, df_part, params, score_column) = args
+
+        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
+        base_compiledir = os.path.expanduser('~/.pytensor')
+        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+
+        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
         logger = logging.getLogger('optstop.convergence')
         delta_item = params.get('delta_item', 0.05)
         delta_cap = params.get('delta_cap', 0.05)
@@ -148,19 +158,15 @@ def _process_grouping(args):
         cred_level = params.get('cred_level', 0.95)
         conservatism = params.get('conservatism', 5)
         low_perf_threshold = params.get('low_performance_threshold', 0.05)
-        draws = params.get('draws', 3000)
-        tune = params.get('tune', 3000)
-        chains = params.get('chains', 4)
-        cores = params.get('cores', 4)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
         item_seqs = params.get('item_seqs', 20)
         epoch_seqs = params.get('epoch_seqs', 20)
 
-        # Get GPU-optimized sampling parameters
-        gpu_available = params.get('gpu_available', False)
-        gpu_backend = params.get('gpu_backend', 'cpu')
+        # Force CPU usage in worker processes to avoid GPU conflicts
+        gpu_available = False
+        gpu_backend = 'cpu'
         sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
         # Set random seed if provided
@@ -208,7 +214,7 @@ def _process_grouping(args):
                 mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
                 mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
                 Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-                obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+                pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             item_ids = list(df_part['sample_id_num'].unique())
             np.random.shuffle(item_ids)
             for item_idx, item_id in enumerate(item_ids):
@@ -233,7 +239,7 @@ def _process_grouping(args):
                             successes += batch[score_column].sum()
                             trials += len(batch)
                             used_reps.extend(batch.itertuples(index=False))
-                            lo, hi, width = _beta_ci_adaptive(
+                            _, _, width = _beta_ci_adaptive(
                                 successes, trials, 
                                 cred_level=cred_level,
                                 conservatism=current_conservatism,
@@ -305,7 +311,6 @@ def _process_grouping(args):
                                 trace = pm.sample(**sampling_kwargs)
                             with suppress_all_output():
                                 theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                        hdi_indices = list(theta_hdi["Theta"].hdi.values)
                         try:
                             theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
                             theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
@@ -513,18 +518,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
 
-    # Initialize GPU detection and configure parameters
-    gpu_available, backend, gpu_info = gpu_utils.check_gpu_availability()
-    gpu_utils.log_gpu_status(gpu_available, backend, gpu_info)
-
-    # Configure JAX for GPU if available
-    if gpu_available:
-        gpu_utils.configure_jax_for_gpu()
-
-    # Get GPU-optimized parameters and add GPU info to params
-    params = gpu_utils.get_optimal_sampling_params(params, gpu_available)
-    params['gpu_available'] = gpu_available
-    params['gpu_backend'] = backend
+    # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
