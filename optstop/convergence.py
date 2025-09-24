@@ -131,16 +131,20 @@ def _validate_params(params):
         raise ValueError("delta_cap must be positive.")
     logger.info(f"Parameters validated: {params}")
 
-# --- Helper: Process a single grouping-task ---
-def _process_grouping(args):
-    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
+def _worker_initializer():
+    """Initialize worker process with clean PyTensor environment."""
     import os
-    base_compiledir = os.path.expanduser('~/.pytensor')
-    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+    import tempfile
+
+    # Set unique PyTensor directory for this worker process
+    worker_dir = tempfile.mkdtemp(prefix=f'optstop_worker_{os.getpid()}_')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
+# --- Helper: Process a single grouping-task ---
+def _process_grouping(args):
+    # Environment variables are now set by the worker initializer
     import sys
     import io
     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -484,16 +488,8 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
     return default
 
 # --- Main API ---
-def _configure_multiprocessing_environment():
-    """Configure environment for multiprocessing to avoid PyTensor conflicts."""
-    import os
-    import tempfile
-
-    # Create a temporary directory for this multiprocessing session
-    temp_dir = tempfile.mkdtemp(prefix='optstop_mp_')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+# Removed _configure_multiprocessing_environment to prevent race conditions
+# Worker processes now handle their own environment setup via initializers
 
 def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
     """
@@ -527,8 +523,8 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
 
-    # Configure environment for multiprocessing to avoid PyTensor conflicts
-    _configure_multiprocessing_environment()
+    # Environment configuration is now handled by worker initializers only
+    # Remove global configuration to prevent race conditions
 
     # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
@@ -539,12 +535,35 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        iterator = executor.map(_process_grouping, args_list)
-        if display_progress:
-            iterator = tqdm(iterator, total=len(args_list), desc="Convergence analysis")
-        for res in iterator:
-            results.append(res)
+
+    # Use spawn method to ensure clean processes without shared PyTensor state
+    import multiprocessing as mp
+    original_start_method = mp.get_start_method()
+
+    try:
+        # Force spawn method for clean process isolation
+        if mp.get_start_method() != 'spawn':
+            mp.set_start_method('spawn', force=True)
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_worker_initializer
+        ) as executor:
+            iterator = executor.map(_process_grouping, args_list)
+            if display_progress:
+                iterator = tqdm(iterator, total=len(args_list), desc="Convergence analysis")
+            for res in iterator:
+                results.append(res)
+
+    finally:
+        # Restore original start method
+        if original_start_method != mp.get_start_method():
+            try:
+                mp.set_start_method(original_start_method, force=True)
+            except RuntimeError:
+                # Start method can only be set once, ignore if already set
+                pass
+
     logger.info('Convergence analysis complete')
     output_df = pd.DataFrame(results)
     if generate_diagnostics:

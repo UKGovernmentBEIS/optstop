@@ -585,15 +585,19 @@ def _validate_params(params: Dict[str, Any]) -> None:
         raise ValueError("delta_cap must be positive.")
     logger.info(f"Parameters validated: {params}")
 
-def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
-    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
+def _worker_initializer_posthoc():
+    """Initialize worker process with clean PyTensor environment for posthoc analysis."""
     import os
-    base_compiledir = os.path.expanduser('~/.pytensor')
-    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+    import tempfile
+
+    # Set unique PyTensor directory for this worker process
+    worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
     os.environ['JAX_PLATFORM_NAME'] = 'cpu'
     os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
+def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
+    # Environment variables are now set by the worker initializer
     import sys
     import io
     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -759,19 +763,23 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
         sys.stdout = old_stdout
         sys.stderr = old_stderr
 
+def _worker_initializer_live():
+    """Initialize worker process with clean PyTensor environment for live analysis."""
+    import os
+    import tempfile
+
+    # Set unique PyTensor directory for this worker process
+    worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
 def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str]) -> Dict[str, Any]:
     """
     Worker function for processing a single grouping in live mode.
     Returns stop_sample_ids and stop_task results for this grouping.
     """
-    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
-    import os
-    base_compiledir = os.path.expanduser('~/.pytensor')
-    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
+    # Environment variables are now set by the worker initializer
     import sys
     import io
     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -993,13 +1001,8 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     logger = logging.getLogger('optstop.posthoc')
     logger.info('Starting post-hoc optimal stopping')
 
-    # Configure environment for multiprocessing to avoid PyTensor conflicts
-    import tempfile
-    import os
-    temp_dir = tempfile.mkdtemp(prefix='optstop_mp_posthoc_')
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    # Environment configuration is now handled by worker initializers only
+    # Remove global configuration to prevent race conditions
 
     # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
@@ -1010,12 +1013,35 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     max_workers = min(len(args_list), os.cpu_count() or 1)
     logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
     results = []
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        iterator = executor.map(_process_posthoc_grouping, args_list)
-        if display_progress:
-            iterator = tqdm(iterator, total=len(args_list), desc="Post-hoc optimal stopping")
-        for res in iterator:
-            results.append(res)
+
+    # Use spawn method to ensure clean processes without shared PyTensor state
+    import multiprocessing as mp
+    original_start_method = mp.get_start_method()
+
+    try:
+        # Force spawn method for clean process isolation
+        if mp.get_start_method() != 'spawn':
+            mp.set_start_method('spawn', force=True)
+
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=max_workers,
+            initializer=_worker_initializer_posthoc
+        ) as executor:
+            iterator = executor.map(_process_posthoc_grouping, args_list)
+            if display_progress:
+                iterator = tqdm(iterator, total=len(args_list), desc="Post-hoc optimal stopping")
+            for res in iterator:
+                results.append(res)
+
+    finally:
+        # Restore original start method
+        if original_start_method != mp.get_start_method():
+            try:
+                mp.set_start_method(original_start_method, force=True)
+            except RuntimeError:
+                # Start method can only be set once, ignore if already set
+                pass
+
     final_used_data = []
     participant_results = []
     for res in results:
@@ -1102,13 +1128,8 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
 
-        # Configure environment for multiprocessing to avoid PyTensor conflicts
-        import tempfile
-        import os
-        temp_dir = tempfile.mkdtemp(prefix='optstop_mp_live_')
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        # Environment configuration is now handled by worker initializers only
+        # Remove global configuration to prevent race conditions
 
         # Note: GPU detection moved to worker processes to avoid file lock conflicts
         
@@ -1135,13 +1156,35 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         
         # Process groupings in parallel
         results = []
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            iterator = executor.map(_process_live_grouping, args_list)
-            if display_progress:
-                iterator = tqdm(iterator, total=len(args_list), desc="Live optimal stopping")
-            for res in iterator:
-                results.append(res)
-        
+
+        # Use spawn method to ensure clean processes without shared PyTensor state
+        import multiprocessing as mp
+        original_start_method = mp.get_start_method()
+
+        try:
+            # Force spawn method for clean process isolation
+            if mp.get_start_method() != 'spawn':
+                mp.set_start_method('spawn', force=True)
+
+            with concurrent.futures.ProcessPoolExecutor(
+                max_workers=max_workers,
+                initializer=_worker_initializer_live
+            ) as executor:
+                iterator = executor.map(_process_live_grouping, args_list)
+                if display_progress:
+                    iterator = tqdm(iterator, total=len(args_list), desc="Live optimal stopping")
+                for res in iterator:
+                    results.append(res)
+
+        finally:
+            # Restore original start method
+            if original_start_method != mp.get_start_method():
+                try:
+                    mp.set_start_method(original_start_method, force=True)
+                except RuntimeError:
+                    # Start method can only be set once, ignore if already set
+                    pass
+
         # Aggregate results
         stop_sample_ids = []
         stop_task_groupings = []
