@@ -586,23 +586,21 @@ def _validate_params(params: Dict[str, Any]) -> None:
     logger.info(f"Parameters validated: {params}")
 
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
+    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
+    import os
+    base_compiledir = os.path.expanduser('~/.pytensor')
+    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
     import sys
     import io
-    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         pid, df_part, params, score_column = args
-
-        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
-        base_compiledir = os.path.expanduser('~/.pytensor')
-        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
-
-        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
         logger = logging.getLogger('optstop.posthoc')
         try:
@@ -766,23 +764,21 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
     Worker function for processing a single grouping in live mode.
     Returns stop_sample_ids and stop_task results for this grouping.
     """
+    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
+    import os
+    base_compiledir = os.path.expanduser('~/.pytensor')
+    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
     import sys
     import io
-    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns = args
-
-        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
-        base_compiledir = os.path.expanduser('~/.pytensor')
-        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
-
-        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
         logger = logging.getLogger('optstop.live')
         logger.info(f"Processing grouping: {grouping}")
@@ -997,6 +993,14 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     logger = logging.getLogger('optstop.posthoc')
     logger.info('Starting post-hoc optimal stopping')
 
+    # Configure environment for multiprocessing to avoid PyTensor conflicts
+    import tempfile
+    import os
+    temp_dir = tempfile.mkdtemp(prefix='optstop_mp_posthoc_')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
     # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
@@ -1097,6 +1101,14 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         _validate_params(params)
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
+
+        # Configure environment for multiprocessing to avoid PyTensor conflicts
+        import tempfile
+        import os
+        temp_dir = tempfile.mkdtemp(prefix='optstop_mp_live_')
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
         # Note: GPU detection moved to worker processes to avoid file lock conflicts
         

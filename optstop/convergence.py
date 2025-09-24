@@ -133,23 +133,21 @@ def _validate_params(params):
 
 # --- Helper: Process a single grouping-task ---
 def _process_grouping(args):
+    # Set environment variables BEFORE any imports to avoid PyTensor cache conflicts
+    import os
+    base_compiledir = os.path.expanduser('~/.pytensor')
+    process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
     import sys
     import io
-    import os
     old_stdout, old_stderr = sys.stdout, sys.stderr
     sys.stdout = io.StringIO()
     sys.stderr = io.StringIO()
     try:
         (pid, df_part, params, score_column) = args
-
-        # Set unique PyTensor compilation directory for this process to avoid file lock conflicts
-        base_compiledir = os.path.expanduser('~/.pytensor')
-        process_compiledir = os.path.join(base_compiledir, f'process_{os.getpid()}')
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={process_compiledir}'
-
-        # Ensure JAX uses CPU for multiprocessing to avoid GPU mutex conflicts
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
 
         logger = logging.getLogger('optstop.convergence')
         delta_item = params.get('delta_item', 0.05)
@@ -486,6 +484,17 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
     return default
 
 # --- Main API ---
+def _configure_multiprocessing_environment():
+    """Configure environment for multiprocessing to avoid PyTensor conflicts."""
+    import os
+    import tempfile
+
+    # Create a temporary directory for this multiprocessing session
+    temp_dir = tempfile.mkdtemp(prefix='optstop_mp_')
+    os.environ['PYTENSOR_FLAGS'] = f'compiledir={temp_dir}'
+    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+
 def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
     """
     Post-hoc convergence analysis, parallelized across groupings.
@@ -517,6 +526,9 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     logger = logging.getLogger('optstop.convergence')
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
+
+    # Configure environment for multiprocessing to avoid PyTensor conflicts
+    _configure_multiprocessing_environment()
 
     # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
