@@ -402,27 +402,27 @@ def _process_grouping(args):
             items_shortfalls.append(item_shortfalls[-1] if item_shortfalls else 0)
 
         mean_fin_CI_width_item = np.mean(items_fin_CI_widths) if items_fin_CI_widths else None
-        var_fin_CI_width_item = np.var(items_fin_CI_widths) if items_fin_CI_widths else None
-        mean_fin_CI_slope_item = np.mean(items_fin_CI_slopes) if items_fin_CI_slopes else None  
-        var_fin_CI_slope_item = np.var(items_fin_CI_slopes) if items_fin_CI_slopes else None
+        var_fin_CI_width_item = np.var(items_fin_CI_widths) if len(items_fin_CI_widths) > 0 else 0.0
+        mean_fin_CI_slope_item = np.mean(items_fin_CI_slopes) if items_fin_CI_slopes else None
+        var_fin_CI_slope_item = np.var(items_fin_CI_slopes) if len(items_fin_CI_slopes) > 0 else 0.0
         mean_fin_slope_slope_item = np.mean(items_fin_slope_slopes) if items_fin_slope_slopes else None
-        var_fin_slope_slope_item = np.var(items_fin_slope_slopes) if items_fin_slope_slopes else None
+        var_fin_slope_slope_item = np.var(items_fin_slope_slopes) if len(items_fin_slope_slopes) > 0 else 0.0
         mean_needed_items = np.mean(items_shortfalls) if items_shortfalls else None
-        var_needed_items = np.var(items_shortfalls) if items_shortfalls else None
+        var_needed_items = np.var(items_shortfalls) if len(items_shortfalls) > 0 else 0.0
         mean_fin_CI_width_epoch = np.mean(epochs_fin_CI_widths) if epochs_fin_CI_widths else None
-        var_fin_CI_width_epoch = np.var(epochs_fin_CI_widths) if epochs_fin_CI_widths else None
+        var_fin_CI_width_epoch = np.var(epochs_fin_CI_widths) if len(epochs_fin_CI_widths) > 0 else 0.0
         mean_fin_CI_slope_epoch = np.mean(epochs_fin_CI_slopes) if epochs_fin_CI_slopes else None
-        var_fin_CI_slope_epoch = np.var(epochs_fin_CI_slopes) if epochs_fin_CI_slopes else None
+        var_fin_CI_slope_epoch = np.var(epochs_fin_CI_slopes) if len(epochs_fin_CI_slopes) > 0 else 0.0
         mean_fin_slope_slope_epoch = np.mean(epochs_fin_slope_slopes) if epochs_fin_slope_slopes else None
-        var_fin_slope_slope_epoch = np.var(epochs_fin_slope_slopes) if epochs_fin_slope_slopes else None
+        var_fin_slope_slope_epoch = np.var(epochs_fin_slope_slopes) if len(epochs_fin_slope_slopes) > 0 else 0.0
         mean_needed_epochs = np.mean(epochs_shortfalls) if epochs_shortfalls else None
-        var_needed_epochs = np.var(epochs_shortfalls) if epochs_shortfalls else None
+        var_needed_epochs = np.var(epochs_shortfalls) if len(epochs_shortfalls) > 0 else 0.0
         mean_items_fin_score = np.mean(items_fin_scores) if items_fin_scores else None
-        var_items_fin_score = np.var(items_fin_scores) if items_fin_scores else None
+        var_items_fin_score = np.var(items_fin_scores) if len(items_fin_scores) > 0 else 0.0
         mean_epochs_fin_score = np.mean(epochs_fin_scores) if epochs_fin_scores else None
-        var_epochs_fin_score = np.var(epochs_fin_scores) if epochs_fin_scores else None
+        var_epochs_fin_score = np.var(epochs_fin_scores) if len(epochs_fin_scores) > 0 else 0.0
         mean_sample_id_performance = np.mean(agg_sample_id_performance) if agg_sample_id_performance else None
-        var_sample_id_performance = np.var(agg_sample_id_performance) if agg_sample_id_performance else None
+        var_sample_id_performance = np.var(agg_sample_id_performance) if len(agg_sample_id_performance) > 0 else 0.0
 
         # Calculate n_items_used, percent_items_used, avg_reps_per_item
         n_items_used = len(item_summaries)
@@ -630,8 +630,21 @@ def generate_convergence_diagnostics(convergence_data: pd.DataFrame, out_prefix:
             return
         n_samples = 20  # Used for SEM calculation, as in the script
         # Calculate standard error from variances (SEM = sqrt(variance)/sqrt(n))
-        convergence_data['sem_needed_items'] = np.sqrt(convergence_data['var_needed_items'] / n_samples)
-        convergence_data['sem_needed_epochs'] = np.sqrt(convergence_data['var_needed_epochs'] / n_samples)
+        # Convert to numeric and handle NaN/invalid values safely
+        var_items = pd.to_numeric(convergence_data['var_needed_items'], errors='coerce')
+        var_epochs = pd.to_numeric(convergence_data['var_needed_epochs'], errors='coerce')
+
+        # Only calculate sqrt for valid positive values
+        convergence_data['sem_needed_items'] = np.where(
+            (var_items > 0) & pd.notna(var_items),
+            np.sqrt(var_items / n_samples),
+            np.nan
+        )
+        convergence_data['sem_needed_epochs'] = np.where(
+            (var_epochs > 0) & pd.notna(var_epochs),
+            np.sqrt(var_epochs / n_samples),
+            np.nan
+        )
         # --- NEW GROUPED NEEDED PLOT ---
         fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 10), sharex=False)
         # Top: mean_needed_items by grouping

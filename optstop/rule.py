@@ -326,7 +326,14 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
         merged["diff"] = merged["prop_pruned"] - merged["prop_full"]
         bias = merged["diff"].mean() if len(merged) > 0 else float('nan')
         mae = merged["diff"].abs().mean() if len(merged) > 0 else float('nan')
-        rmse = np.sqrt((merged["diff"] ** 2).mean()) if len(merged) > 0 else float('nan')
+        if len(merged) > 0:
+            try:
+                diff_squared = pd.to_numeric(merged["diff"] ** 2, errors='coerce')
+                rmse = np.sqrt(diff_squared.mean()) if not diff_squared.isna().all() else float('nan')
+            except (TypeError, ValueError):
+                rmse = float('nan')
+        else:
+            rmse = float('nan')
         r = icc = float('nan')
         if len(merged) > 1:
             try:
