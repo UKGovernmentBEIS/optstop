@@ -140,7 +140,6 @@ def _worker_initializer_convergence(worker_dir, gpu_id=None, suppress_output=Tru
         suppress_output: Whether to suppress output (default: True)
     """
     import os
-    import sys
     import tempfile
     import atexit
     import shutil
@@ -148,13 +147,8 @@ def _worker_initializer_convergence(worker_dir, gpu_id=None, suppress_output=Tru
     import time
     import random
 
-    # CRITICAL: Clear any existing PyTensor modules from worker process FIRST
-    modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc', 'aesara'))]
-    for mod in modules_to_clear:
-        if mod in sys.modules:
-            del sys.modules[mod]
-
     # Create completely unique directory with process ID, timestamp, and random component
+    # This approach avoids clearing modules which can break PyMC model contexts
     # This prevents any possibility of directory conflicts between workers
     timestamp = int(time.time() * 1000000)  # microsecond precision
     random_id = random.randint(10000, 99999)
