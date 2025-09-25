@@ -12,7 +12,7 @@ import concurrent.futures
 import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-from typing import List
+from typing import List, Optional, Tuple, Dict, Any
 from tqdm import tqdm
 import contextlib
 import io
@@ -131,24 +131,44 @@ def _validate_params(params):
         raise ValueError("delta_cap must be positive.")
     logger.info(f"Parameters validated: {params}")
 
-def _worker_initializer():
-    """Initialize worker process with clean PyTensor environment."""
+def _worker_initializer_convergence(worker_dir, gpu_id=None, suppress_output=True):
+    """Initialize worker process with clean PyTensor environment for convergence analysis.
+
+    Args:
+        worker_dir: Base directory for PyTensor compilation
+        gpu_id: GPU ID to assign to this worker, or None for CPU-only
+        suppress_output: Whether to suppress output (default: True)
+    """
     import os
     import sys
     import tempfile
     import atexit
     import shutil
+    import logging
 
     # Set unique PyTensor directory for this worker process
-    worker_dir = tempfile.mkdtemp(prefix=f'optstop_worker_{os.getpid()}_')
+    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_convergence_{os.getpid()}_', dir=worker_dir)
 
     # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    # Determine device configuration based on gpu_id parameter
+    if gpu_id is not None:
+        # GPU-enabled worker
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cuda,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'gpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        # Configure JAX to use specific GPU
+        os.environ['JAX_CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        device_type = f'GPU {gpu_id}'
+    else:
+        # CPU-only worker (preserve existing behavior)
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        device_type = 'CPU'
+
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
@@ -156,7 +176,7 @@ def _worker_initializer():
     # This handles cases where PyTensor is already imported
     try:
         import pytensor
-        pytensor.config.compiledir = worker_dir
+        pytensor.config.compiledir = unique_worker_dir
         # Also try clearing any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -164,13 +184,19 @@ def _worker_initializer():
         # If this fails, we still have environment variables as fallback
         pass
 
-    # Debug: verify environment is set
-    import logging
-    logger = logging.getLogger('optstop.worker_init')
-    logger.info(f"Worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
-    logger.info(f"PYTENSOR_FLAGS: {os.environ.get('PYTENSOR_FLAGS', 'NOT_SET')}")
+    # Debug logging
+    logger = logging.getLogger('optstop.worker_convergence')
+    if not suppress_output:
+        logger.info(f"Convergence worker {os.getpid()} using {device_type}, PyTensor compiledir: {unique_worker_dir}")
 
 # --- Helper: Process a single grouping-task ---
+def _process_grouping_with_init_convergence(task_args: Tuple[Any, pd.DataFrame, Dict[str, Any], str], worker_args: Tuple[str, Optional[int], bool]) -> Dict[str, Any]:
+    """Wrapper function that initializes worker and then processes convergence grouping."""
+    # Initialize worker with GPU assignment
+    _worker_initializer_convergence(*worker_args)
+    # Process the actual task
+    return _process_grouping(task_args)
+
 def _process_grouping(args):
     # Environment variables are now set by the worker initializer
     import sys
@@ -526,7 +552,7 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
 # Removed _configure_multiprocessing_environment to prevent race conditions
 # Worker processes now handle their own environment setup via initializers
 
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval"):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None):
     """
     Post-hoc convergence analysis, parallelized across groupings.
     The user must specify:
@@ -537,6 +563,8 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
       - display_progress: whether to show a progress bar (default True)
       - generate_diagnostics: whether to generate diagnostic figures (default True)
       - diagnostics_prefix: prefix for diagnostic output files
+      - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
+      - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
     Returns a DataFrame of convergence statistics.
     """
     # Input validation
@@ -558,6 +586,9 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     _validate_params(params)
     logger.info('Starting post-hoc convergence analysis')
 
+    # Validate and configure GPU settings
+    validated_gpu_ids, validated_max_workers = gpu_utils.validate_gpu_configuration(gpu_ids, max_workers)
+
     # Environment configuration is now handled by worker initializers only
     # Clear any existing PyTensor modules from main process to prevent conflicts
     import sys
@@ -567,14 +598,31 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
             logger.info(f"Clearing {mod} from main process before spawning workers")
             del sys.modules[mod]
 
-    # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame.')
         return pd.DataFrame(columns=df.columns)
+
     args_list = [(pid, df_part, params, score_column) for pid, df_part in groupings]
-    max_workers = min(len(args_list), os.cpu_count() or 1)
-    logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
+
+    # Determine final worker count
+    if validated_max_workers is None:
+        final_max_workers = min(len(args_list), os.cpu_count() or 1)
+    else:
+        final_max_workers = min(validated_max_workers, len(args_list))
+
+    # Create worker base directory
+    import tempfile
+    worker_base_dir = tempfile.mkdtemp(prefix='optstop_convergence_workers_')
+
+    # Create worker initialization arguments with GPU assignment
+    worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+
+    if validated_gpu_ids:
+        logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+    else:
+        logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
+
     results = []
 
     # Use spawn method to ensure clean processes without shared PyTensor state
@@ -586,15 +634,33 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
         if mp.get_start_method() != 'spawn':
             mp.set_start_method('spawn', force=True)
 
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=_worker_initializer
-        ) as executor:
-            iterator = executor.map(_process_grouping, args_list)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+            # Submit tasks with individual worker initialization
+            futures = []
+            for i, task_args in enumerate(args_list):
+                # Get worker initialization args cyclically
+                worker_args = worker_init_args[i % len(worker_init_args)]
+                # Create a new process with specific GPU assignment
+                future = executor.submit(_process_grouping_with_init_convergence, task_args, worker_args)
+                futures.append(future)
+
+            # Collect results
+            iterator = concurrent.futures.as_completed(futures)
             if display_progress:
-                iterator = tqdm(iterator, total=len(args_list), desc="Convergence analysis")
-            for res in iterator:
-                results.append(res)
+                iterator = tqdm(iterator, total=len(futures), desc="Convergence analysis")
+
+            for future in iterator:
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.error(f"Worker task failed: {e}")
+                    # Add empty result to maintain consistency
+                    results.append({
+                        'grouping': None, 'group_label': None, 'n_items_used': None,
+                        'theta_ci_low': None, 'theta_ci_high': None, 'theta_ci_width': None,
+                        'percent_items_used': None, 'avg_reps_per_item': None,
+                        'error': str(e)
+                    })
 
     finally:
         # Restore original start method

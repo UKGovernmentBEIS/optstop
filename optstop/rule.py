@@ -592,8 +592,14 @@ def _validate_params(params: Dict[str, Any]) -> None:
         raise ValueError("delta_cap must be positive.")
     logger.info(f"Parameters validated: {params}")
 
-def _worker_initializer_posthoc():
-    """Initialize worker process with clean PyTensor environment for posthoc analysis."""
+def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
+    """Initialize worker process with clean PyTensor environment for posthoc analysis.
+
+    Args:
+        worker_dir: Base directory for PyTensor compilation
+        gpu_id: GPU ID to assign to this worker, or None for CPU-only
+        suppress_output: Whether to suppress output (default: True)
+    """
     import os
     import sys
     import tempfile
@@ -602,15 +608,28 @@ def _worker_initializer_posthoc():
     import logging
 
     # Set unique PyTensor directory for this worker process
-    worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_')
+    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_', dir=worker_dir)
 
     # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    # Determine device configuration based on gpu_id parameter
+    if gpu_id is not None:
+        # GPU-enabled worker
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cuda,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'gpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        # Configure JAX to use specific GPU
+        os.environ['JAX_CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        device_type = f'GPU {gpu_id}'
+    else:
+        # CPU-only worker (preserve existing behavior)
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        device_type = 'CPU'
+
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
@@ -618,7 +637,7 @@ def _worker_initializer_posthoc():
     # This handles cases where PyTensor is already imported
     try:
         import pytensor
-        pytensor.config.compiledir = worker_dir
+        pytensor.config.compiledir = unique_worker_dir
         # Also try clearing any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -628,7 +647,15 @@ def _worker_initializer_posthoc():
 
     # Debug logging
     logger = logging.getLogger('optstop.worker_posthoc')
-    logger.info(f"Posthoc worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
+    if not suppress_output:
+        logger.info(f"Posthoc worker {os.getpid()} using {device_type}, PyTensor compiledir: {unique_worker_dir}")
+
+def _process_posthoc_grouping_with_init(task_args: Tuple[Any, pd.DataFrame, Dict[str, Any], str], worker_args: Tuple[str, Optional[int], bool]) -> Dict[str, Any]:
+    """Wrapper function that initializes worker and then processes posthoc grouping."""
+    # Initialize worker with GPU assignment
+    _worker_initializer_posthoc(*worker_args)
+    # Process the actual task
+    return _process_posthoc_grouping(task_args)
 
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
     # Environment variables are now set by the worker initializer
@@ -797,8 +824,14 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
         sys.stdout = old_stdout
         sys.stderr = old_stderr
 
-def _worker_initializer_live():
-    """Initialize worker process with clean PyTensor environment for live analysis."""
+def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
+    """Initialize worker process with clean PyTensor environment for live analysis.
+
+    Args:
+        worker_dir: Base directory for PyTensor compilation
+        gpu_id: GPU ID to assign to this worker, or None for CPU-only
+        suppress_output: Whether to suppress output (default: True)
+    """
     import os
     import sys
     import tempfile
@@ -807,15 +840,28 @@ def _worker_initializer_live():
     import logging
 
     # Set unique PyTensor directory for this worker process
-    worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_')
+    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_', dir=worker_dir)
 
     # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(worker_dir, ignore_errors=True))
+    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
-    os.environ['PYTENSOR_FLAGS'] = f'compiledir={worker_dir},device=cpu,floatX=float32'
-    os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    # Determine device configuration based on gpu_id parameter
+    if gpu_id is not None:
+        # GPU-enabled worker
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cuda,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'gpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        # Configure JAX to use specific GPU
+        os.environ['JAX_CUDA_VISIBLE_DEVICES'] = str(gpu_id)
+        device_type = f'GPU {gpu_id}'
+    else:
+        # CPU-only worker (preserve existing behavior)
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
+        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
+        os.environ['CUDA_VISIBLE_DEVICES'] = ''
+        device_type = 'CPU'
+
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
@@ -823,7 +869,7 @@ def _worker_initializer_live():
     # This handles cases where PyTensor is already imported
     try:
         import pytensor
-        pytensor.config.compiledir = worker_dir
+        pytensor.config.compiledir = unique_worker_dir
         # Also try clearing any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -833,7 +879,15 @@ def _worker_initializer_live():
 
     # Debug logging
     logger = logging.getLogger('optstop.worker_live')
-    logger.info(f"Live worker {os.getpid()} using PyTensor compiledir: {worker_dir}")
+    if not suppress_output:
+        logger.info(f"Live worker {os.getpid()} using {device_type}, PyTensor compiledir: {unique_worker_dir}")
+
+def _process_live_grouping_with_init(task_args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str], worker_args: Tuple[str, Optional[int], bool]) -> Dict[str, Any]:
+    """Wrapper function that initializes worker and then processes live grouping."""
+    # Initialize worker with GPU assignment
+    _worker_initializer_live(*worker_args)
+    # Process the actual task
+    return _process_live_grouping(task_args)
 
 def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str]) -> Dict[str, Any]:
     """
@@ -1030,7 +1084,7 @@ def _get_logfile_path(default='optstop_run.log'):
     return default
 
 # --- Post-hoc mode ---
-def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = False, diagnostics_prefix: str = "optstop_diagnostics") -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = False, diagnostics_prefix: str = "optstop_diagnostics", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
     """
     Run optimal stopping in post-hoc mode on a full dataset, parallelizing across groupings.
     The user must specify:
@@ -1041,6 +1095,8 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
       - display_progress: whether to show a progress bar (default True)
       - generate_diagnostics: whether to generate diagnostic plots comparing full vs pruned datasets (default False)
       - diagnostics_prefix: prefix for diagnostic output files (default "optstop_diagnostics")
+      - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
+      - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
     Returns a pruned DataFrame and a list of summary dicts (one per grouping-task).
     """
     # Input validation
@@ -1062,17 +1118,36 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     logger = logging.getLogger('optstop.posthoc')
     logger.info('Starting post-hoc optimal stopping')
 
+    # Validate and configure GPU settings
+    validated_gpu_ids, validated_max_workers = gpu_utils.validate_gpu_configuration(gpu_ids, max_workers)
+
     # Environment configuration is now handled by worker initializers only
     # Remove global configuration to prevent race conditions
-
-    # Note: GPU detection moved to worker processes to avoid file lock conflicts
     groupings = list(df.groupby(['grouping_num']))
     if not groupings:
         logger.info('No groupings to process; returning empty DataFrame and summary.')
         return pd.DataFrame(columns=df.columns), []
+
     args_list = [(pid, df_part, params, score_column) for pid, df_part in groupings]
-    max_workers = min(len(args_list), os.cpu_count() or 1)
-    logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
+
+    # Determine final worker count
+    if validated_max_workers is None:
+        final_max_workers = min(len(args_list), os.cpu_count() or 1)
+    else:
+        final_max_workers = min(validated_max_workers, len(args_list))
+
+    # Create worker base directory
+    import tempfile
+    worker_base_dir = tempfile.mkdtemp(prefix='optstop_workers_')
+
+    # Create worker initialization arguments with GPU assignment
+    worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+
+    if validated_gpu_ids:
+        logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+    else:
+        logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
+
     results = []
 
     # Use spawn method to ensure clean processes without shared PyTensor state
@@ -1084,15 +1159,32 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
         if mp.get_start_method() != 'spawn':
             mp.set_start_method('spawn', force=True)
 
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=max_workers,
-            initializer=_worker_initializer_posthoc
-        ) as executor:
-            iterator = executor.map(_process_posthoc_grouping, args_list)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+            # Submit tasks with individual worker initialization
+            futures = []
+            for i, task_args in enumerate(args_list):
+                # Get worker initialization args cyclically
+                worker_args = worker_init_args[i % len(worker_init_args)]
+                # Create a new process with specific GPU assignment
+                future = executor.submit(_process_posthoc_grouping_with_init, task_args, worker_args)
+                futures.append(future)
+
+            # Collect results
+            iterator = concurrent.futures.as_completed(futures)
             if display_progress:
-                iterator = tqdm(iterator, total=len(args_list), desc="Post-hoc optimal stopping")
-            for res in iterator:
-                results.append(res)
+                iterator = tqdm(iterator, total=len(futures), desc="Post-hoc optimal stopping")
+
+            for future in iterator:
+                try:
+                    results.append(future.result())
+                except Exception as e:
+                    logger.error(f"Worker task failed: {e}")
+                    # Add empty result to maintain consistency
+                    results.append({
+                        'grouping': None, 'n_items_used': None, 'theta_ci_low': None,
+                        'theta_ci_high': None, 'theta_ci_width': None, 'percent_items_used': None,
+                        'avg_reps_per_item': None, 'used_reps_dfs': [], 'error': str(e)
+                    })
 
     finally:
         # Restore original start method
@@ -1157,7 +1249,7 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     return final_used_df, participant_results
 
 # --- Live mode ---
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
     The user must specify:
@@ -1166,6 +1258,8 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
       - epoch_column: column name for epoch/trial
       - score_column: column name for score (default: 'score')
       - display_progress: whether to show a progress bar (default True)
+      - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
+      - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
     Returns a dict with 'stop_sample_ids' (list of "grouping_sample_id" strings) and 'stop_task' (list of grouping names that have reached stopping criteria).
     """
     import sys, io
@@ -1189,31 +1283,46 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         logger = logging.getLogger('optstop.live')
         logger.info('Starting live optimal stopping')
 
+        # Validate and configure GPU settings
+        validated_gpu_ids, validated_max_workers = gpu_utils.validate_gpu_configuration(gpu_ids, max_workers)
+
         # Environment configuration is now handled by worker initializers only
         # Remove global configuration to prevent race conditions
 
-        # Note: GPU detection moved to worker processes to avoid file lock conflicts
-        
         # Get unique groupings
         all_groupings = df['grouping'].unique()
         if not all_groupings.size:
             logger.info('No groupings to process; returning empty results.')
             return {'stop_sample_ids': [], 'stop_task': []}
-        
+
         # Prepare arguments for parallel processing
         args_list = []
         for grouping in all_groupings:
             df_grouping = df[df['grouping'] == grouping].copy()
             if not df_grouping.empty:
                 args_list.append((grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns))
-        
+
         if not args_list:
             logger.info('No valid groupings to process; returning empty results.')
             return {'stop_sample_ids': [], 'stop_task': []}
-        
-        # Determine number of workers
-        max_workers = min(len(args_list), os.cpu_count() or 1)
-        logger.info(f'Using {max_workers} parallel workers for {len(args_list)} groupings')
+
+        # Determine final worker count
+        if validated_max_workers is None:
+            final_max_workers = min(len(args_list), os.cpu_count() or 1)
+        else:
+            final_max_workers = min(validated_max_workers, len(args_list))
+
+        # Create worker base directory
+        import tempfile
+        worker_base_dir = tempfile.mkdtemp(prefix='optstop_live_workers_')
+
+        # Create worker initialization arguments with GPU assignment
+        worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+
+        if validated_gpu_ids:
+            logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+        else:
+            logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
         
         # Process groupings in parallel
         results = []
@@ -1227,15 +1336,32 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             if mp.get_start_method() != 'spawn':
                 mp.set_start_method('spawn', force=True)
 
-            with concurrent.futures.ProcessPoolExecutor(
-                max_workers=max_workers,
-                initializer=_worker_initializer_live
-            ) as executor:
-                iterator = executor.map(_process_live_grouping, args_list)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+                # Submit tasks with individual worker initialization
+                futures = []
+                for i, task_args in enumerate(args_list):
+                    # Get worker initialization args cyclically
+                    worker_args = worker_init_args[i % len(worker_init_args)]
+                    # Create a new process with specific GPU assignment
+                    future = executor.submit(_process_live_grouping_with_init, task_args, worker_args)
+                    futures.append(future)
+
+                # Collect results
+                iterator = concurrent.futures.as_completed(futures)
                 if display_progress:
-                    iterator = tqdm(iterator, total=len(args_list), desc="Live optimal stopping")
-                for res in iterator:
-                    results.append(res)
+                    iterator = tqdm(iterator, total=len(futures), desc="Live optimal stopping")
+
+                for future in iterator:
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.error(f"Worker task failed: {e}")
+                        # Add empty result to maintain consistency
+                        results.append({
+                            'grouping': None,
+                            'stop_sample_ids': [],
+                            'stop_this_grouping': []
+                        })
 
         finally:
             # Restore original start method

@@ -481,3 +481,115 @@ def log_gpu_status(gpu_available: bool, backend: str, gpu_info: Dict[str, Any]) 
             logger.info(f"   {i}. {rec}")
 
     logger.info("====================================")
+
+
+def get_available_gpu_ids() -> List[int]:
+    """Return list of available GPU IDs, or empty list if none available.
+
+    Returns:
+        List[int]: List of GPU device IDs (e.g., [0, 1, 2, 3]) or empty list
+    """
+    try:
+        import subprocess
+        result = subprocess.run(['nvidia-smi', '--query-gpu=index', '--format=csv,noheader'],
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            gpu_ids = []
+            for line in result.stdout.strip().split('\n'):
+                line = line.strip()
+                if line.isdigit():
+                    gpu_ids.append(int(line))
+            return gpu_ids
+    except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError, ValueError):
+        pass
+    return []
+
+
+def auto_assign_gpus(num_workers: int, available_gpu_ids: Optional[List[int]] = None) -> Optional[List[int]]:
+    """Automatically assign GPUs to workers, or return None for CPU-only.
+
+    Args:
+        num_workers: Number of workers that need GPU assignment
+        available_gpu_ids: List of available GPU IDs, or None to auto-detect
+
+    Returns:
+        List of GPU IDs to assign to workers (cyclically), or None for CPU-only
+    """
+    if available_gpu_ids is None:
+        available_gpu_ids = get_available_gpu_ids()
+
+    if not available_gpu_ids:
+        return None
+
+    # Assign GPUs cyclically to workers
+    return [available_gpu_ids[i % len(available_gpu_ids)] for i in range(num_workers)]
+
+
+def create_worker_initargs(worker_base_dir: str, gpu_ids: Optional[List[int]],
+                          suppress_output: bool = True) -> List[tuple]:
+    """Create initialization arguments for each worker with optional GPU assignment.
+
+    Args:
+        worker_base_dir: Base directory for worker temp files
+        gpu_ids: List of GPU IDs to assign to workers, or None for CPU-only
+        suppress_output: Whether to suppress worker output
+
+    Returns:
+        List of tuples containing (worker_base_dir, gpu_id, suppress_output) for each worker
+    """
+    if gpu_ids:
+        # GPU-enabled workers with cyclical assignment
+        return [(worker_base_dir, gpu_id, suppress_output) for gpu_id in gpu_ids]
+    else:
+        # CPU-only workers
+        return [(worker_base_dir, None, suppress_output)]
+
+
+def validate_gpu_configuration(gpu_ids: Optional[List[int]], max_workers: int) -> Tuple[Optional[List[int]], int]:
+    """Validate and adjust GPU configuration for parallel processing.
+
+    Args:
+        gpu_ids: Requested GPU IDs, or None for auto-detection/CPU-only
+        max_workers: Maximum number of workers requested
+
+    Returns:
+        Tuple of (validated_gpu_ids, adjusted_max_workers)
+    """
+    logger = logging.getLogger('optstop.gpu_utils')
+
+    if gpu_ids is None:
+        # Default behavior - use CPU only
+        return None, max_workers
+
+    if gpu_ids == []:
+        # Explicitly requested CPU-only
+        logger.info("GPU usage explicitly disabled - using CPU-only processing")
+        return None, max_workers
+
+    # Validate requested GPU IDs
+    available_gpu_ids = get_available_gpu_ids()
+    if not available_gpu_ids:
+        logger.warning("GPUs requested but none available - falling back to CPU")
+        return None, max_workers
+
+    # Check if requested GPUs are available
+    invalid_gpus = [gpu_id for gpu_id in gpu_ids if gpu_id not in available_gpu_ids]
+    if invalid_gpus:
+        logger.warning(f"Requested GPUs {invalid_gpus} not available. Available GPUs: {available_gpu_ids}")
+        # Filter out invalid GPU IDs
+        gpu_ids = [gpu_id for gpu_id in gpu_ids if gpu_id in available_gpu_ids]
+
+        if not gpu_ids:
+            logger.warning("No valid GPUs after filtering - falling back to CPU")
+            return None, max_workers
+
+    # Adjust max_workers based on GPU availability if not specified
+    if max_workers is None:
+        max_workers = len(gpu_ids)
+        logger.info(f"Auto-setting max_workers to {max_workers} based on available GPUs")
+
+    # Create cyclical GPU assignment for the number of workers
+    assigned_gpu_ids = [gpu_ids[i % len(gpu_ids)] for i in range(max_workers)]
+
+    logger.info(f"Using GPUs {gpu_ids} for {max_workers} workers (cyclical assignment: {assigned_gpu_ids})")
+    return assigned_gpu_ids, max_workers
