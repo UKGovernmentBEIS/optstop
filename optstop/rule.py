@@ -606,9 +606,21 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     import atexit
     import shutil
     import logging
+    import time
+    import random
 
-    # Set unique PyTensor directory for this worker process
-    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{os.getpid()}_', dir=worker_dir)
+    # CRITICAL: Clear any existing PyTensor modules from worker process FIRST
+    modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc', 'aesara'))]
+    for mod in modules_to_clear:
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+    # Create completely unique directory with process ID, timestamp, and random component
+    # This prevents any possibility of directory conflicts between workers
+    timestamp = int(time.time() * 1000000)  # microsecond precision
+    random_id = random.randint(10000, 99999)
+    unique_suffix = f'{os.getpid()}_{timestamp}_{random_id}'
+    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{unique_suffix}_')
 
     # Clean up temp directory when process exits
     atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
@@ -617,7 +629,7 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     # Determine device configuration based on gpu_id parameter
     if gpu_id is not None:
         # GPU-enabled worker
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cuda,floatX=float32'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32,force_compile=True'
         os.environ['JAX_PLATFORM_NAME'] = 'gpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         # Configure JAX to use specific GPU
@@ -625,7 +637,7 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
         device_type = f'GPU {gpu_id}'
     else:
         # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32,force_compile=True'
         os.environ['JAX_PLATFORM_NAME'] = 'cpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         device_type = 'CPU'
@@ -633,14 +645,21 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
+    # Additional PyTensor isolation environment variables
+    os.environ['PYTENSOR_FLAGS'] += ',optimizer=fast_compile,openmp=False'
+
     # Force PyTensor to use our compiledir by setting config directly after import
-    # This handles cases where PyTensor is already imported
+    # This handles cases where PyTensor might be imported later
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        # Also try clearing any existing module cache
+        pytensor.config.force_compile = True
+        # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
+        # Clear any global cache
+        if hasattr(pytensor.link.c.cmodule, '_module_cache'):
+            pytensor.link.c.cmodule._module_cache = None
     except Exception as e:
         # If this fails, we still have environment variables as fallback
         pass
@@ -838,9 +857,21 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     import atexit
     import shutil
     import logging
+    import time
+    import random
 
-    # Set unique PyTensor directory for this worker process
-    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{os.getpid()}_', dir=worker_dir)
+    # CRITICAL: Clear any existing PyTensor modules from worker process FIRST
+    modules_to_clear = [mod for mod in sys.modules.keys() if mod.startswith(('pytensor', 'pymc', 'aesara'))]
+    for mod in modules_to_clear:
+        if mod in sys.modules:
+            del sys.modules[mod]
+
+    # Create completely unique directory with process ID, timestamp, and random component
+    # This prevents any possibility of directory conflicts between workers
+    timestamp = int(time.time() * 1000000)  # microsecond precision
+    random_id = random.randint(10000, 99999)
+    unique_suffix = f'{os.getpid()}_{timestamp}_{random_id}'
+    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{unique_suffix}_')
 
     # Clean up temp directory when process exits
     atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
@@ -849,7 +880,7 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     # Determine device configuration based on gpu_id parameter
     if gpu_id is not None:
         # GPU-enabled worker
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cuda,floatX=float32'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32,force_compile=True'
         os.environ['JAX_PLATFORM_NAME'] = 'gpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         # Configure JAX to use specific GPU
@@ -857,7 +888,7 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
         device_type = f'GPU {gpu_id}'
     else:
         # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32,force_compile=True'
         os.environ['JAX_PLATFORM_NAME'] = 'cpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         device_type = 'CPU'
@@ -865,14 +896,21 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
 
+    # Additional PyTensor isolation environment variables
+    os.environ['PYTENSOR_FLAGS'] += ',optimizer=fast_compile,openmp=False'
+
     # Force PyTensor to use our compiledir by setting config directly after import
-    # This handles cases where PyTensor is already imported
+    # This handles cases where PyTensor might be imported later
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        # Also try clearing any existing module cache
+        pytensor.config.force_compile = True
+        # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
+        # Clear any global cache
+        if hasattr(pytensor.link.c.cmodule, '_module_cache'):
+            pytensor.link.c.cmodule._module_cache = None
     except Exception as e:
         # If this fails, we still have environment variables as fallback
         pass

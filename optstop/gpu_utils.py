@@ -530,7 +530,7 @@ def create_worker_initargs(worker_base_dir: str, gpu_ids: Optional[List[int]],
     """Create initialization arguments for each worker with optional GPU assignment.
 
     Args:
-        worker_base_dir: Base directory for worker temp files
+        worker_base_dir: Base directory for worker temp files (not used in new implementation)
         gpu_ids: List of GPU IDs to assign to workers, or None for CPU-only
         suppress_output: Whether to suppress worker output
 
@@ -539,10 +539,11 @@ def create_worker_initargs(worker_base_dir: str, gpu_ids: Optional[List[int]],
     """
     if gpu_ids:
         # GPU-enabled workers with cyclical assignment
-        return [(worker_base_dir, gpu_id, suppress_output) for gpu_id in gpu_ids]
+        # Note: worker_base_dir is ignored in new implementation for better isolation
+        return [(None, gpu_id, suppress_output) for gpu_id in gpu_ids]
     else:
         # CPU-only workers
-        return [(worker_base_dir, None, suppress_output)]
+        return [(None, None, suppress_output)]
 
 
 def validate_gpu_configuration(gpu_ids: Optional[List[int]], max_workers: int) -> Tuple[Optional[List[int]], int]:
