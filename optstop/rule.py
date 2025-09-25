@@ -623,7 +623,7 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     # Determine device configuration based on gpu_id parameter
     if gpu_id is not None:
         # GPU-enabled worker
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32,force_compile=True'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32'
         os.environ['JAX_PLATFORM_NAME'] = 'gpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         # Configure JAX to use specific GPU
@@ -631,7 +631,7 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
         device_type = f'GPU {gpu_id}'
     else:
         # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32,force_compile=True'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
         os.environ['JAX_PLATFORM_NAME'] = 'cpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         device_type = 'CPU'
@@ -647,7 +647,7 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        pytensor.config.force_compile = True
+        # Remove force_compile as it's not a valid PyTensor config
         # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -868,7 +868,7 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     # Determine device configuration based on gpu_id parameter
     if gpu_id is not None:
         # GPU-enabled worker
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32,force_compile=True'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=gpu,floatX=float32'
         os.environ['JAX_PLATFORM_NAME'] = 'gpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         # Configure JAX to use specific GPU
@@ -876,7 +876,7 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
         device_type = f'GPU {gpu_id}'
     else:
         # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32,force_compile=True'
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
         os.environ['JAX_PLATFORM_NAME'] = 'cpu'
         os.environ['CUDA_VISIBLE_DEVICES'] = ''
         device_type = 'CPU'
@@ -892,7 +892,7 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        pytensor.config.force_compile = True
+        # Remove force_compile as it's not a valid PyTensor config
         # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
