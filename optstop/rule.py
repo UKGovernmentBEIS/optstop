@@ -682,9 +682,50 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
 
+            # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
             # Detect GPU availability based on worker's actual environment configuration
             # (set by worker initializer based on GPU assignment)
             gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
+
+            # Configure JAX and PyMC for GPU computation if available
+            if gpu_available and gpu_backend == 'jax-gpu':
+                try:
+                    import jax
+                    # Explicitly configure JAX for GPU
+                    jax.config.update('jax_platform_name', 'gpu')
+                    # Verify JAX sees GPU devices
+                    devices = jax.devices()
+                    gpu_devices = [d for d in devices if 'gpu' in str(d).lower() or 'cuda' in str(d).lower()]
+                    if gpu_devices:
+                        logger.info(f"Worker JAX initialized with GPU devices: {gpu_devices}")
+                        # Force JAX to use the first available GPU device
+                        import jax.numpy as jnp
+                        # Test JAX GPU functionality with a simple operation
+                        test_array = jnp.array([1.0, 2.0, 3.0])
+                        result = jnp.sum(test_array)  # This should execute on GPU
+                        logger.info(f"Worker JAX GPU test successful: {result}")
+
+                        # Set PyTensor/PyMC backend configuration for GPU
+                        import pytensor
+                        pytensor.config.floatX = 'float32'
+                        pytensor.config.device = 'gpu'
+
+                        # Ensure PyMC models will use numpyro backend
+                        import os
+                        os.environ['PYMC_BACKEND'] = 'jax'
+                    else:
+                        logger.warning("Worker JAX GPU setup failed - falling back to CPU")
+                        gpu_available = False
+                        gpu_backend = 'cpu'
+                except ImportError:
+                    logger.warning("JAX not available - using CPU backend")
+                    gpu_available = False
+                    gpu_backend = 'cpu'
+                except Exception as e:
+                    logger.warning(f"JAX GPU setup failed: {e} - using CPU backend")
+                    gpu_available = False
+                    gpu_backend = 'cpu'
+
             sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
             # Log GPU status for this worker
@@ -928,9 +969,50 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
 
+        # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
         # Detect GPU availability based on worker's actual environment configuration
         # (set by worker initializer based on GPU assignment)
         gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
+
+        # Configure JAX and PyMC for GPU computation if available
+        if gpu_available and gpu_backend == 'jax-gpu':
+            try:
+                import jax
+                # Explicitly configure JAX for GPU
+                jax.config.update('jax_platform_name', 'gpu')
+                # Verify JAX sees GPU devices
+                devices = jax.devices()
+                gpu_devices = [d for d in devices if 'gpu' in str(d).lower() or 'cuda' in str(d).lower()]
+                if gpu_devices:
+                    logger.info(f"Worker JAX initialized with GPU devices: {gpu_devices}")
+                    # Force JAX to use the first available GPU device
+                    import jax.numpy as jnp
+                    # Test JAX GPU functionality with a simple operation
+                    test_array = jnp.array([1.0, 2.0, 3.0])
+                    result = jnp.sum(test_array)  # This should execute on GPU
+                    logger.info(f"Worker JAX GPU test successful: {result}")
+
+                    # Set PyTensor/PyMC backend configuration for GPU
+                    import pytensor
+                    pytensor.config.floatX = 'float32'
+                    pytensor.config.device = 'gpu'
+
+                    # Ensure PyMC models will use numpyro backend
+                    import os
+                    os.environ['PYMC_BACKEND'] = 'jax'
+                else:
+                    logger.warning("Worker JAX GPU setup failed - falling back to CPU")
+                    gpu_available = False
+                    gpu_backend = 'cpu'
+            except ImportError:
+                logger.warning("JAX not available - using CPU backend")
+                gpu_available = False
+                gpu_backend = 'cpu'
+            except Exception as e:
+                logger.warning(f"JAX GPU setup failed: {e} - using CPU backend")
+                gpu_available = False
+                gpu_backend = 'cpu'
+
         sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
 
         # Log GPU status for this worker
