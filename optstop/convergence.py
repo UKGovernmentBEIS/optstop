@@ -230,10 +230,16 @@ def _process_grouping(args):
         item_seqs = params.get('item_seqs', 20)
         epoch_seqs = params.get('epoch_seqs', 20)
 
-        # Force CPU usage in worker processes to avoid GPU conflicts
-        gpu_available = False
-        gpu_backend = 'cpu'
+        # Detect GPU availability based on worker's actual environment configuration
+        # (set by worker initializer based on GPU assignment)
+        gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
         sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+
+        # Log GPU status for this worker
+        if gpu_available:
+            logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend})")
+        else:
+            logger.info(f"Worker processing grouping {pid} with CPU-only")
 
         # Set random seed if provided
         if 'random_seed' in params:

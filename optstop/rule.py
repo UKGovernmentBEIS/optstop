@@ -682,13 +682,19 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
 
-            # Force CPU usage in worker processes to avoid GPU conflicts
-            gpu_available = False
-            gpu_backend = 'cpu'
+            # Detect GPU availability based on worker's actual environment configuration
+            # (set by worker initializer based on GPU assignment)
+            gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
             sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+
+            # Log GPU status for this worker
+            if gpu_available:
+                logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend})")
+            else:
+                logger.info(f"Worker processing grouping {pid} with CPU-only")
+
             if 'random_seed' in params:
                 np.random.seed(params['random_seed'])
-            logger.info(f"Processing grouping {pid}")
             item_summaries = []
             used_reps_dfs = []
             theta_lo, theta_hi, theta_width = None, None, None
@@ -922,10 +928,16 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
 
-        # Force CPU usage in worker processes to avoid GPU conflicts
-        gpu_available = False
-        gpu_backend = 'cpu'
+        # Detect GPU availability based on worker's actual environment configuration
+        # (set by worker initializer based on GPU assignment)
+        gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
         sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+
+        # Log GPU status for this worker
+        if gpu_available:
+            logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend})")
+        else:
+            logger.info(f"Worker processing grouping {grouping} with CPU-only")
 
         # Initialize variables
         stop_sample_ids = []
