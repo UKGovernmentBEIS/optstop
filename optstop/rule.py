@@ -34,8 +34,9 @@ warnings.filterwarnings('ignore')
 import pymc as pm
 import arviz as az
 
-# Import GPU utilities
+# Import GPU utilities and cleanup utilities
 from . import gpu_utils
+from . import cleanup_utils
 
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
@@ -601,23 +602,12 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
         suppress_output: Whether to suppress output (default: True)
     """
     import os
-    import tempfile
-    import atexit
-    import shutil
-    import logging
-    import time
-    import random
 
-    # Create completely unique directory with process ID, timestamp, and random component
-    # This approach avoids clearing modules which can break PyMC model contexts
-    # This prevents any possibility of directory conflicts between workers
-    timestamp = int(time.time() * 1000000)  # microsecond precision
-    random_id = random.randint(10000, 99999)
-    unique_suffix = f'{os.getpid()}_{timestamp}_{random_id}'
-    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_posthoc_{unique_suffix}_')
+    # Create unique worker temporary directory with robust cleanup
+    unique_worker_dir = cleanup_utils.create_worker_temp_dir('optstop_posthoc')
 
-    # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
+    # Register enhanced cleanup for worker process
+    cleanup_utils.register_worker_cleanup(unique_worker_dir, 'optstop.worker_posthoc')
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
     # Determine device configuration based on gpu_id parameter
@@ -846,23 +836,12 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
         suppress_output: Whether to suppress output (default: True)
     """
     import os
-    import tempfile
-    import atexit
-    import shutil
-    import logging
-    import time
-    import random
 
-    # Create completely unique directory with process ID, timestamp, and random component
-    # This approach avoids clearing modules which can break PyMC model contexts
-    # This prevents any possibility of directory conflicts between workers
-    timestamp = int(time.time() * 1000000)  # microsecond precision
-    random_id = random.randint(10000, 99999)
-    unique_suffix = f'{os.getpid()}_{timestamp}_{random_id}'
-    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_live_{unique_suffix}_')
+    # Create unique worker temporary directory with robust cleanup
+    unique_worker_dir = cleanup_utils.create_worker_temp_dir('optstop_live')
 
-    # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
+    # Register enhanced cleanup for worker process
+    cleanup_utils.register_worker_cleanup(unique_worker_dir, 'optstop.worker_live')
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
     # Determine device configuration based on gpu_id parameter
@@ -1162,117 +1141,117 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     else:
         final_max_workers = min(validated_max_workers, len(args_list))
 
-    # Create worker base directory
-    import tempfile
-    worker_base_dir = tempfile.mkdtemp(prefix='optstop_workers_')
+    # Create worker base directory with managed cleanup
+    with cleanup_utils.managed_temp_dir(prefix='optstop_workers_') as worker_base_dir:
+        # Create worker initialization arguments with GPU assignment
+        worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
 
-    # Create worker initialization arguments with GPU assignment
-    worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+        if validated_gpu_ids:
+            logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+        else:
+            logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
 
-    if validated_gpu_ids:
-        logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
-    else:
-        logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
+        results = []
 
-    results = []
+        # Use spawn method to ensure clean processes without shared PyTensor state
+        import multiprocessing as mp
+        original_start_method = mp.get_start_method()
 
-    # Use spawn method to ensure clean processes without shared PyTensor state
-    import multiprocessing as mp
-    original_start_method = mp.get_start_method()
+        try:
+            # Force spawn method for clean process isolation
+            if mp.get_start_method() != 'spawn':
+                mp.set_start_method('spawn', force=True)
 
-    try:
-        # Force spawn method for clean process isolation
-        if mp.get_start_method() != 'spawn':
-            mp.set_start_method('spawn', force=True)
+            with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+                # Submit tasks with individual worker initialization
+                futures = []
+                for i, task_args in enumerate(args_list):
+                    # Get worker initialization args cyclically
+                    worker_args = worker_init_args[i % len(worker_init_args)]
+                    # Create a new process with specific GPU assignment
+                    future = executor.submit(_process_posthoc_grouping_with_init, task_args, worker_args)
+                    futures.append(future)
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
-            # Submit tasks with individual worker initialization
-            futures = []
-            for i, task_args in enumerate(args_list):
-                # Get worker initialization args cyclically
-                worker_args = worker_init_args[i % len(worker_init_args)]
-                # Create a new process with specific GPU assignment
-                future = executor.submit(_process_posthoc_grouping_with_init, task_args, worker_args)
-                futures.append(future)
+                # Collect results
+                iterator = concurrent.futures.as_completed(futures)
+                if display_progress:
+                    iterator = tqdm(iterator, total=len(futures), desc="Post-hoc optimal stopping")
 
-            # Collect results
-            iterator = concurrent.futures.as_completed(futures)
-            if display_progress:
-                iterator = tqdm(iterator, total=len(futures), desc="Post-hoc optimal stopping")
+                for future in iterator:
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.error(f"Worker task failed: {e}")
+                        # Add empty result to maintain consistency
+                        results.append({
+                            'grouping': None, 'n_items_used': None, 'theta_ci_low': None,
+                            'theta_ci_high': None, 'theta_ci_width': None, 'percent_items_used': None,
+                            'avg_reps_per_item': None, 'used_reps_dfs': [], 'error': str(e)
+                        })
 
-            for future in iterator:
+        finally:
+            # Restore original start method
+            if original_start_method != mp.get_start_method():
                 try:
-                    results.append(future.result())
-                except Exception as e:
-                    logger.error(f"Worker task failed: {e}")
-                    # Add empty result to maintain consistency
-                    results.append({
-                        'grouping': None, 'n_items_used': None, 'theta_ci_low': None,
-                        'theta_ci_high': None, 'theta_ci_width': None, 'percent_items_used': None,
-                        'avg_reps_per_item': None, 'used_reps_dfs': [], 'error': str(e)
-                    })
+                    mp.set_start_method(original_start_method, force=True)
+                except RuntimeError:
+                    # Start method can only be set once, ignore if already set
+                    pass
 
-    finally:
-        # Restore original start method
-        if original_start_method != mp.get_start_method():
-            try:
-                mp.set_start_method(original_start_method, force=True)
-            except RuntimeError:
-                # Start method can only be set once, ignore if already set
-                pass
-
-    final_used_data = []
-    participant_results = []
-    for res in results:
-        for used in res['used_reps_dfs']:
-            final_used_data.append(used)
+        final_used_data = []
+        participant_results = []
         def to_native(val):
             if hasattr(val, 'item') and callable(val.item):
                 return val.item()
             if isinstance(val, (np.generic, np.ndarray)):
                 return val.tolist() if hasattr(val, 'shape') and val.shape else float(val)
             return val
-        participant_results.append({
-            'grouping': to_native(res['grouping']),
-            'n_items_used': to_native(res['n_items_used']),
-            'theta_ci_low': to_native(res['theta_ci_low']),
-            'theta_ci_high': to_native(res['theta_ci_high']),
-            'theta_ci_width': to_native(res['theta_ci_width']),
-            'percent_items_used': to_native(res['percent_items_used']),
-            'avg_reps_per_item': to_native(res['avg_reps_per_item']),
-            'error': res['error']
-        })
-    if final_used_data:
-        final_used_df = pd.concat(final_used_data, ignore_index=True)
-        # Only return the original columns, in the original order
-        final_used_df = final_used_df.loc[:, [col for col in original_columns if col in final_used_df.columns]]
-    else:
-        final_used_df = pd.DataFrame(columns=original_columns)
-    
-    # Generate diagnostic plots if requested
-    if generate_diagnostics and not df.empty and not final_used_df.empty:
-        logger.info('Generating diagnostic plots...')
-        try:
-            # Create a copy of the original data with the same column structure as the pruned data
-            original_df = df.copy()
-            # Ensure both DataFrames have the same column structure for comparison
-            common_columns = list(set(original_columns) & set(final_used_df.columns))
-            if common_columns:
-                _generate_diagnostic_plots(
-                    original_df[common_columns], 
-                    final_used_df[common_columns], 
-                    diagnostics_prefix
-                )
-            else:
-                logger.warning("No common columns between original and pruned data for diagnostics")
-        except Exception as e:
-            logger.error(f"Failed to generate diagnostic plots: {e}")
-    
-    logger.info('Post-hoc optimal stopping complete')
-    # Only print if in main process
-    if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
-        print(f"Run complete. See the log file for details: {_get_logfile_path()}")
-    return final_used_df, participant_results
+
+        for res in results:
+            for used in res['used_reps_dfs']:
+                final_used_data.append(used)
+            participant_results.append({
+                'grouping': to_native(res['grouping']),
+                'n_items_used': to_native(res['n_items_used']),
+                'theta_ci_low': to_native(res['theta_ci_low']),
+                'theta_ci_high': to_native(res['theta_ci_high']),
+                'theta_ci_width': to_native(res['theta_ci_width']),
+                'percent_items_used': to_native(res['percent_items_used']),
+                'avg_reps_per_item': to_native(res['avg_reps_per_item']),
+                'error': res['error']
+            })
+
+        if final_used_data:
+            final_used_df = pd.concat(final_used_data, ignore_index=True)
+            # Only return the original columns, in the original order
+            final_used_df = final_used_df.loc[:, [col for col in original_columns if col in final_used_df.columns]]
+        else:
+            final_used_df = pd.DataFrame(columns=original_columns)
+
+        # Generate diagnostic plots if requested
+        if generate_diagnostics and not df.empty and not final_used_df.empty:
+            logger.info('Generating diagnostic plots...')
+            try:
+                # Create a copy of the original data with the same column structure as the pruned data
+                original_df = df.copy()
+                # Ensure both DataFrames have the same column structure for comparison
+                common_columns = list(set(original_columns) & set(final_used_df.columns))
+                if common_columns:
+                    _generate_diagnostic_plots(
+                        original_df[common_columns],
+                        final_used_df[common_columns],
+                        diagnostics_prefix
+                    )
+                else:
+                    logger.warning("No common columns between original and pruned data for diagnostics")
+            except Exception as e:
+                logger.error(f"Failed to generate diagnostic plots: {e}")
+
+        logger.info('Post-hoc optimal stopping complete')
+        # Only print if in main process
+        if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
+            print(f"Run complete. See the log file for details: {_get_logfile_path()}")
+        return final_used_df, participant_results
 
 # --- Live mode ---
 def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
@@ -1338,78 +1317,76 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         else:
             final_max_workers = min(validated_max_workers, len(args_list))
 
-        # Create worker base directory
-        import tempfile
-        worker_base_dir = tempfile.mkdtemp(prefix='optstop_live_workers_')
+        # Create worker base directory with managed cleanup
+        with cleanup_utils.managed_temp_dir(prefix='optstop_live_workers_') as worker_base_dir:
+            # Create worker initialization arguments with GPU assignment
+            worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
 
-        # Create worker initialization arguments with GPU assignment
-        worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+            if validated_gpu_ids:
+                logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+            else:
+                logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
 
-        if validated_gpu_ids:
-            logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
-        else:
-            logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
-        
-        # Process groupings in parallel
-        results = []
+            # Process groupings in parallel
+            results = []
 
-        # Use spawn method to ensure clean processes without shared PyTensor state
-        import multiprocessing as mp
-        original_start_method = mp.get_start_method()
+            # Use spawn method to ensure clean processes without shared PyTensor state
+            import multiprocessing as mp
+            original_start_method = mp.get_start_method()
 
-        try:
-            # Force spawn method for clean process isolation
-            if mp.get_start_method() != 'spawn':
-                mp.set_start_method('spawn', force=True)
+            try:
+                # Force spawn method for clean process isolation
+                if mp.get_start_method() != 'spawn':
+                    mp.set_start_method('spawn', force=True)
 
-            with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
-                # Submit tasks with individual worker initialization
-                futures = []
-                for i, task_args in enumerate(args_list):
-                    # Get worker initialization args cyclically
-                    worker_args = worker_init_args[i % len(worker_init_args)]
-                    # Create a new process with specific GPU assignment
-                    future = executor.submit(_process_live_grouping_with_init, task_args, worker_args)
-                    futures.append(future)
+                with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+                    # Submit tasks with individual worker initialization
+                    futures = []
+                    for i, task_args in enumerate(args_list):
+                        # Get worker initialization args cyclically
+                        worker_args = worker_init_args[i % len(worker_init_args)]
+                        # Create a new process with specific GPU assignment
+                        future = executor.submit(_process_live_grouping_with_init, task_args, worker_args)
+                        futures.append(future)
 
-                # Collect results
-                iterator = concurrent.futures.as_completed(futures)
-                if display_progress:
-                    iterator = tqdm(iterator, total=len(futures), desc="Live optimal stopping")
+                    # Collect results
+                    iterator = concurrent.futures.as_completed(futures)
+                    if display_progress:
+                        iterator = tqdm(iterator, total=len(futures), desc="Live optimal stopping")
 
-                for future in iterator:
+                    for future in iterator:
+                        try:
+                            results.append(future.result())
+                        except Exception as e:
+                            logger.error(f"Worker task failed: {e}")
+                            # Add empty result to maintain consistency
+                            results.append({
+                                'grouping': None,
+                                'stop_sample_ids': [],
+                                'stop_this_grouping': []
+                            })
+
+            finally:
+                # Restore original start method
+                if original_start_method != mp.get_start_method():
                     try:
-                        results.append(future.result())
-                    except Exception as e:
-                        logger.error(f"Worker task failed: {e}")
-                        # Add empty result to maintain consistency
-                        results.append({
-                            'grouping': None,
-                            'stop_sample_ids': [],
-                            'stop_this_grouping': []
-                        })
+                        mp.set_start_method(original_start_method, force=True)
+                    except RuntimeError:
+                        # Start method can only be set once, ignore if already set
+                        pass
 
-        finally:
-            # Restore original start method
-            if original_start_method != mp.get_start_method():
-                try:
-                    mp.set_start_method(original_start_method, force=True)
-                except RuntimeError:
-                    # Start method can only be set once, ignore if already set
-                    pass
+            # Aggregate results
+            stop_sample_ids = []
+            stop_task_groupings = []
 
-        # Aggregate results
-        stop_sample_ids = []
-        stop_task_groupings = []
-        
-        for res in results:
-            stop_sample_ids.extend(res['stop_sample_ids'])
-            stop_task_groupings.extend(res['stop_this_grouping'])
-        
-        logger.info('Live optimal stopping complete')
-        if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
-            print(f"Run complete. See the log file for details: {_get_logfile_path()}")
-        return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
+            for res in results:
+                stop_sample_ids.extend(res['stop_sample_ids'])
+                stop_task_groupings.extend(res['stop_this_grouping'])
+
+            logger.info('Live optimal stopping complete')
+            if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
+                print(f"Run complete. See the log file for details: {_get_logfile_path()}")
+            return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
     finally:
         sys.stdout = old_stdout
         sys.stderr = old_stderr 

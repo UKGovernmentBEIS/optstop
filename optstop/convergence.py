@@ -25,8 +25,9 @@ warnings.filterwarnings('ignore')
 import pymc as pm
 import arviz as az
 
-# Import GPU utilities
+# Import GPU utilities and cleanup utilities
 from . import gpu_utils
+from . import cleanup_utils
 
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
@@ -140,23 +141,12 @@ def _worker_initializer_convergence(worker_dir, gpu_id=None, suppress_output=Tru
         suppress_output: Whether to suppress output (default: True)
     """
     import os
-    import tempfile
-    import atexit
-    import shutil
-    import logging
-    import time
-    import random
 
-    # Create completely unique directory with process ID, timestamp, and random component
-    # This approach avoids clearing modules which can break PyMC model contexts
-    # This prevents any possibility of directory conflicts between workers
-    timestamp = int(time.time() * 1000000)  # microsecond precision
-    random_id = random.randint(10000, 99999)
-    unique_suffix = f'{os.getpid()}_{timestamp}_{random_id}'
-    unique_worker_dir = tempfile.mkdtemp(prefix=f'optstop_convergence_{unique_suffix}_')
+    # Create unique worker temporary directory with robust cleanup
+    unique_worker_dir = cleanup_utils.create_worker_temp_dir('optstop_convergence')
 
-    # Clean up temp directory when process exits
-    atexit.register(lambda: shutil.rmtree(unique_worker_dir, ignore_errors=True))
+    # Register enhanced cleanup for worker process
+    cleanup_utils.register_worker_cleanup(unique_worker_dir, 'optstop.worker_convergence')
 
     # CRITICAL: Set environment variables BEFORE any PyTensor import
     # Determine device configuration based on gpu_id parameter
@@ -624,78 +614,76 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     else:
         final_max_workers = min(validated_max_workers, len(args_list))
 
-    # Create worker base directory
-    import tempfile
-    worker_base_dir = tempfile.mkdtemp(prefix='optstop_convergence_workers_')
+    # Create worker base directory with managed cleanup
+    with cleanup_utils.managed_temp_dir(prefix='optstop_convergence_workers_') as worker_base_dir:
+        # Create worker initialization arguments with GPU assignment
+        worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
 
-    # Create worker initialization arguments with GPU assignment
-    worker_init_args = gpu_utils.create_worker_initargs(worker_base_dir, validated_gpu_ids, suppress_output=True)
+        if validated_gpu_ids:
+            logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
+        else:
+            logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
 
-    if validated_gpu_ids:
-        logger.info(f'Using {final_max_workers} workers with GPU assignment: {validated_gpu_ids}')
-    else:
-        logger.info(f'Using {final_max_workers} CPU-only workers for {len(args_list)} groupings')
+        results = []
 
-    results = []
+        # Use spawn method to ensure clean processes without shared PyTensor state
+        import multiprocessing as mp
+        original_start_method = mp.get_start_method()
 
-    # Use spawn method to ensure clean processes without shared PyTensor state
-    import multiprocessing as mp
-    original_start_method = mp.get_start_method()
-
-    try:
-        # Force spawn method for clean process isolation
-        if mp.get_start_method() != 'spawn':
-            mp.set_start_method('spawn', force=True)
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
-            # Submit tasks with individual worker initialization
-            futures = []
-            for i, task_args in enumerate(args_list):
-                # Get worker initialization args cyclically
-                worker_args = worker_init_args[i % len(worker_init_args)]
-                # Create a new process with specific GPU assignment
-                future = executor.submit(_process_grouping_with_init_convergence, task_args, worker_args)
-                futures.append(future)
-
-            # Collect results
-            iterator = concurrent.futures.as_completed(futures)
-            if display_progress:
-                iterator = tqdm(iterator, total=len(futures), desc="Convergence analysis")
-
-            for future in iterator:
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    logger.error(f"Worker task failed: {e}")
-                    # Add empty result to maintain consistency
-                    results.append({
-                        'grouping': None, 'group_label': None, 'n_items_used': None,
-                        'theta_ci_low': None, 'theta_ci_high': None, 'theta_ci_width': None,
-                        'percent_items_used': None, 'avg_reps_per_item': None,
-                        'error': str(e)
-                    })
-
-    finally:
-        # Restore original start method
-        if original_start_method != mp.get_start_method():
-            try:
-                mp.set_start_method(original_start_method, force=True)
-            except RuntimeError:
-                # Start method can only be set once, ignore if already set
-                pass
-
-    logger.info('Convergence analysis complete')
-    output_df = pd.DataFrame(results)
-    if generate_diagnostics:
         try:
-            generate_convergence_diagnostics(output_df, out_prefix=diagnostics_prefix)
-        except Exception as e:
-            logger = logging.getLogger('optstop.convergence')
-            logger.error(f"Failed to generate convergence diagnostics: {e}")
-    # Only print if in main process
-    if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
-        print(f"Run complete. See the log file for details: {_get_logfile_path_convergence()}")
-    return output_df
+            # Force spawn method for clean process isolation
+            if mp.get_start_method() != 'spawn':
+                mp.set_start_method('spawn', force=True)
+
+            with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
+                # Submit tasks with individual worker initialization
+                futures = []
+                for i, task_args in enumerate(args_list):
+                    # Get worker initialization args cyclically
+                    worker_args = worker_init_args[i % len(worker_init_args)]
+                    # Create a new process with specific GPU assignment
+                    future = executor.submit(_process_grouping_with_init_convergence, task_args, worker_args)
+                    futures.append(future)
+
+                # Collect results
+                iterator = concurrent.futures.as_completed(futures)
+                if display_progress:
+                    iterator = tqdm(iterator, total=len(futures), desc="Convergence analysis")
+
+                for future in iterator:
+                    try:
+                        results.append(future.result())
+                    except Exception as e:
+                        logger.error(f"Worker task failed: {e}")
+                        # Add empty result to maintain consistency
+                        results.append({
+                            'grouping': None, 'group_label': None, 'n_items_used': None,
+                            'theta_ci_low': None, 'theta_ci_high': None, 'theta_ci_width': None,
+                            'percent_items_used': None, 'avg_reps_per_item': None,
+                            'error': str(e)
+                        })
+
+        finally:
+            # Restore original start method
+            if original_start_method != mp.get_start_method():
+                try:
+                    mp.set_start_method(original_start_method, force=True)
+                except RuntimeError:
+                    # Start method can only be set once, ignore if already set
+                    pass
+
+        logger.info('Convergence analysis complete')
+        output_df = pd.DataFrame(results)
+        if generate_diagnostics:
+            try:
+                generate_convergence_diagnostics(output_df, out_prefix=diagnostics_prefix)
+            except Exception as e:
+                logger = logging.getLogger('optstop.convergence')
+                logger.error(f"Failed to generate convergence diagnostics: {e}")
+        # Only print if in main process
+        if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
+            print(f"Run complete. See the log file for details: {_get_logfile_path_convergence()}")
+        return output_df
 
 def generate_convergence_diagnostics(convergence_data: pd.DataFrame, out_prefix: str = "convergence_eval"):
     """
