@@ -705,14 +705,11 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         result = jnp.sum(test_array)  # This should execute on GPU
                         logger.info(f"Worker JAX GPU test successful: {result}")
 
-                        # Set PyTensor/PyMC backend configuration for GPU
-                        import pytensor
-                        pytensor.config.floatX = 'float32'
-                        pytensor.config.device = 'gpu'
-
-                        # Ensure PyMC models will use numpyro backend
+                        # Configure PyMC to use JAX backend (don't set PyTensor device)
                         import os
                         os.environ['PYMC_BACKEND'] = 'jax'
+
+                        # JAX handles GPU automatically - no PyTensor configuration needed
                     else:
                         logger.warning("Worker JAX GPU setup failed - falling back to CPU")
                         gpu_available = False
@@ -992,14 +989,11 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     result = jnp.sum(test_array)  # This should execute on GPU
                     logger.info(f"Worker JAX GPU test successful: {result}")
 
-                    # Set PyTensor/PyMC backend configuration for GPU
-                    import pytensor
-                    pytensor.config.floatX = 'float32'
-                    pytensor.config.device = 'gpu'
-
-                    # Ensure PyMC models will use numpyro backend
+                    # Configure PyMC to use JAX backend (don't set PyTensor device)
                     import os
                     os.environ['PYMC_BACKEND'] = 'jax'
+
+                    # JAX handles GPU automatically - no PyTensor configuration needed
                 else:
                     logger.warning("Worker JAX GPU setup failed - falling back to CPU")
                     gpu_available = False
