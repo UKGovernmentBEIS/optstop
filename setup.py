@@ -9,7 +9,7 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
-        'pymc',
+        'pymc>=5.10.0',
         'arviz',
         'scipy',
         'statsmodels',

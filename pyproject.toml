@@ -14,7 +14,7 @@ requires-python = ">=3.7"
 dependencies = [
     "numpy",
     "pandas",
-    "pymc",
+    "pymc>=5.10.0",
     "arviz",
     "scipy",
     "statsmodels",
@@ -25,7 +25,9 @@ dependencies = [
 [project.optional-dependencies]
 gpu = [
     "jax[cuda12_pip] ; sys_platform != 'darwin'",
-    "jax[metal] ; sys_platform == 'darwin'"
+    "jax[metal] ; sys_platform == 'darwin'",
+    "numpyro",
+    "blackjax"
 ]
 
 [project.scripts]
