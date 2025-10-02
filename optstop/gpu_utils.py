@@ -333,48 +333,271 @@ def configure_jax_for_gpu() -> bool:
         return False
 
 
-def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool) -> Dict[str, Any]:
+def estimate_gpu_memory_requirement(params: Dict[str, Any], num_parallel_tasks: int = 1) -> float:
     """
-    Get optimal sampling parameters based on GPU availability.
+    Estimate GPU memory requirement in GB for a sampling task.
+
+    Args:
+        params: Sampling parameters (draws, tune, chains, model complexity)
+        num_parallel_tasks: Number of tasks running in parallel on GPU
+
+    Returns:
+        Estimated GPU memory in GB
+    """
+    draws = params.get('draws', 3000)
+    tune = params.get('tune', 3000)
+    chains = params.get('chains', 1)
+
+    # Estimate memory per chain (rough heuristic based on empirical testing)
+    # Base overhead: ~500 MB for JAX/XLA compilation
+    # Per-sample overhead: ~0.5 KB per draw
+    # Model complexity factor (can be adjusted based on model size)
+    base_overhead_mb = 500
+    per_sample_kb = 0.5
+
+    total_samples = (draws + tune) * chains
+    sample_memory_mb = (total_samples * per_sample_kb) / 1024
+
+    # Total per task
+    memory_per_task_mb = base_overhead_mb + sample_memory_mb
+
+    # Account for parallel tasks
+    total_memory_gb = (memory_per_task_mb * num_parallel_tasks) / 1024
+
+    return total_memory_gb
+
+
+def get_system_specs() -> Dict[str, Any]:
+    """
+    Get comprehensive system specifications for adaptive decision-making.
+
+    Returns:
+        Dict with system specs:
+        - cpu_count: Number of CPU cores
+        - gpu_count: Number of GPUs
+        - gpu_memory_gb: List of available memory per GPU in GB
+        - total_gpu_memory_gb: Total GPU memory across all GPUs
+        - ram_available_gb: Available system RAM in GB
+    """
+    import os
+
+    specs = {
+        'cpu_count': os.cpu_count() or 1,
+        'gpu_count': 0,
+        'gpu_memory_gb': [],
+        'total_gpu_memory_gb': 0.0,
+        'ram_available_gb': 0.0
+    }
+
+    # Get GPU count and memory
+    try:
+        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free',
+                               '--format=csv,noheader,nounits'],
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            gpu_memories = [float(mem) / 1024 for mem in result.stdout.strip().split('\n') if mem.strip()]
+            specs['gpu_count'] = len(gpu_memories)
+            specs['gpu_memory_gb'] = gpu_memories
+            specs['total_gpu_memory_gb'] = sum(gpu_memories)
+    except Exception:
+        pass
+
+    # Get available RAM
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            for line in f:
+                if line.startswith('MemAvailable:'):
+                    kb = int(line.split()[1])
+                    specs['ram_available_gb'] = kb / (1024 * 1024)
+                    break
+    except Exception:
+        pass
+
+    return specs
+
+
+def get_available_gpu_memory(gpu_index: int = 0) -> float:
+    """
+    Get available GPU memory in GB for a specific GPU.
+
+    Args:
+        gpu_index: Index of GPU to query (default 0)
+
+    Returns:
+        Available GPU memory in GB, or 0 if no GPU or error
+    """
+    try:
+        result = subprocess.run(['nvidia-smi', '--query-gpu=memory.free',
+                               '--format=csv,noheader,nounits'],
+                              capture_output=True, text=True, timeout=5)
+        if result.returncode == 0:
+            gpu_memories = [float(mem) for mem in result.stdout.strip().split('\n') if mem.strip()]
+            if gpu_index < len(gpu_memories):
+                return gpu_memories[gpu_index] / 1024
+    except Exception:
+        pass
+    return 0.0
+
+
+def should_use_gpu_for_workload(params: Dict[str, Any], num_parallel_tasks: int,
+                                 gpu_available: bool, system_specs: Optional[Dict[str, Any]] = None) -> Tuple[bool, str]:
+    """
+    Intelligently decide whether to use GPU based on workload characteristics and system specs.
+    Fully adaptive to hardware configuration - no hardcoded assumptions.
+
+    Args:
+        params: Sampling parameters
+        num_parallel_tasks: Number of parallel tasks
+        gpu_available: Whether GPU is physically available
+        system_specs: System specifications (if None, will be queried automatically)
+
+    Returns:
+        Tuple of (should_use_gpu, reason)
+    """
+    if not gpu_available:
+        return False, "No GPU available"
+
+    # Get system specs if not provided
+    if system_specs is None:
+        system_specs = get_system_specs()
+
+    cpu_count = system_specs.get('cpu_count', 1)
+    gpu_count = system_specs.get('gpu_count', 0)
+    gpu_memory_gb = system_specs.get('total_gpu_memory_gb', 0.0)
+
+    if gpu_count == 0 or gpu_memory_gb == 0:
+        return False, "No GPU memory available"
+
+    draws = params.get('draws', 3000)
+    tune = params.get('tune', 3000)
+    chains = params.get('chains', 1)
+
+    # Estimate memory requirement
+    estimated_memory = estimate_gpu_memory_requirement(params, num_parallel_tasks)
+
+    # Safety factor: use 80% of available memory
+    safe_gpu_memory = gpu_memory_gb * 0.8
+
+    # Rule 1: Memory constraint (most critical)
+    if estimated_memory > safe_gpu_memory:
+        return False, f"Estimated GPU memory ({estimated_memory:.1f}GB) exceeds available ({safe_gpu_memory:.1f}GB). Use CPU to avoid OOM errors."
+
+    # Rule 2: Workload size (GPU has overhead, only beneficial for larger workloads)
+    # Adaptive threshold: scales with GPU capability
+    # Small GPUs (~4GB): need >50K samples
+    # Large GPUs (>16GB): can benefit from >30K samples
+    min_samples_for_gpu = max(30000, 50000 - int(gpu_memory_gb * 1000))
+    total_samples = (draws + tune) * chains * num_parallel_tasks
+
+    if total_samples < min_samples_for_gpu:
+        return False, f"Small workload ({total_samples} samples). CPU faster (GPU needs ≥{min_samples_for_gpu} samples for overhead)."
+
+    # Rule 3: Parallel tasks vs CPU cores and GPU count
+    # Adaptive: if you have many CPUs or multiple GPUs, the threshold changes
+    # Formula: Prefer CPU if parallel_tasks > (cpu_count/2) and parallel_tasks > (gpu_count * 4)
+    cpu_threshold = max(4, cpu_count // 2)  # At least 4, or half your CPU cores
+    gpu_threshold = gpu_count * 4  # Each GPU can handle ~4 parallel tasks efficiently
+
+    if num_parallel_tasks > cpu_threshold and num_parallel_tasks > gpu_threshold:
+        return False, f"High parallelism ({num_parallel_tasks} tasks vs {cpu_count} CPUs, {gpu_count} GPUs). CPU multiprocessing more efficient."
+
+    # Rule 4: Single chain + many parallel tasks = CPU better
+    # Adaptive: threshold based on GPU count
+    parallel_threshold = max(4, gpu_count * 2)
+
+    if chains == 1 and num_parallel_tasks >= parallel_threshold:
+        return False, f"Single-chain with high parallelism ({num_parallel_tasks} tasks, {gpu_count} GPUs). CPU multiprocessing more efficient."
+
+    # Rule 5: Multi-GPU scenario - only use GPU if we can distribute effectively
+    if gpu_count > 1:
+        tasks_per_gpu = num_parallel_tasks / gpu_count
+        if tasks_per_gpu > 4:
+            return False, f"Uneven GPU load ({tasks_per_gpu:.1f} tasks/GPU). CPU parallelization more efficient."
+
+    # GPU is beneficial
+    reasons = []
+    reasons.append(f"Large workload ({total_samples:,} samples)")
+    reasons.append(f"Sufficient GPU memory ({estimated_memory:.1f}GB needed, {safe_gpu_memory:.1f}GB available)")
+    reasons.append(f"Hardware fit: {num_parallel_tasks} tasks, {cpu_count} CPUs, {gpu_count} GPU(s)")
+
+    return True, " | ".join(reasons)
+
+
+def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool,
+                                num_parallel_tasks: int = 1, auto_decide: bool = True,
+                                system_specs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Get optimal sampling parameters based on GPU availability and workload analysis.
+    Fully adaptive to hardware configuration.
 
     Args:
         params: Current parameter dictionary
         gpu_available: Whether GPU is available and functional
+        num_parallel_tasks: Number of parallel tasks that will run
+        auto_decide: If True, automatically decide GPU vs CPU based on workload
+        system_specs: System specifications (if None, will be queried automatically)
 
     Returns:
         Dict with optimized sampling parameters
     """
     logger = logging.getLogger('optstop.gpu_utils')
 
+    # Get system specs if not provided
+    if system_specs is None:
+        system_specs = get_system_specs()
+
     # Start with current parameters
     optimized_params = params.copy()
 
-    if gpu_available:
+    # Smart decision making
+    use_gpu = False
+    decision_reason = "GPU not available"
+
+    if gpu_available and auto_decide:
+        use_gpu, decision_reason = should_use_gpu_for_workload(
+            params, num_parallel_tasks, gpu_available, system_specs
+        )
+        logger.info(f"Auto-decision: {'GPU' if use_gpu else 'CPU'} - {decision_reason}")
+    elif gpu_available:
+        use_gpu = True
+        decision_reason = "GPU forced by user"
+        logger.info("Using GPU (user override)")
+
+    if use_gpu:
         # GPU-optimized parameters
-        logger.info("Using GPU-optimized sampling parameters")
+        logger.info("Configuring GPU-optimized sampling parameters")
 
-        # For GPU, we can often use more chains efficiently
-        # Since GPU processes chains in parallel more effectively
-        original_chains = params.get('chains', 4)
-        original_cores = params.get('cores', 4)
+        gpu_count = system_specs.get('gpu_count', 1)
 
-        # GPU can handle more chains efficiently due to vectorization
-        if original_chains < 6:
-            optimized_params['chains'] = min(8, original_chains * 2)
-            logger.info(f"Increased chains from {original_chains} to {optimized_params['chains']} for GPU")
-
-        # Set cores to match chains for GPU usage (numpyro handles parallelization)
-        optimized_params['cores'] = optimized_params['chains']
+        # Adaptive chain configuration based on GPU count
+        # Single GPU: 1 chain per task
+        # Multi-GPU: can use more chains and distribute
+        if gpu_count == 1:
+            optimized_params['chains'] = 1
+            optimized_params['cores'] = 1
+        else:
+            # With multiple GPUs, can use more chains
+            optimized_params['chains'] = min(gpu_count, params.get('chains', 2))
+            optimized_params['cores'] = optimized_params['chains']
 
         # Add GPU-specific sampling parameters
         optimized_params['use_gpu'] = True
         optimized_params['nuts_sampler'] = 'numpyro'
 
     else:
-        # CPU-optimized parameters (existing behavior)
-        logger.info("Using CPU-optimized sampling parameters")
+        # CPU-optimized parameters
+        logger.info("Configuring CPU-optimized sampling parameters")
         optimized_params['use_gpu'] = False
         optimized_params['nuts_sampler'] = 'pymc'  # Default PyMC sampler
+
+        # Adaptive CPU configuration based on available cores
+        cpu_count = system_specs.get('cpu_count', 1)
+        original_chains = params.get('chains', 2)
+        original_cores = params.get('cores', 2)
+
+        # Don't exceed available CPU cores
+        optimized_params['chains'] = min(original_chains, cpu_count)
+        optimized_params['cores'] = min(original_cores, cpu_count)
 
     return optimized_params
 

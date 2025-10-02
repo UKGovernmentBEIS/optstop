@@ -620,11 +620,13 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
         os.environ['JAX_CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         device_type = f'GPU {gpu_id}'
     else:
-        # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
-        device_type = 'CPU'
+        # No specific GPU assigned - let JAX/PyTensor auto-detect available devices
+        # Do NOT set CUDA_VISIBLE_DEVICES to empty string as this disables GPU entirely
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},floatX=float32'
+        # Let JAX auto-detect (don't force CPU-only mode)
+        # os.environ['JAX_PLATFORM_NAME'] = 'cpu'  # Commented out to allow GPU detection
+        # os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Commented out to allow GPU detection
+        device_type = 'Auto-detect (GPU if available)'
 
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
@@ -898,11 +900,13 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
         os.environ['JAX_CUDA_VISIBLE_DEVICES'] = str(gpu_id)
         device_type = f'GPU {gpu_id}'
     else:
-        # CPU-only worker (preserve existing behavior)
-        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},device=cpu,floatX=float32'
-        os.environ['JAX_PLATFORM_NAME'] = 'cpu'
-        os.environ['CUDA_VISIBLE_DEVICES'] = ''
-        device_type = 'CPU'
+        # No specific GPU assigned - let JAX/PyTensor auto-detect available devices
+        # Do NOT set CUDA_VISIBLE_DEVICES to empty string as this disables GPU entirely
+        os.environ['PYTENSOR_FLAGS'] = f'compiledir={unique_worker_dir},floatX=float32'
+        # Let JAX auto-detect (don't force CPU-only mode)
+        # os.environ['JAX_PLATFORM_NAME'] = 'cpu'  # Commented out to allow GPU detection
+        # os.environ['CUDA_VISIBLE_DEVICES'] = ''  # Commented out to allow GPU detection
+        device_type = 'Auto-detect (GPU if available)'
 
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['MKL_NUM_THREADS'] = '1'
