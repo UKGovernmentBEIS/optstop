@@ -275,13 +275,25 @@ def _process_grouping(args):
                 gpu_available = False
                 gpu_backend = 'cpu'
 
-        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+        # Get number of parallel tasks from params if available, otherwise assume 1
+        # In convergence mode, each worker processes one grouping, so num_parallel_tasks = 1 per worker
+        num_parallel_tasks = params.get('_num_parallel_tasks', 1)
+
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(
+            params=params,
+            gpu_available=gpu_available,
+            gpu_backend=gpu_backend,
+            num_parallel_tasks=num_parallel_tasks,
+            auto_decide=True
+        )
 
         # Log GPU status for this worker
-        if gpu_available:
+        if gpu_available and sampling_kwargs.get('nuts_sampler') == 'numpyro':
+            logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend}, chains={sampling_kwargs.get('chains', 1)})")
+        elif gpu_available:
             logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend})")
         else:
-            logger.info(f"Worker processing grouping {pid} with CPU-only")
+            logger.info(f"Worker processing grouping {pid} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
 
         # Set random seed if provided
         if 'random_seed' in params:

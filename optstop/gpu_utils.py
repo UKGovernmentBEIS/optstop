@@ -602,19 +602,46 @@ def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool,
     return optimized_params
 
 
-def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend: str = 'cpu') -> Dict[str, Any]:
+def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend: str = 'cpu',
+                       num_parallel_tasks: int = 1, auto_decide: bool = True) -> Dict[str, Any]:
     """
     Get sampling keyword arguments optimized for the available hardware and backend.
+    Now includes intelligent GPU vs CPU decision-making based on workload.
 
     Args:
         params: Parameter dictionary
         gpu_available: Whether GPU is available and functional
         gpu_backend: GPU backend type ('jax-gpu', 'pytensor-gpu', 'cpu')
+        num_parallel_tasks: Number of parallel tasks running (default: 1)
+        auto_decide: If True, automatically decide whether to use GPU based on workload (default: True)
 
     Returns:
         Dict with sampling kwargs for pm.sample()
     """
     logger = logging.getLogger('optstop.gpu_utils')
+
+    # Use intelligent GPU/CPU decision making if auto_decide is enabled
+    if auto_decide and gpu_available:
+        # Get optimal parameters based on workload analysis
+        optimized_params = get_optimal_sampling_params(
+            params=params,
+            gpu_available=gpu_available,
+            num_parallel_tasks=num_parallel_tasks,
+            auto_decide=True
+        )
+
+        # Check if the decision was to use GPU
+        use_gpu_decision = optimized_params.get('use_gpu', False)
+
+        if not use_gpu_decision:
+            # Smart logic decided CPU is better - override gpu_available
+            logger.info(f"Auto-decision: Using CPU instead of GPU (workload analysis)")
+            gpu_available = False
+            gpu_backend = 'cpu'
+        else:
+            # Use the optimized chains/cores from smart decision
+            params = optimized_params
+            logger.info(f"Auto-decision: Using GPU with optimized parameters (chains={params.get('chains')}, cores={params.get('cores')})")
 
     # Base sampling arguments
     sampling_kwargs = {
@@ -630,8 +657,11 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         if gpu_backend == 'jax-gpu':
             # Use numpyro (JAX) sampler for optimal GPU acceleration
             sampling_kwargs['nuts_sampler'] = 'numpyro'
-            sampling_kwargs['chains'] = params.get('chains', 4)  # numpyro handles parallelization
-            logger.info("Configured sampling for GPU acceleration with JAX/numpyro")
+            # CRITICAL: For GPU, reduce chains to prevent OOM
+            # numpyro runs chains in parallel on the SAME GPU
+            sampling_kwargs['chains'] = params.get('chains', 1)
+            sampling_kwargs['cores'] = params.get('cores', 1)
+            logger.info(f"Configured sampling for GPU acceleration with JAX/numpyro (chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']})")
 
         elif gpu_backend == 'pytensor-gpu':
             # Use standard PyMC sampler with PyTensor GPU backend
@@ -643,7 +673,7 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
             logger.info("GPU detected but backend unknown - using CPU sampling")
     else:
         # Standard PyMC sampling on CPU
-        logger.info("Configured sampling for CPU")
+        logger.info(f"Configured sampling for CPU (chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']})")
 
     return sampling_kwargs
 

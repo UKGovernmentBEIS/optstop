@@ -725,13 +725,25 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     gpu_available = False
                     gpu_backend = 'cpu'
 
-            sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+            # Get number of parallel tasks from params if available, otherwise assume 1
+            # In posthoc mode, each worker processes one grouping, so num_parallel_tasks = 1 per worker
+            num_parallel_tasks = params.get('_num_parallel_tasks', 1)
+
+            sampling_kwargs = gpu_utils.get_sampling_kwargs(
+                params=params,
+                gpu_available=gpu_available,
+                gpu_backend=gpu_backend,
+                num_parallel_tasks=num_parallel_tasks,
+                auto_decide=True
+            )
 
             # Log GPU status for this worker
-            if gpu_available:
+            if gpu_available and sampling_kwargs.get('nuts_sampler') == 'numpyro':
+                logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend}, chains={sampling_kwargs.get('chains', 1)})")
+            elif gpu_available:
                 logger.info(f"Worker processing grouping {pid} with GPU acceleration ({gpu_backend})")
             else:
-                logger.info(f"Worker processing grouping {pid} with CPU-only")
+                logger.info(f"Worker processing grouping {pid} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
 
             if 'random_seed' in params:
                 np.random.seed(params['random_seed'])
@@ -1011,13 +1023,25 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 gpu_available = False
                 gpu_backend = 'cpu'
 
-        sampling_kwargs = gpu_utils.get_sampling_kwargs(params, gpu_available, gpu_backend)
+        # Get number of parallel tasks from params if available, otherwise assume 1
+        # In live mode, each worker processes one grouping, so num_parallel_tasks = 1 per worker
+        num_parallel_tasks = params.get('_num_parallel_tasks', 1)
+
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(
+            params=params,
+            gpu_available=gpu_available,
+            gpu_backend=gpu_backend,
+            num_parallel_tasks=num_parallel_tasks,
+            auto_decide=True
+        )
 
         # Log GPU status for this worker
-        if gpu_available:
+        if gpu_available and sampling_kwargs.get('nuts_sampler') == 'numpyro':
+            logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend}, chains={sampling_kwargs.get('chains', 1)})")
+        elif gpu_available:
             logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend})")
         else:
-            logger.info(f"Worker processing grouping {grouping} with CPU-only")
+            logger.info(f"Worker processing grouping {grouping} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
 
         # Initialize variables
         stop_sample_ids = []
@@ -1225,7 +1249,12 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
         logger.info('No groupings to process; returning empty DataFrame and summary.')
         return pd.DataFrame(columns=df.columns), []
 
-    args_list = [(pid, df_part, params, score_column) for pid, df_part in groupings]
+    # Add number of parallel tasks to params for smart GPU/CPU decision making
+    # This helps the adaptive logic decide whether GPU or CPU multiprocessing is better
+    params_with_context = params.copy()
+    params_with_context['_num_parallel_tasks'] = len(groupings)
+
+    args_list = [(pid, df_part, params_with_context, score_column) for pid, df_part in groupings]
 
     # Determine final worker count
     if validated_max_workers is None:
