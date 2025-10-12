@@ -29,6 +29,13 @@ import arviz as az
 from . import gpu_utils
 from . import cleanup_utils
 
+# Import ordinal scoring utilities
+from .ordinal_utils import (
+    _ordinal_ci_adaptive,
+    validate_ordinal_scores,
+    determine_score_type
+)
+
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
 logging.getLogger('arviz').setLevel(logging.ERROR)
@@ -234,6 +241,31 @@ def _process_grouping(args):
         item_seqs = params.get('item_seqs', 20)
         epoch_seqs = params.get('epoch_seqs', 20)
 
+        # Ordinal-specific parameters
+        ordinal_tasks = params.get('ordinal_tasks', None)
+        ordinal_max_score = params.get('ordinal_max_score', 10)
+        ordinal_inference = params.get('ordinal_inference', 'modal')
+        entropy_threshold = params.get('entropy_threshold', 1.5)
+
+        # Determine score type for this grouping
+        grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
+        score_type = determine_score_type(grouping_name, ordinal_tasks)
+
+        logger.info(f"Processing convergence for grouping {pid} ('{grouping_name}') with {score_type} scoring" +
+                   (f" (inference: {ordinal_inference})" if score_type == 'ordinal' else ""))
+
+        # Validate ordinal scores if applicable
+        if score_type == 'ordinal':
+            validate_ordinal_scores(
+                df_part[score_column].values,
+                ordinal_max_score,
+                grouping_name
+            )
+
+        # Import ordinal functions if needed
+        if score_type == 'ordinal':
+            from .ordinal_model import _ordinal_entropy_ci_adaptive, _ordinal_hybrid_stopping_criterion
+
         # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
         # Detect GPU availability based on worker's actual environment configuration
         # (set by worker initializer based on GPU assignment)
@@ -300,6 +332,11 @@ def _process_grouping(args):
             np.random.seed(params['random_seed'])
         logger.info(f"Processing grouping {pid}")
 
+        # OPTIMIZATION: Create shared ordinal model cache for this entire grouping
+        # This cache will be reused across all item_seqs and epoch_seqs iterations
+        # Eliminates redundant model compilations (was recompiling 9-12x per grouping)
+        ordinal_model_cache_shared = {}  # Worker-local, shared across all sequences
+
         # Initialize all output variables
         items_fin_CI_widths = []
         items_fin_CI_slopes = []
@@ -350,8 +387,17 @@ def _process_grouping(args):
                     if epoch_seqs >= 1:
                         # Use sample to shuffle the DataFrame instead of set_index/reindex
                         df_item_shuffled = df_item.sample(frac=1.0, random_state=np.random.randint(0, 10000)).reset_index(drop=True)
-                        successes = 0
-                        trials = 0
+
+                        # Initialize tracking variables based on score type
+                        if score_type == 'binary':
+                            successes = 0
+                            trials = 0
+                        else:  # ordinal
+                            accumulated_scores = []
+                            entropy_history_epoch = []  # Track entropy for this epoch sequence (must be fresh)
+                            # OPTIMIZATION: Use shared cache instead of creating fresh cache
+                            # ordinal_model_cache_epoch = {}  # OLD: Fresh cache per epoch sequence
+
                         used_reps = []
                         epoch_CI_widths = []
                         epoch_CI_slopes = []
@@ -360,19 +406,64 @@ def _process_grouping(args):
                         epoch_shortfalls = []
                         slope = None  # Ensure slope is always defined
                         slope_slopes = None
+
                         for start in range(0, len(df_item_shuffled), rep_batch_size):
                             batch = df_item_shuffled.iloc[start:start+rep_batch_size]
-                            successes += batch[score_column].sum()
-                            trials += len(batch)
                             used_reps.extend(batch.itertuples(index=False))
-                            _, _, width = _beta_ci_adaptive(
-                                successes, trials, 
-                                cred_level=cred_level,
-                                conservatism=current_conservatism,
-                                low_perf_threshold=low_perf_threshold
-                            )
-                            epoch_CI_widths.append(width)
-                            curr_perf_estimate = successes / trials
+
+                            # Compute CI based on score type
+                            if score_type == 'binary':
+                                successes += batch[score_column].sum()
+                                trials += len(batch)
+                                _, _, width = _beta_ci_adaptive(
+                                    successes, trials,
+                                    cred_level=cred_level,
+                                    conservatism=current_conservatism,
+                                    low_perf_threshold=low_perf_threshold
+                                )
+                                epoch_CI_widths.append(width)
+                                curr_perf_estimate = successes / trials
+                            else:  # ordinal
+                                accumulated_scores.extend(batch[score_column].values)
+
+                                # Use appropriate inference method
+                                if ordinal_inference == 'modal':
+                                    _, _, width = _ordinal_ci_adaptive(
+                                        np.array(accumulated_scores),
+                                        ordinal_max_score=ordinal_max_score,
+                                        cred_level=cred_level,
+                                        conservatism=current_conservatism,
+                                        low_perf_threshold=low_perf_threshold
+                                    )
+                                elif ordinal_inference == 'entropy':
+                                    _, _, width, _ = _ordinal_entropy_ci_adaptive(
+                                        np.array(accumulated_scores),
+                                        ordinal_max_score=ordinal_max_score,
+                                        cred_level=cred_level,
+                                        conservatism=current_conservatism,
+                                        low_perf_threshold=low_perf_threshold,
+                                        model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
+                                        compute_kwargs=sampling_kwargs
+                                    )
+                                else:  # hybrid
+                                    should_stop, reason, diagnostics = _ordinal_hybrid_stopping_criterion(
+                                        np.array(accumulated_scores),
+                                        ordinal_max_score=ordinal_max_score,
+                                        delta_item=delta_item,
+                                        cred_level=cred_level,
+                                        entropy_history=entropy_history_epoch,
+                                        entropy_threshold=entropy_threshold,
+                                        conservatism=current_conservatism,
+                                        low_perf_threshold=low_perf_threshold,
+                                        model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
+                                        compute_kwargs=sampling_kwargs
+                                    )
+                                    # Use modal width for convergence tracking
+                                    width = diagnostics.get('modal_width', 1.0)
+
+                                epoch_CI_widths.append(width)
+                                # For ordinal, use normalized performance for conservatism check
+                                curr_perf_estimate = np.mean(accumulated_scores) / ordinal_max_score
                             if len(epoch_CI_widths) >= stab_window:
                                 recent_widths = epoch_CI_widths[-stab_window:]
                                 slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
@@ -417,41 +508,109 @@ def _process_grouping(args):
                         epochs_fin_slope_slopes.append(epoch_slope_slopes[-1] if epoch_slope_slopes else 0)
                         epochs_fin_scores.append(epoch_scores[-1] if epoch_scores else 0)
                         epochs_shortfalls.append(epoch_shortfalls[-1] if epoch_shortfalls else 0)
-                        sample_ID_performances.append(successes / trials if trials > 0 else 0)
-                item_summaries.append({'successes': successes, 'trials': trials})
+
+                        # Track performance based on score type
+                        if score_type == 'binary':
+                            sample_ID_performances.append(successes / trials if trials > 0 else 0)
+                        else:  # ordinal
+                            sample_ID_performances.append(np.mean(accumulated_scores) / ordinal_max_score if accumulated_scores else 0)
+
+                # Add item summary based on score type
+                if score_type == 'binary':
+                    item_summaries.append({'successes': successes, 'trials': trials})
+                else:  # ordinal
+                    # For ordinal, store sum of scores and count (to mimic binary structure for compatibility)
+                    item_summaries.append({'successes': int(np.sum(accumulated_scores)), 'trials': len(accumulated_scores)})
                 used_reps_dfs.append(pd.DataFrame(used_reps, columns=df_item.columns))
-                current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+
+                # Calculate current performance estimate based on score type
+                if score_type == 'binary':
+                    current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+                else:  # ordinal - normalize by max score
+                    current_perf_estimate = (sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)) / ordinal_max_score
+
                 current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+
                 if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
-                    all_successes = np.array([s['successes'] for s in item_summaries])
-                    all_trials = np.array([s['trials'] for s in item_summaries])
-                    with warnings.catch_warnings():
-                        warnings.simplefilter("ignore")
-                        with model:
-                            pm.set_data({
-                                "successes": all_successes,
-                                "trials": all_trials,
-                                "n_items": np.int64(len(all_successes))
-                            })
-                            with suppress_all_output():
-                                trace = pm.sample(**sampling_kwargs)
-                            with suppress_all_output():
-                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                        try:
-                            theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                            theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
-                        except Exception:
-                            theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-                        try:
-                            theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                            theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                        except Exception:
-                            theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
-                        theta_width = theta_hi - theta_lo
+                    if score_type == 'binary':
+                        # === BINARY GROUP-LEVEL STOPPING ===
+                        all_successes = np.array([s['successes'] for s in item_summaries])
+                        all_trials = np.array([s['trials'] for s in item_summaries])
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            with model:
+                                pm.set_data({
+                                    "successes": all_successes,
+                                    "trials": all_trials,
+                                    "n_items": np.int64(len(all_successes))
+                                })
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+                                with suppress_all_output():
+                                    theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+                            try:
+                                theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
+                                theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                            except Exception:
+                                theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
+                            try:
+                                theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
+                                theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
+                            except Exception:
+                                theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                            theta_width = theta_hi - theta_lo
+                            CI_record.append(theta_width)
+                            effective_width = theta_width
+                            if current_perf_estimate < low_perf_threshold:
+                                effective_width = theta_width * current_conservatism
+
+                    else:
+                        # === ORDINAL GROUP-LEVEL STOPPING ===
+                        # Collect all ordinal scores from all items processed so far
+                        all_ord_scores = []
+                        for used_df in used_reps_dfs:
+                            all_ord_scores.extend(used_df[score_column].values)
+
+                        # Use appropriate inference method
+                        if ordinal_inference == 'modal':
+                            theta_lo, theta_hi, width = _ordinal_ci_adaptive(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold
+                            )
+                        elif ordinal_inference == 'entropy':
+                            theta_lo, theta_hi, width, _ = _ordinal_entropy_ci_adaptive(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
+                                compute_kwargs=sampling_kwargs
+                            )
+                        else:  # hybrid
+                            should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                delta_item=delta_cap,  # Use delta_cap for group-level
+                                cred_level=cred_level,
+                                entropy_history=[],  # Fresh history for group-level (must be fresh)
+                                entropy_threshold=entropy_threshold,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
+                                compute_kwargs=sampling_kwargs
+                            )
+                            # Use modal width from diagnostics
+                            theta_lo = diagnostics_group.get('modal_ci', (0, 1))[0]
+                            theta_hi = diagnostics_group.get('modal_ci', (0, 1))[1]
+                            width = diagnostics_group.get('modal_width', 1.0)
+
+                        theta_width = width
                         CI_record.append(theta_width)
-                        effective_width = theta_width
-                        if current_perf_estimate < low_perf_threshold:
-                            effective_width = theta_width * current_conservatism
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
                             slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
@@ -615,9 +774,13 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
 # Removed _configure_multiprocessing_environment to prevent race conditions
 # Worker processes now handle their own environment setup via initializers
 
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', entropy_threshold: float = 1.5):
     """
     Post-hoc convergence analysis, parallelized across groupings.
+
+    Now supports BOTH binary (0/1) and ordinal (Likert scale, e.g., 0-10) scoring,
+    including mixed datasets with both types.
+
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
@@ -628,7 +791,25 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
       - diagnostics_prefix: prefix for diagnostic output files
       - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
       - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
+      - ordinal_tasks: List of substrings to identify ordinal groupings (e.g., ['confidence', 'rating']). If None, all groupings use binary scoring.
+      - ordinal_max_score: Maximum score for ordinal data (e.g., 10 for 0-10 scale). Default: 10.
+      - ordinal_inference: Inference method for ordinal data: 'modal', 'entropy', or 'hybrid' (recommended). Default: 'modal'.
+      - entropy_threshold: Threshold for entropy validation in hybrid mode (prevents false peaks). Default: 1.5.
+
     Returns a DataFrame of convergence statistics.
+
+    Example with ordinal data:
+        >>> params = {'delta_item': 0.15, 'delta_cap': 0.05, ...}
+        >>> convergence_df = convergence_posthoc(
+        ...     df, params,
+        ...     grouping_columns=['student', 'task'],
+        ...     sample_id_column='item_id',
+        ...     epoch_column='trial_num',
+        ...     ordinal_tasks=['confidence', 'difficulty'],
+        ...     ordinal_max_score=10,
+        ...     ordinal_inference='hybrid',
+        ...     entropy_threshold=1.5
+        ... )
     """
     # Input validation
     if isinstance(grouping_columns, str):
@@ -666,7 +847,34 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
         logger.info('No groupings to process; returning empty DataFrame.')
         return pd.DataFrame(columns=df.columns)
 
-    args_list = [(pid, df_part, params, score_column) for pid, df_part in groupings]
+    # Add number of parallel tasks to params for smart GPU/CPU decision making
+    params_with_context = params.copy()
+    params_with_context['_num_parallel_tasks'] = len(groupings)
+
+    # Validate ordinal inference parameter
+    if ordinal_inference not in ['modal', 'entropy', 'hybrid']:
+        raise ValueError(f"ordinal_inference must be 'modal', 'entropy', or 'hybrid', got '{ordinal_inference}'")
+
+    # Add ordinal parameters to params dict for worker processes
+    if ordinal_tasks is not None:
+        params_with_context['ordinal_tasks'] = ordinal_tasks
+        params_with_context['ordinal_max_score'] = ordinal_max_score
+        params_with_context['ordinal_inference'] = ordinal_inference
+        params_with_context['entropy_threshold'] = entropy_threshold
+
+        # Validate ordinal scores upfront for all ordinal groupings
+        for grouping_name in df['grouping'].unique():
+            score_type = determine_score_type(grouping_name, ordinal_tasks)
+            if score_type == 'ordinal':
+                grouping_data = df[df['grouping'] == grouping_name]
+                validate_ordinal_scores(
+                    grouping_data[score_column].values,
+                    ordinal_max_score,
+                    grouping_name
+                )
+                logger.info(f"Validated ordinal scores for grouping '{grouping_name}' (using {ordinal_inference} inference)")
+
+    args_list = [(pid, df_part, params_with_context, score_column) for pid, df_part in groupings]
 
     # Determine final worker count
     if validated_max_workers is None:

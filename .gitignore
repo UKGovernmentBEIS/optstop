@@ -131,4 +131,57 @@ dmypy.json
 # optstop specific
 *.log
 test_*.csv
-test_*.log 
+test_*.log
+
+# Development documentation (not for public repository)
+# Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
+COMPREHENSIVE_TEST_STRATEGY_SUMMARY.md
+CONVERGENCE_ORDINAL_IMPLEMENTATION.md
+CONVERGENCE_ORDINAL_VALIDATION_RESULTS.md
+CORE_FUNCTIONS_ORDINAL_SUPPORT_AUDIT.md
+DIFFUSE_DATA_ANALYSIS.md
+DOCUMENTATION_UPDATE_COMPLETE.md
+END_TO_END_MIXED_SCORING_REVIEW.md
+ENTROPY_STABILIZATION_ANALYSIS.md
+ENTROPY_VALIDATION_IMPLEMENTATION.md
+ENTROPY_VALIDATION_TEST_ANALYSIS.md
+FINAL_IMPLEMENTATION_SUMMARY.md
+FOUR_FIXES_IMPLEMENTATION_SUMMARY.md
+FOUR_FIXES_TEST_RESULTS.md
+INTEGRATION_TEST_RESULTS_PHASE1.md
+INTEGRATION_TEST_SPECIFICATION.md
+OPTIMIZATION_DETAILED_EVALUATION.md
+ORDEREDLOGISTIC_ENTROPY_IMPLEMENTATION_STATUS.md
+ORDEREDLOGISTIC_IMPLEMENTATION_PLAN.md
+ORDEREDLOGISTIC_STOPPING_ANALYSIS.md
+ORDINAL_EFFICIENCY_ANALYSIS.md
+ORDINAL_INFERENCE_NOTES.md
+ORDINAL_INTEGRATION_PLAN.md
+ORDINAL_LIVE_MODE_IMPLEMENTATION.md
+ORDINAL_SUPPORT_IMPLEMENTATION_STATUS.md
+ORDINAL_VERIFICATION_SUMMARY.md
+PHASE1_OPTIMIZATION_IMPLEMENTATION.md
+PHASE1_TESTING_COMPLETE_SUMMARY.md
+README_CLI_UPDATE_SUMMARY.md
+SESSION_SUMMARY_ORDINAL_IMPLEMENTATION.md
+TEST_EXECUTION_READINESS.md
+USER_WORKFLOW_GUIDE.md
+GITIGNORE_UPDATE_SUMMARY.md
+
+# Development test scripts (not for public repository)
+# Keep tests/ directory for proper package tests
+test_convergence_ordinal_simple.py
+test_convergence_ordinal_validation.py
+test_gpu_adaptation.py
+test_live_ordinal_simple.py
+test_ordinal_integration.py
+test_user_workflow.py
+test_user_workflow_fixed.py
+test_user_workflow_simple.py
+run_integration_tests.py
+run_integration_tests_entropy.py
+run_integration_tests_hybrid.py
+validate_test_design.py
+verify_ordinal_code.py
+verify_ordinal_integration.py
+gpu_usage_examples.py 

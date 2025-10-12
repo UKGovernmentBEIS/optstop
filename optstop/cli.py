@@ -60,6 +60,10 @@ def main():
         parser.add_argument('--generate_diagnostics', action='store_true', help='Generate diagnostic plots comparing full vs pruned datasets')
         parser.add_argument('--diagnostics_prefix', default='optstop_diagnostics', help='Prefix for diagnostic output files')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
+        parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
+        parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -90,13 +94,22 @@ def main():
             params['use_gpu'] = True
             params['force_gpu'] = True
 
+        # Parse ordinal_tasks if provided
+        ordinal_tasks = None
+        if args.ordinal_tasks:
+            ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
+
         # Parse grouping_columns
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         pruned_df, summary = optimal_stopping_posthoc(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
-            display_progress=not args.no_progress, 
-            generate_diagnostics=args.generate_diagnostics, 
-            diagnostics_prefix=args.diagnostics_prefix
+            display_progress=not args.no_progress,
+            generate_diagnostics=args.generate_diagnostics,
+            diagnostics_prefix=args.diagnostics_prefix,
+            ordinal_tasks=ordinal_tasks,
+            ordinal_max_score=args.ordinal_max_score,
+            ordinal_inference=args.ordinal_inference,
+            entropy_threshold=args.entropy_threshold
         )
         pruned_df.to_csv(args.output, index=False)
         if args.summary:
@@ -146,6 +159,10 @@ def main_live():
         parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducible results (optional)')
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
+        parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
+        parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -176,10 +193,19 @@ def main_live():
             params['use_gpu'] = True
             params['force_gpu'] = True
 
+        # Parse ordinal_tasks if provided
+        ordinal_tasks = None
+        if args.ordinal_tasks:
+            ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = optimal_stopping_live(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
-            display_progress=not args.no_progress
+            display_progress=not args.no_progress,
+            ordinal_tasks=ordinal_tasks,
+            ordinal_max_score=args.ordinal_max_score,
+            ordinal_inference=args.ordinal_inference,
+            entropy_threshold=args.entropy_threshold
         )
         print("Sample IDs to stop:", result['stop_sample_ids'])
         print("Stop task/grouping?", result['stop_task'])
@@ -231,6 +257,10 @@ def main_convergence():
         parser.add_argument('--no_diagnostics', action='store_true', help='Disable generation of convergence diagnostic figures (default: diagnostics ON)')
         parser.add_argument('--diagnostics_prefix', default='convergence_eval', help='Prefix for convergence diagnostic output files')
         parser.add_argument('--low_performance_threshold', type=float, default=0.05, help='Success rate below which conservative stopping is applied (default: 0.05)')
+        parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
+        parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
+        parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -263,12 +293,21 @@ def main_convergence():
             params['use_gpu'] = True
             params['force_gpu'] = True
 
+        # Parse ordinal_tasks if provided
+        ordinal_tasks = None
+        if args.ordinal_tasks:
+            ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = convergence_posthoc(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
             display_progress=not args.no_progress,
             generate_diagnostics=not args.no_diagnostics,
-            diagnostics_prefix=args.diagnostics_prefix
+            diagnostics_prefix=args.diagnostics_prefix,
+            ordinal_tasks=ordinal_tasks,
+            ordinal_max_score=args.ordinal_max_score,
+            ordinal_inference=args.ordinal_inference,
+            entropy_threshold=args.entropy_threshold
         )
         result.to_csv(args.output, index=False)
         print(f"Convergence stats saved to {args.output}")

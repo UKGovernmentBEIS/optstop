@@ -38,6 +38,20 @@ import arviz as az
 from . import gpu_utils
 from . import cleanup_utils
 
+# Import ordinal scoring utilities
+from .ordinal_utils import (
+    _ordinal_ci_adaptive,
+    validate_ordinal_scores,
+    determine_score_type
+)
+
+# Import ordinal model for entropy-based stopping
+from .ordinal_model import (
+    _ordinal_entropy_ci_adaptive,
+    _ordinal_hybrid_stopping_criterion,
+    _compute_threshold_probability
+)
+
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
 logging.getLogger('arviz').setLevel(logging.ERROR)
@@ -684,6 +698,25 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 5)
 
+            # Determine score type for this grouping
+            ordinal_tasks = params.get('ordinal_tasks', None)
+            ordinal_max_score = params.get('ordinal_max_score', 10)
+            ordinal_inference = params.get('ordinal_inference', 'modal')
+            entropy_threshold = params.get('entropy_threshold', 1.5)
+            grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
+            score_type = determine_score_type(grouping_name, ordinal_tasks)
+
+            logger.info(f"Processing grouping {pid} ('{grouping_name}') with {score_type} scoring" +
+                       (f" (inference: {ordinal_inference})" if score_type == 'ordinal' else ""))
+
+            # Validate ordinal scores if applicable
+            if score_type == 'ordinal':
+                validate_ordinal_scores(
+                    df_part[score_column].values,
+                    ordinal_max_score,
+                    grouping_name
+                )
+
             # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
             # Detect GPU availability based on worker's actual environment configuration
             # (set by worker initializer based on GPU assignment)
@@ -752,6 +785,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             theta_lo, theta_hi, theta_width = None, None, None
             CI_record = []
             CI_slopes_hist = []
+            entropy_history = []  # Track entropy CI history for hybrid stopping (item-level)
+            group_entropy_history = []  # Track entropy CI history for hybrid stopping (group-level)
+            ordinal_model_cache = {}  # Cache for OrderedLogistic model reuse
+            group_ordinal_model_cache = {}  # Separate cache for group-level model
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
             with pm.Model() as model:
@@ -768,45 +805,141 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             item_ids = list(df_part['sample_id_num'].unique())
             for item_idx, item_id in enumerate(item_ids):
                 df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
-                successes = 0
-                trials = 0
+
+                # Reset entropy history for this item (within-item stabilization)
+                entropy_history = []
+
+                # Conditionally track scores based on score type
+                if score_type == 'binary':
+                    successes = 0
+                    trials = 0
+                else:  # ordinal
+                    accumulated_scores = []
+
                 used_reps = []
                 ci_record = []
                 ci_slopes_hist = []
+
                 for start in range(0, len(df_item), rep_batch_size):
                     batch = df_item.iloc[start:start+rep_batch_size]
-                    successes += batch[score_column].sum()
-                    trials += len(batch)
                     used_reps.extend(batch.itertuples(index=False))
-                    lo, hi, width = _beta_ci_adaptive(
-                        successes, trials, cred_level=cred_level,
-                        conservatism=current_conservatism,
-                        low_perf_threshold=low_perf_threshold
-                    )
+
+                    # Compute CI based on score type
+                    if score_type == 'binary':
+                        successes += batch[score_column].sum()
+                        trials += len(batch)
+                        lo, hi, width = _beta_ci_adaptive(
+                            successes, trials, cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                    else:  # ordinal
+                        accumulated_scores.extend(batch[score_column].values)
+
+                        # Use appropriate inference method for ordinal data
+                        if ordinal_inference == 'modal':
+                            lo, hi, width = _ordinal_ci_adaptive(
+                                np.array(accumulated_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold
+                            )
+                        elif ordinal_inference == 'entropy':
+                            entropy_lo, entropy_hi, width, diag = _ordinal_entropy_ci_adaptive(
+                                np.array(accumulated_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                compute_kwargs=sampling_kwargs
+                            )
+                            # Use entropy CI directly for stopping decisions
+                            # Note: entropy scale is inverted (high entropy = uncertain)
+                            lo, hi = entropy_lo, entropy_hi
+                        elif ordinal_inference == 'hybrid':
+                            # Hybrid: check modal CI + entropy stabilization
+                            should_stop, reason, diag = _ordinal_hybrid_stopping_criterion(
+                                np.array(accumulated_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                delta_item=delta_item,
+                                cred_level=cred_level,
+                                entropy_history=entropy_history,
+                                entropy_threshold=entropy_threshold,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                model_cache=ordinal_model_cache,
+                                compute_kwargs=sampling_kwargs
+                            )
+                            # Use modal width for CI record tracking
+                            width = diag.get('modal_width', delta_item)
+                            # Override stopping decision with hybrid criterion
+                            if should_stop:
+                                logger.info(
+                                    f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: "
+                                    f"Hybrid stopping ({reason}) | epochs used: {len(accumulated_scores)}"
+                                )
+                                break
+
                     ci_record.append(width)
-                    if width < delta_item:
-                        logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+
+                    # Check stopping criteria
+                    # For hybrid ordinal, skip this check (hybrid function handles all stopping logic)
+                    if ordinal_inference != 'hybrid' and width < delta_item:
+                        if score_type == 'binary':
+                            logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+                        else:
+                            logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")
                         break
+
                     if len(ci_record) >= stab_window:
                         recent_widths = ci_record[-stab_window:]
                         slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
                         ci_slopes_hist.append(slope)
-                        slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+
+                        # Determine current performance for conservatism adjustment
+                        if score_type == 'binary':
+                            current_item_perf = df_item[score_column].mean()
+                        else:
+                            current_item_perf = np.mean(accumulated_scores) / ordinal_max_score
+
+                        slope_threshold = CI_delta / current_conservatism if current_item_perf < low_perf_threshold else CI_delta
+
                         if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
                             recent_slopes = ci_slopes_hist[-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if df_item[score_column].mean() >= low_perf_threshold:
-                                    logger.info(f"Stopping sample_id {item_id} (group {pid}) due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
+                                if current_item_perf >= low_perf_threshold:
+                                    n_obs = trials if score_type == 'binary' else len(accumulated_scores)
+                                    logger.info(f"Stopping sample_id {item_id} (group {pid}) due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {n_obs}")
                                     break
                                 elif abs(slope) <= slope_threshold / 2:
-                                    logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
+                                    n_obs = trials if score_type == 'binary' else len(accumulated_scores)
+                                    logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to strong CI stabilization: slope {slope:.6f} | epochs used: {n_obs}")
                                     break
-                item_summaries.append({'successes': successes, 'trials': trials})
+
+                # Store item summary based on score type
+                if score_type == 'binary':
+                    item_summaries.append({'successes': successes, 'trials': trials})
+                else:  # ordinal
+                    item_summaries.append({'scores': accumulated_scores.copy()})
+
                 used_reps_dfs.append(pd.DataFrame(used_reps, columns=df_item.columns))
-                current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+
+                # Compute current performance estimate based on score type
+                if score_type == 'binary':
+                    current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+                else:  # ordinal
+                    # Average scaled score across all accumulated scores
+                    all_ord_scores = []
+                    for s in item_summaries:
+                        all_ord_scores.extend(s['scores'])
+                    current_perf_estimate = np.mean(all_ord_scores) / ordinal_max_score if all_ord_scores else 0.0
+
                 current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
-                if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
+
+                # Group-level PyMC model refresh (only for binary scoring)
+                if score_type == 'binary' and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
                     all_successes = np.array([s['successes'] for s in item_summaries])
                     all_trials = np.array([s['trials'] for s in item_summaries])
                     with warnings.catch_warnings():
@@ -853,6 +986,84 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     elif abs(slope) <= slope_threshold / 2:
                                         logger.info(f"Stopping low-performance grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
+
+                # Group-level stopping for ordinal scoring (compute CI on aggregated scores)
+                elif score_type == 'ordinal' and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
+                    # Aggregate all scores collected so far
+                    all_ord_scores = []
+                    for s in item_summaries:
+                        all_ord_scores.extend(s['scores'])
+
+                    if len(all_ord_scores) > 0:
+                        # Compute group-level CI from aggregated scores using appropriate inference method
+                        if ordinal_inference == 'modal':
+                            theta_lo, theta_hi, theta_width = _ordinal_ci_adaptive(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold
+                            )
+                        elif ordinal_inference == 'entropy':
+                            entropy_lo, entropy_hi, theta_width, diag = _ordinal_entropy_ci_adaptive(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                compute_kwargs=sampling_kwargs
+                            )
+                            # Use entropy values for stopping
+                            theta_lo, theta_hi = entropy_lo, entropy_hi
+                        elif ordinal_inference == 'hybrid':
+                            # Apply full hybrid logic at group-level for consistency
+                            should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion(
+                                np.array(all_ord_scores),
+                                ordinal_max_score=ordinal_max_score,
+                                delta_item=delta_cap,  # Use delta_cap for group-level
+                                cred_level=cred_level,
+                                entropy_history=group_entropy_history,  # Separate group-level history
+                                entropy_threshold=entropy_threshold,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                model_cache=group_ordinal_model_cache,  # Separate cache
+                                compute_kwargs=sampling_kwargs
+                            )
+                            theta_width = diag_group.get('modal_width', delta_cap)
+                            # Extract CI bounds from diagnostics
+                            if 'modal_ci' in diag_group:
+                                theta_lo, theta_hi = diag_group['modal_ci']
+                            else:
+                                # Fallback to default
+                                theta_lo, theta_hi = 0.0, 1.0
+
+                        CI_record.append(theta_width)
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+
+                        # For hybrid, use the hybrid stopping decision directly
+                        if ordinal_inference == 'hybrid' and should_stop_group:
+                            logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | sample_ids used: {len(item_summaries)}")
+                            break
+                        elif ordinal_inference != 'hybrid' and effective_width < delta_cap:
+                            logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            break
+
+                        if len(CI_record) >= stab_window:
+                            recent_widths = CI_record[-stab_window:]
+                            slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                            CI_slopes_hist.append(slope)
+                            slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                            if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                recent_slopes = CI_slopes_hist[-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if current_perf_estimate >= low_perf_threshold:
+                                        logger.info(f"Stopping ordinal grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
+                                        break
+                                    elif abs(slope) <= slope_threshold / 2:
+                                        logger.info(f"Stopping low-performance ordinal grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                        break
+
             avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs]) if used_reps_dfs else 0
             result = {
                 'grouping': pid,
@@ -958,6 +1169,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
     """
     Worker function for processing a single grouping in live mode.
     Returns stop_sample_ids and stop_task results for this grouping.
+    Supports both binary and ordinal scoring.
     """
     # Environment variables are now set by the worker initializer
     import sys
@@ -981,6 +1193,17 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 5)
+
+        # Extract ordinal parameters
+        ordinal_tasks = params.get('ordinal_tasks', None)
+        ordinal_max_score = params.get('ordinal_max_score', 10)
+        ordinal_inference = params.get('ordinal_inference', 'modal')
+        entropy_threshold = params.get('entropy_threshold', 1.5)
+
+        # Determine score type for this grouping
+        from .ordinal_utils import determine_score_type
+        score_type = determine_score_type(grouping, ordinal_tasks)
+        logger.info(f"Grouping '{grouping}' identified as {score_type.upper()}")
 
         # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
         # Detect GPU availability based on worker's actual environment configuration
@@ -1061,123 +1284,276 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         used_reps_dfs = {}
         item_summaries = []
         item_ids = list(df_grouping['sample_id_num'].unique())
-        
-        # PyMC model for group-level
-        with pm.Model() as model:
-            mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
-            sigma_group = pm.Exponential("sigma_group", lam=1.0)
-            successes_data = pm.Data("successes", np.array([0]))
-            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-            trials_data = pm.Data("trials", np.array([1]))
-            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-            mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-            mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-            Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-            obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
-        
+
+        # Initialize ordinal-specific variables
+        ordinal_model_cache = {}
+        entropy_history_per_item = {}
+
+        # PyMC model for group-level (binary only)
+        if score_type == 'binary':
+            with pm.Model() as model:
+                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)
+                successes_data = pm.Data("successes", np.array([0]))
+                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                trials_data = pm.Data("trials", np.array([1]))
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+
         # Per-sample_id stopping (width and slope)
         for item_idx, item_id in enumerate(item_ids):
             df_item = df_grouping[df_grouping['sample_id_num'] == item_id].sort_values('epoch_num')
-            successes = 0
-            trials = 0
-            used_reps = []
-            ci_record = []
-            ci_slopes_hist = []
-            current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
-            for start in range(0, len(df_item), rep_batch_size):
-                batch = df_item.iloc[start:start+rep_batch_size]
-                successes += batch[score_column].sum()
-                trials += len(batch)
-                used_reps.extend(batch.itertuples(index=False))
-                lo, hi, width = _beta_ci_adaptive(
-                    successes, trials, cred_level=cred_level,
-                    conservatism=current_conservatism,
-                    low_perf_threshold=low_perf_threshold
+
+            if score_type == 'binary':
+                # === BINARY SCORING LOGIC ===
+                successes = 0
+                trials = 0
+                used_reps = []
+                ci_record = []
+                ci_slopes_hist = []
+                current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
+                for start in range(0, len(df_item), rep_batch_size):
+                    batch = df_item.iloc[start:start+rep_batch_size]
+                    successes += batch[score_column].sum()
+                    trials += len(batch)
+                    used_reps.extend(batch.itertuples(index=False))
+                    lo, hi, width = _beta_ci_adaptive(
+                        successes, trials, cred_level=cred_level,
+                        conservatism=current_conservatism,
+                        low_perf_threshold=low_perf_threshold
+                    )
+                    ci_record.append(width)
+                    if width < delta_item:
+                        logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+                        # Get the original sample_id value for this numeric ID
+                        original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                        stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                        break
+                    if len(ci_record) >= stab_window:
+                        recent_widths = ci_record[-stab_window:]
+                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                        ci_slopes_hist.append(slope)
+                        slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+                        if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
+                            recent_slopes = ci_slopes_hist[-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if df_item[score_column].mean() >= low_perf_threshold:
+                                    logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
+                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                    break
+                                elif abs(slope) <= slope_threshold / 2:
+                                    logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
+                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                    break
+                sample_ci_records[item_id] = ci_record
+                sample_ci_slopes[item_id] = ci_slopes_hist
+                used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
+                item_summaries.append({'successes': successes, 'trials': trials})
+
+            else:
+                # === ORDINAL SCORING LOGIC ===
+                from .ordinal_utils import (
+                    _ordinal_ci_adaptive,
+                    _ordinal_entropy_ci_adaptive,
+                    _ordinal_hybrid_stopping_criterion
                 )
-                ci_record.append(width)
-                if width < delta_item:
-                    logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
-                    # Get the original sample_id value for this numeric ID
-                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
-                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
-                    break
-                if len(ci_record) >= stab_window:
-                    recent_widths = ci_record[-stab_window:]
-                    slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
-                    ci_slopes_hist.append(slope)
-                    slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
-                    if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
-                        recent_slopes = ci_slopes_hist[-3:]
-                        slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
-                        if slope_slopes >= 0:
-                            if df_item[score_column].mean() >= low_perf_threshold:
-                                logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
-                                original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
-                                stop_sample_ids.append(f"{grouping}_{original_sample_id}")
-                                break
-                            elif abs(slope) <= slope_threshold / 2:
-                                logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
-                                original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
-                                stop_sample_ids.append(f"{grouping}_{original_sample_id}")
-                                break
-            sample_ci_records[item_id] = ci_record
-            sample_ci_slopes[item_id] = ci_slopes_hist
-            used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
-            item_summaries.append({'successes': successes, 'trials': trials})
+
+                accumulated_scores = []
+                used_reps = []
+                entropy_history = entropy_history_per_item.get(item_id, [])
+
+                for start in range(0, len(df_item), rep_batch_size):
+                    batch = df_item.iloc[start:start+rep_batch_size]
+                    accumulated_scores.extend(batch[score_column].tolist())
+                    used_reps.extend(batch.itertuples(index=False))
+
+                    # Compute CI based on inference mode
+                    current_conservatism = conservatism if np.mean(accumulated_scores) / ordinal_max_score < low_perf_threshold else 1.0
+
+                    if ordinal_inference == 'modal':
+                        lo, hi, width = _ordinal_ci_adaptive(
+                            np.array(accumulated_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                        if width < delta_item:
+                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Modal CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")
+                            original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                            stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                            break
+
+                    elif ordinal_inference == 'entropy':
+                        lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
+                            np.array(accumulated_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_model_cache,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        if width < delta_item:
+                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Entropy CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")
+                            original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                            stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                            break
+
+                    elif ordinal_inference == 'hybrid':
+                        should_stop, reason, diagnostics = _ordinal_hybrid_stopping_criterion(
+                            np.array(accumulated_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            delta_item=delta_item,
+                            cred_level=cred_level,
+                            entropy_history=entropy_history,
+                            entropy_threshold=entropy_threshold,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_model_cache,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        if should_stop:
+                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping} via {reason} | epochs used: {len(accumulated_scores)}")
+                            original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                            stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                            break
+
+                entropy_history_per_item[item_id] = entropy_history
+                used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
+                # For ordinal, track mean score instead of successes/trials
+                item_summaries.append({'successes': int(np.sum(accumulated_scores)), 'trials': len(accumulated_scores)})
             
             # Group-level stopping check (periodic)
             current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
-            current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+            if score_type == 'ordinal':
+                # For ordinal, normalize by max score for conservatism check
+                current_perf_estimate_normalized = current_perf_estimate / ordinal_max_score
+                current_conservatism = conservatism if current_perf_estimate_normalized < low_perf_threshold else 1.0
+            else:
+                current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+
             if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
-                all_successes = np.array([s['successes'] for s in item_summaries])
-                all_trials = np.array([s['trials'] for s in item_summaries])
-                with warnings.catch_warnings():
-                    warnings.simplefilter("ignore")
-                    with model:
-                        pm.set_data({
-                            "successes": all_successes,
-                            "trials": all_trials,
-                            "n_items": np.int64(len(all_successes))
-                        })
-                        with suppress_all_output():
-                            trace = pm.sample(**sampling_kwargs)
-                        with suppress_all_output():
-                            theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                    hdi_indices = list(theta_hdi["Theta"].hdi.values)
-                    try:
-                        theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                        theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
-                    except Exception:
-                        theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-                    try:
-                        theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                        theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                    except Exception:
-                        theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
-                    theta_width = theta_hi - theta_lo
-                    CI_record.append(theta_width)
-                    effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                    if effective_width < delta_cap:
-                        logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
-                        stop_this_grouping.append(grouping)
-                        break
-                    if len(CI_record) >= stab_window:
-                        recent_widths = CI_record[-stab_window:]
-                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
-                        CI_slopes_hist.append(slope)
-                        slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
-                        if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
-                            recent_slopes = CI_slopes_hist[-3:]
-                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
-                            if slope_slopes >= 0:
-                                if current_perf_estimate >= low_perf_threshold:
-                                    logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_this_grouping.append(grouping)
-                                    break
-                                elif abs(slope) <= slope_threshold / 2:
-                                    logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                    stop_this_grouping.append(grouping)
-                                    break
+                if score_type == 'binary':
+                    # === BINARY GROUP-LEVEL STOPPING ===
+                    all_successes = np.array([s['successes'] for s in item_summaries])
+                    all_trials = np.array([s['trials'] for s in item_summaries])
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        with model:
+                            pm.set_data({
+                                "successes": all_successes,
+                                "trials": all_trials,
+                                "n_items": np.int64(len(all_successes))
+                            })
+                            with suppress_all_output():
+                                trace = pm.sample(**sampling_kwargs)
+                            with suppress_all_output():
+                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
+                        try:
+                            theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
+                            theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                        except Exception:
+                            theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
+                        try:
+                            theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
+                            theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
+                        except Exception:
+                            theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                        theta_width = theta_hi - theta_lo
+                        CI_record.append(theta_width)
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                        if effective_width < delta_cap:
+                            logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            stop_this_grouping.append(grouping)
+                            break
+                        if len(CI_record) >= stab_window:
+                            recent_widths = CI_record[-stab_window:]
+                            slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                            CI_slopes_hist.append(slope)
+                            slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                            if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                recent_slopes = CI_slopes_hist[-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if current_perf_estimate >= low_perf_threshold:
+                                        logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
+                                        stop_this_grouping.append(grouping)
+                                        break
+                                    elif abs(slope) <= slope_threshold / 2:
+                                        logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                        stop_this_grouping.append(grouping)
+                                        break
+
+                else:
+                    # === ORDINAL GROUP-LEVEL STOPPING ===
+                    # Collect all ordinal scores from all items processed so far
+                    all_ord_scores = []
+                    for item_id_inner in item_ids[:item_idx+1]:
+                        df_item_inner = df_grouping[df_grouping['sample_id_num'] == item_id_inner]
+                        all_ord_scores.extend(df_item_inner[score_column].tolist())
+
+                    # Initialize group-level entropy history
+                    if not hasattr(params, '_group_entropy_history'):
+                        group_entropy_history = []
+                    else:
+                        group_entropy_history = params.get('_group_entropy_history', [])
+
+                    # Compute group-level ordinal CI
+                    if ordinal_inference == 'modal':
+                        from .ordinal_utils import _ordinal_ci_adaptive
+                        lo, hi, width = _ordinal_ci_adaptive(
+                            np.array(all_ord_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                        if width < delta_cap:
+                            logger.info(f"Stopping ordinal grouping {grouping}: Modal CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            stop_this_grouping.append(grouping)
+                            break
+
+                    elif ordinal_inference == 'entropy':
+                        from .ordinal_utils import _ordinal_entropy_ci_adaptive
+                        lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
+                            np.array(all_ord_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_model_cache,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        if width < delta_cap:
+                            logger.info(f"Stopping ordinal grouping {grouping}: Entropy CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            stop_this_grouping.append(grouping)
+                            break
+
+                    elif ordinal_inference == 'hybrid':
+                        from .ordinal_utils import _ordinal_hybrid_stopping_criterion
+                        should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
+                            np.array(all_ord_scores),
+                            ordinal_max_score=ordinal_max_score,
+                            delta_item=delta_cap,
+                            cred_level=cred_level,
+                            entropy_history=group_entropy_history,
+                            entropy_threshold=entropy_threshold,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_model_cache,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        if should_stop_group:
+                            logger.info(f"Stopping ordinal grouping {grouping} via {reason_group} | sample_ids used: {len(item_summaries)}")
+                            stop_this_grouping.append(grouping)
+                            break
         
         return {
             'grouping': grouping,
@@ -1205,9 +1581,26 @@ def _get_logfile_path(default='optstop_run.log'):
     return default
 
 # --- Post-hoc mode ---
-def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = False, diagnostics_prefix: str = "optstop_diagnostics", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
+def optimal_stopping_posthoc(
+    df: pd.DataFrame,
+    params: Dict[str, Any],
+    grouping_columns: List[str],
+    sample_id_column: str,
+    epoch_column: str,
+    score_column: str = "score",
+    display_progress: bool = True,
+    generate_diagnostics: bool = False,
+    diagnostics_prefix: str = "optstop_diagnostics",
+    ordinal_tasks: Optional[List[str]] = None,
+    ordinal_max_score: int = 10,
+    ordinal_inference: str = 'modal',
+    entropy_threshold: float = 1.5,
+    gpu_ids: Optional[List[int]] = None,
+    max_workers: Optional[int] = None
+) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
     """
     Run optimal stopping in post-hoc mode on a full dataset, parallelizing across groupings.
+
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
       - sample_id_column: column name for sample ID
@@ -1216,9 +1609,35 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
       - display_progress: whether to show a progress bar (default True)
       - generate_diagnostics: whether to generate diagnostic plots comparing full vs pruned datasets (default False)
       - diagnostics_prefix: prefix for diagnostic output files (default "optstop_diagnostics")
+      - ordinal_tasks: List of task/grouping name substrings that use ordinal scoring (default: None)
+          * If None: All tasks use binary (0/1) scoring
+          * If provided: Tasks whose grouping name contains any substring use ordinal scoring
+          * Example: ['likert', 'rating'] → groupings containing these strings are ordinal
+      - ordinal_max_score: Maximum score for ordinal tasks (default: 10)
+          * Used to scale scores to [0,1] range for CI comparisons
+          * Must match your actual score range (e.g., 5 for 0-5 scale, 10 for 0-10 scale)
+      - ordinal_inference: Inference method for ordinal scoring (default: 'modal')
+          * 'modal': Modal category bootstrap (estimates most common category)
+          * 'entropy': OrderedLogistic entropy-based stopping (full categorical distribution)
+          * 'hybrid': Combines modal CI + entropy stabilization (RECOMMENDED)
+              - Stops via Pathway 1 if modal CI narrow (peaked data)
+              - Stops via Pathway 2 if entropy stabilized (non-peaked but stable data)
+              - Provides both efficiency (for peaked) and safety (for diffuse)
+          * Hybrid method provides best balance of efficiency and safety
+      - entropy_threshold: Threshold for entropy CI width when using entropy inference (default: 1.5)
+          * Only used for pure 'entropy' mode (not 'hybrid')
+          * Lower values → more aggressive stopping
+          * Higher values → more conservative stopping
+          * Recommended range: 1.0-2.0
       - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
       - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
+
     Returns a pruned DataFrame and a list of summary dicts (one per grouping-task).
+
+    Note on ordinal scoring:
+      - Modal inference: Estimates the most common response category (faster, less computational)
+      - Entropy inference: Uses OrderedLogistic model for full categorical distribution (more accurate for uncertain data)
+      - See ORDEREDLOGISTIC_ENTROPY_IMPLEMENTATION_STATUS.md for detailed comparison
     """
     # Input validation
     if isinstance(grouping_columns, str):
@@ -1253,6 +1672,29 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
     # This helps the adaptive logic decide whether GPU or CPU multiprocessing is better
     params_with_context = params.copy()
     params_with_context['_num_parallel_tasks'] = len(groupings)
+
+    # Validate ordinal inference parameter
+    if ordinal_inference not in ['modal', 'entropy', 'hybrid']:
+        raise ValueError(f"ordinal_inference must be 'modal', 'entropy', or 'hybrid', got '{ordinal_inference}'")
+
+    # Add ordinal parameters to params dict for worker processes
+    if ordinal_tasks is not None:
+        params_with_context['ordinal_tasks'] = ordinal_tasks
+        params_with_context['ordinal_max_score'] = ordinal_max_score
+        params_with_context['ordinal_inference'] = ordinal_inference
+        params_with_context['entropy_threshold'] = entropy_threshold
+
+        # Validate ordinal scores upfront for all ordinal groupings
+        for grouping_name in df['grouping'].unique():
+            score_type = determine_score_type(grouping_name, ordinal_tasks)
+            if score_type == 'ordinal':
+                grouping_data = df[df['grouping'] == grouping_name]
+                validate_ordinal_scores(
+                    grouping_data[score_column].values,
+                    ordinal_max_score,
+                    grouping_name
+                )
+                logger.info(f"Validated ordinal scores for grouping '{grouping_name}' (using {ordinal_inference} inference)")
 
     args_list = [(pid, df_part, params_with_context, score_column) for pid, df_part in groupings]
 
@@ -1375,18 +1817,56 @@ def optimal_stopping_posthoc(df: pd.DataFrame, params: Dict[str, Any], grouping_
         return final_used_df, participant_results
 
 # --- Live mode ---
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
-    The user must specify:
-      - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)
-      - sample_id_column: column name for sample ID
-      - epoch_column: column name for epoch/trial
-      - score_column: column name for score (default: 'score')
-      - display_progress: whether to show a progress bar (default True)
-      - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
-      - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
-    Returns a dict with 'stop_sample_ids' (list of "grouping_sample_id" strings) and 'stop_task' (list of grouping names that have reached stopping criteria).
+
+    Supports both binary (0/1) and ordinal (e.g., 0-10 Likert scale) scoring within the same dataset.
+
+    Args:
+        df: DataFrame with grouping, sample_id, epoch, and score columns
+        params: Dictionary of stopping parameters (delta_item, delta_cap, cred_level, etc.)
+        grouping_columns: List of column names to combine for grouping (can be a single string or list)
+        sample_id_column: Column name for sample ID
+        epoch_column: Column name for epoch/trial
+        score_column: Column name for score (default: 'score')
+        display_progress: Whether to show a progress bar (default: True)
+
+        ordinal_tasks: List of substrings to identify ordinal groupings. If a grouping name
+            contains any of these substrings (case-insensitive), it will be treated as ordinal.
+            If None, all groupings are treated as binary. Example: ['confidence', 'rating', 'likert']
+        ordinal_max_score: Maximum score for ordinal data (e.g., 10 for 0-10 scale). Default: 10
+        ordinal_inference: Inference method for ordinal data. Options:
+            - 'modal': Fast bootstrap-based modal category estimation
+            - 'entropy': Slow but conservative OrderedLogistic entropy estimation
+            - 'hybrid': RECOMMENDED - Combines modal CI + entropy validation for efficiency and safety
+        entropy_threshold: Threshold for entropy validation in hybrid mode (default: 1.5).
+            Used to detect false peaks: if entropy > threshold, modal CI narrow is rejected as false peak.
+            Typical values: 1.0 for 5-point scale, 1.5 for 11-point scale, 2.0 for 21-point scale.
+
+        gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only
+        max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count
+
+    Returns:
+        Dict with:
+            - 'stop_sample_ids': List of "grouping_sample_id" strings for items that reached stopping criteria
+            - 'stop_task': List of grouping names that reached stopping criteria
+
+    Example:
+        >>> # Mixed binary/ordinal dataset
+        >>> result = optimal_stopping_live(
+        ...     df=df,
+        ...     params=params,
+        ...     grouping_columns=['student_id', 'task_name'],
+        ...     sample_id_column='item_id',
+        ...     epoch_column='trial_num',
+        ...     score_column='score',
+        ...     ordinal_tasks=['confidence', 'difficulty'],  # Identify ordinal tasks
+        ...     ordinal_max_score=10,
+        ...     ordinal_inference='hybrid'  # RECOMMENDED
+        ... )
+        >>> print(result['stop_sample_ids'])  # Items to stop
+        >>> print(result['stop_task'])  # Groupings to stop
     """
     import sys, io
     old_stdout, old_stderr = sys.stdout, sys.stderr
@@ -1412,6 +1892,41 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         # Validate and configure GPU settings
         validated_gpu_ids, validated_max_workers = gpu_utils.validate_gpu_configuration(gpu_ids, max_workers)
 
+        # Add ordinal parameters to params dict for worker propagation
+        params_with_context = params.copy()
+        params_with_context['ordinal_tasks'] = ordinal_tasks
+        params_with_context['ordinal_max_score'] = ordinal_max_score
+        params_with_context['ordinal_inference'] = ordinal_inference
+        params_with_context['entropy_threshold'] = entropy_threshold
+
+        # Validate ordinal scores upfront if ordinal tasks specified
+        if ordinal_tasks:
+            logger.info(f"Ordinal task patterns: {ordinal_tasks}")
+            logger.info(f"Ordinal max score: {ordinal_max_score}")
+            logger.info(f"Ordinal inference mode: {ordinal_inference}")
+            logger.info(f"Entropy threshold: {entropy_threshold}")
+
+            # Determine which groupings are ordinal
+            ordinal_groupings = set()
+            for grouping in df['grouping'].unique():
+                if any(pattern.lower() in grouping.lower() for pattern in ordinal_tasks):
+                    ordinal_groupings.add(grouping)
+
+            if ordinal_groupings:
+                logger.info(f"Identified {len(ordinal_groupings)} ordinal groupings")
+                # Validate ordinal scores for ordinal groupings
+                from .ordinal_utils import validate_ordinal_scores
+                for grouping in ordinal_groupings:
+                    df_grouping = df[df['grouping'] == grouping]
+                    validate_ordinal_scores(
+                        df_grouping[score_column].values,
+                        ordinal_max_score,
+                        grouping_name=grouping
+                    )
+                    logger.info(f"Grouping '{grouping}' identified as ORDINAL (contains pattern from {ordinal_tasks})")
+            else:
+                logger.info("No groupings matched ordinal patterns - all will be treated as binary")
+
         # Environment configuration is now handled by worker initializers only
         # Remove global configuration to prevent race conditions
 
@@ -1426,7 +1941,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         for grouping in all_groupings:
             df_grouping = df[df['grouping'] == grouping].copy()
             if not df_grouping.empty:
-                args_list.append((grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns))
+                args_list.append((grouping, df_grouping, params_with_context, sample_id_column, epoch_column, score_column, grouping_columns))
 
         if not args_list:
             logger.info('No valid groupings to process; returning empty results.')
