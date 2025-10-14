@@ -15,7 +15,7 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - **Flexible column mapping for groupings, sample IDs, and epochs**
 - Bayesian and frequentist hybrid methodology
 - **GPU acceleration support** via JAX/numpyro for significantly faster PyMC sampling
-- **Ordinal scoring support** for Likert scale data (0-10) in addition to binary (0/1) scoring
+- **Ordinal scoring support** for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
 - **Performance optimizations** for convergence analysis (~30% faster, see Performance Optimizations section)
 
 ## GPU Acceleration
@@ -129,10 +129,10 @@ Posthoc and live optimal stopping also benefit from vectorization (~5-20% faster
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `ordinal_tasks` | List[str] or None | None | **List of substring patterns** to identify ordinal groupings via case-insensitive matching. Any grouping whose name contains ANY of these substrings uses ordinal scoring; all others use binary. Example: `['confidence', 'rating']` will match groupings like "confidence_rating", "CONFIDENCE", "difficulty_rating". If `None`, ALL groupings use binary scoring. |
-| `ordinal_max_score` | int | 10 | Maximum score for ordinal data (e.g., 10 for 0-10 scale). Only applies to groupings matched by `ordinal_tasks`. |
-| `ordinal_inference` | str | 'modal' | Inference method for ordinal groupings: `'modal'` (fast bootstrap), `'entropy'` (slow Bayesian), or `'hybrid'` (recommended - balanced). Only applies to matched ordinal groupings. |
-| `entropy_threshold` | float | 1.5 | Entropy validation threshold in hybrid mode to detect false peaks. Scale-dependent: use 1.0 for 5-point, 1.5 for 11-point, 2.0 for 21-point scales. |
+| `ordinal_tasks` | List[str] or None | None | Substrings to identify ordinal groupings (e.g., `['confidence', 'rating']`) |
+| `ordinal_max_score` | int | 10 | Maximum score for ordinal data (e.g., 10 for 0-10 scale) |
+| `ordinal_inference` | str | 'modal' | Inference method: `'modal'`, `'entropy'`, or `'hybrid'` (recommended) |
+| `entropy_threshold` | float | 1.5 | Threshold for entropy validation in hybrid mode (prevents false peaks) |
 
 ### Inference Modes
 
@@ -159,21 +159,16 @@ import pandas as pd
 from optstop import optimal_stopping_posthoc
 
 # Mixed binary/ordinal dataset
-# This data has 4 groupings created from student × task combinations:
-#   - student=1, task='math' → binary scoring (math doesn't match 'confidence')
-#   - student=1, task='confidence' → ordinal scoring (matches 'confidence')
-#   - student=2, task='math' → binary scoring
-#   - student=2, task='confidence' → ordinal scoring
 df = pd.DataFrame({
     'student': [1]*20 + [2]*20,
     'task': ['math']*10 + ['confidence']*10 + ['math']*10 + ['confidence']*10,
     'item_id': list(range(5))*8,
     'trial_num': [1,2]*20,
-    'score': [1,0,1,1,0] * 4 + [7,8,9,6,8] * 4  # Binary (0/1) + ordinal (0-10)
+    'score': [1,0,1,1,0] * 4 + [7,8,9,6,8] * 4  # Binary + ordinal
 })
 
 params = {
-    'delta_item': 0.15,   # Higher for ordinal (vs 0.05 for binary)
+    'delta_item': 0.15,
     'delta_cap': 0.05,
     'cred_level': 0.95,
     'conservatism': 5,
@@ -181,19 +176,17 @@ params = {
 
 pruned_df, summary = optimal_stopping_posthoc(
     df, params,
-    grouping_columns=['student', 'task'],  # Creates groupings: "1-math", "1-confidence", "2-math", "2-confidence"
+    grouping_columns=['student', 'task'],
     sample_id_column='item_id',
     epoch_column='trial_num',
     score_column='score',
 
-    # Ordinal specification - identifies which groupings use ordinal scoring:
-    ordinal_tasks=['confidence', 'difficulty', 'rating'],  # Groupings containing these substrings → ordinal
-    ordinal_max_score=10,                                  # 0-10 scale for ordinal data
-    ordinal_inference='hybrid',                            # RECOMMENDED inference mode
-    entropy_threshold=1.5                                  # False peak detection threshold
+    # Ordinal parameters:
+    ordinal_tasks=['confidence', 'difficulty', 'rating'],  # Substring matching
+    ordinal_max_score=10,                                  # 0-10 scale
+    ordinal_inference='hybrid',                            # RECOMMENDED
+    entropy_threshold=1.5                                  # False peak detection
 )
-
-# Result: 'math' groupings use binary inference, 'confidence' groupings use ordinal inference
 ```
 
 ### Example Usage: Live Mode with Ordinal Data
@@ -202,75 +195,50 @@ pruned_df, summary = optimal_stopping_posthoc(
 import pandas as pd
 from optstop import optimal_stopping_live
 
-# Current data snapshot with 2 groupings:
-#   - student=1, task='math' → binary scoring (no match to 'confidence')
-#   - student=1, task='confidence' → ordinal scoring (matches 'confidence')
+# Current data snapshot
 df = pd.DataFrame({
     'student': [1]*10,
     'task': ['math']*5 + ['confidence']*5,
     'item_id': list(range(5))*2,
     'trial_num': [1]*10,
-    'score': [1,0,1,1,0] + [7,8,9,6,8]  # Binary (0/1) then ordinal (0-10)
+    'score': [1,0,1,1,0] + [7,8,9,6,8]
 })
 
 params = {
-    'delta_item': 0.15,   # Higher for ordinal compatibility
+    'delta_item': 0.15,
     'delta_cap': 0.05,
     'cred_level': 0.95,
 }
 
 result = optimal_stopping_live(
     df, params,
-    grouping_columns=['student', 'task'],  # Creates groupings: "1-math" and "1-confidence"
+    grouping_columns=['student', 'task'],
     sample_id_column='item_id',
     epoch_column='trial_num',
     score_column='score',
 
-    # Ordinal specification - tell the function which groupings have ordinal data:
-    ordinal_tasks=['confidence'],     # Any grouping with 'confidence' in name → ordinal
-    ordinal_max_score=10,             # Maximum score for ordinal groupings
-    ordinal_inference='hybrid',       # RECOMMENDED inference mode
-    entropy_threshold=1.5             # False peak detection threshold
+    # Ordinal parameters:
+    ordinal_tasks=['confidence'],     # Identify ordinal groupings
+    ordinal_max_score=10,            # 0-10 scale
+    ordinal_inference='hybrid',      # RECOMMENDED
+    entropy_threshold=1.5            # False peak detection
 )
 
-# Results indicate which groupings/items have reached stopping criteria
-print(result['stop_sample_ids'])  # e.g., ['1-math_0', '1-confidence_2']
-print(result['stop_task'])        # e.g., ['1-math'] if entire grouping converged
-
-# The 'math' grouping uses binary inference, 'confidence' uses ordinal inference
+print(result['stop_sample_ids'])  # Item IDs that reached stopping criteria
+print(result['stop_task'])        # Groupings that reached stopping criteria
 ```
 
-### How Ordinal Task Specification Works
+### How It Works
 
-The package uses **substring matching** to automatically identify which groupings should use ordinal scoring:
+1. **Automatic Detection**: The package uses substring matching to identify ordinal groupings
+   - Example: If `ordinal_tasks=['confidence']`, any grouping containing "confidence" (case-insensitive) uses ordinal scoring
+   - All other groupings use binary scoring
 
-1. **Specify ordinal task identifiers**: Pass a list of substring patterns via `ordinal_tasks` parameter
-   - Example: `ordinal_tasks=['confidence', 'rating', 'difficulty']`
-   - These are the substrings to look for in your grouping names
+2. **Score Validation**: Ordinal scores are validated to be in range [0, `ordinal_max_score`]
 
-2. **Automatic grouping classification**: For each unique grouping in your data:
-   - The package checks if the grouping name contains ANY of your `ordinal_tasks` substrings (case-insensitive)
-   - **Match found** → Use ordinal scoring (0-10 scale inference)
-   - **No match** → Use binary scoring (0/1 inference)
+3. **Independent Processing**: Each grouping is processed with the correct scoring method (no cross-contamination)
 
-3. **Example matching logic**:
-   ```python
-   # Your data has groupings: "math", "confidence_rating", "verbal"
-   ordinal_tasks=['confidence', 'rating']
-
-   # Results:
-   # - "math" → binary (no match)
-   # - "confidence_rating" → ordinal (contains "confidence")
-   # - "verbal" → binary (no match)
-   ```
-
-4. **Score validation**: Ordinal scores are validated to be in range [0, `ordinal_max_score`]
-
-5. **Independent processing**: Each grouping is processed with the correct scoring method (no cross-contamination)
-
-6. **False peak detection**: In hybrid mode, `entropy_threshold` prevents premature stopping on diffuse data
-
-**Key Point**: If `ordinal_tasks=None` (default), ALL groupings use binary scoring.
+4. **False Peak Detection**: In hybrid mode, `entropy_threshold` prevents premature stopping on diffuse data
 
 ### Ordinal Support Status
 
@@ -282,38 +250,28 @@ The package uses **substring matching** to automatically identify which grouping
 
 ### CLI Usage with Ordinal Data
 
-**Important**: The `--ordinal_tasks` flag takes a comma-separated list of substring patterns. Any grouping whose name contains one of these substrings will use ordinal scoring; all others use binary scoring.
-
 ```bash
-# Post-hoc mode example
-# This will use ordinal scoring for any grouping containing "confidence" or "rating"
-# and binary scoring for all other groupings (e.g., "math", "verbal")
+# Post-hoc mode
 optstop-posthoc --csv data.csv --output pruned.csv \
   --grouping_columns student,task \
   --sample_id_column item_id \
   --epoch_column trial_num \
   --score_column score \
-  --delta_item 0.15 \
   --ordinal_tasks confidence,rating \
   --ordinal_max_score 10 \
   --ordinal_inference hybrid \
   --entropy_threshold 1.5
 
-# Live mode example
-# Same substring matching logic applies
+# Live mode
 optstop-live --csv current_data.csv \
   --grouping_columns student,task \
   --sample_id_column item_id \
   --epoch_column trial_num \
   --score_column score \
-  --delta_item 0.15 \
   --ordinal_tasks confidence,rating \
   --ordinal_max_score 10 \
   --ordinal_inference hybrid \
   --entropy_threshold 1.5
-
-# Example: If your data has groupings "1-math", "1-confidence", "2-rating_scale"
-# Result: "1-math" → binary, "1-confidence" → ordinal, "2-rating_scale" → ordinal
 ```
 
 ## Installation
@@ -367,38 +325,32 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 
 | Parameter                | Default   | Applies to   | Description                                                                 |
 |--------------------------|-----------|--------------|-----------------------------------------------------------------------------|
-| `grouping_columns`       | required  | All          | List of column names (or single column) to use for grouping                 |
-| `sample_id_column`       | required  | All          | Column name for sample ID                                                   |
-| `epoch_column`           | required  | All          | Column name for epoch/trial                                                 |
-| `score_column`           | 'score'   | All          | Column name for score (default: 'score')                                    |
-| `display_progress`       | True      | All          | Show a progress bar for groupings (set False to disable)                    |
+| `grouping_columns`       | required  | Both         | List of column names (or single column) to use for grouping                 |
+| `sample_id_column`       | required  | Both         | Column name for sample ID                                                   |
+| `epoch_column`           | required  | Both         | Column name for epoch/trial                                                 |
+| `score_column`           | 'score'   | Both         | Column name for score (default: 'score')                                    |
+| `display_progress`       | True      | Both         | Show a progress bar for groupings (set False to disable)                    |
 | `generate_diagnostics`   | False     | Post-hoc     | Generate diagnostic plots comparing full vs pruned datasets                 |
-| `generate_diagnostics`   | True      | Convergence  | Generate convergence diagnostic plots (use `--no_diagnostics` to disable)  |
 | `diagnostics_prefix`     | "optstop_diagnostics" | Post-hoc | Prefix for diagnostic output files (PNG and CSV)                           |
-| `diagnostics_prefix`     | "convergence_eval"    | Convergence | Prefix for convergence diagnostic output files                         |
-| `delta_item`             | 0.05      | All          | Max acceptable CI width for individual items                                |
-| `delta_cap`              | 0.05      | All          | Max acceptable CI width for task/grouping                                   |
-| `cred_level`             | 0.95      | All          | Credibility level for intervals (e.g., 0.95 for 95% CI)                     |
-| `conservatism`           | 5         | All          | Factor for rare event conservatism (higher = more conservative)             |
-| `low_performance_threshold` | 0.05   | All          | Below this success rate, use conservative stopping                          |
-| `draws`                  | 3000      | All          | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
-| `tune`                   | 3000      | All          | Number of tuning steps for PyMC                                             |
-| `chains`                 | 4         | All          | Number of MCMC chains for PyMC                                              |
-| `cores`                  | 4         | All          | Number of CPU cores for PyMC sampling                                       |
-| `rep_batch_size`         | 1         | All          | Number of repetitions to process in each batch                              |
-| `pymc_refresh_every`     | 2         | All          | How often to run the PyMC model (every N items)                             |
-| `stab_window`            | 5         | All          | Window size for assessing CI stabilization                                  |
-| `CI_delta`               | 0.0002    | All          | Slope threshold for determining CI stabilization                            |
-| `use_gpu`                | Auto      | All          | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
-| `force_gpu`              | False     | All          | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
-| `gpu_ids`                | None      | All          | List of GPU IDs for parallel processing (e.g., [0, 1]). None = CPU-only    |
-| `max_workers`            | None      | All          | Number of parallel workers. None = auto (GPU count or CPU count)           |
-| `item_seqs`              | 20        | Convergence  | Number of randomized item orderings per grouping                            |
-| `epoch_seqs`             | 20        | Convergence  | Number of randomized epoch orderings per item                               |
-| `ordinal_tasks`          | None      | All          | List of substring patterns for identifying ordinal groupings via case-insensitive matching. Groupings containing ANY substring use ordinal scoring; others use binary. Example: `['confidence', 'rating']`. If None, all groupings are binary. |
-| `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale). Applies only to matched ordinal groupings. |
-| `ordinal_inference`      | 'modal'   | All          | Inference method for ordinal groupings: 'modal' (fast), 'entropy' (slow), or 'hybrid' (RECOMMENDED, balanced) |
-| `entropy_threshold`      | 1.5       | All          | Entropy validation threshold in hybrid mode. Scale-dependent: 1.0 (5-pt), 1.5 (11-pt), 2.0 (21-pt) |
+| `delta_item`             | 0.05      | Both         | Max acceptable CI width for individual items                                |
+| `delta_cap`              | 0.05      | Both         | Max acceptable CI width for task/grouping                                   |
+| `cred_level`             | 0.95      | Both         | Credibility level for intervals (e.g., 0.95 for 95% CI)                     |
+| `conservatism`           | 5         | Both         | Factor for rare event conservatism (higher = more conservative)             |
+| `low_performance_threshold` | 0.05   | Both         | Below this success rate, use conservative stopping                          |
+| `draws`                  | 3000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
+| `tune`                   | 3000      | Both         | Number of tuning steps for PyMC                                             |
+| `chains`                 | 4         | Both         | Number of MCMC chains for PyMC                                              |
+| `cores`                  | 4         | Both         | Number of CPU cores for PyMC sampling                                       |
+| `rep_batch_size`         | 1         | Both         | Number of repetitions to process in each batch                              |
+| `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
+| `stab_window`            | 5         | Both         | Window size for assessing CI stabilization                                  |
+| `CI_delta`               | 0.0002    | Both         | Slope threshold for determining CI stabilization                            |
+| `use_gpu`                | Auto      | Both         | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
+| `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
+| `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |
+| `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale)                 |
+| `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid' (RECOMMENDED)           |
+| `entropy_threshold`      | 1.5       | All          | Threshold for entropy validation in hybrid mode (prevents false peaks)    |
 
 ### Example: Setting Parameters
 
@@ -423,9 +375,8 @@ params = {
 ```
 
 **Note:**
-- All three modes (post-hoc, live, and convergence) support the same core parameters for optimal stopping logic.
-- Live mode does not support diagnostic plot generation.
-- Convergence mode generates diagnostics by default; use `generate_diagnostics=False` or `--no_diagnostics` to disable.
+- Both live and post-hoc modes support the same core parameters for optimal stopping logic.
+- Live mode does not support diagnostic plot generation (`generate_diagnostics`, `diagnostics_prefix`).
 - You can set only the parameters you care about; the rest will use defaults.
 - By default, a progress bar is shown for groupings. Set `display_progress=False` to disable it in Python, or use `--no_progress` in the CLI.
 
@@ -633,10 +584,10 @@ df = pd.DataFrame({
 })
 
 params = {
-    'delta_item': 0.15,
+    'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 500,
-    'tune': 500,
+    'draws': 3000,
+    'tune': 3000,
     'chains': 4,
     'cores': 4,
     'stab_window': 5,
@@ -812,7 +763,7 @@ df = pd.DataFrame({
 })
 
 params = {
-    'delta_item': 0.15,
+    'delta_item': 0.05,
     'delta_cap': 0.05,
     'draws': 500,
     'tune': 500,
@@ -844,13 +795,13 @@ The resulting DataFrame contains all the convergence metrics for each grouping-t
 
 ## Convergence Diagnostics
 
-When you run `convergence_posthoc`, the package automatically generates two diagnostic figures by default:
+When you run `convergence_posthoc`, the package now automatically generates two diagnostic figures by default:
 - **{prefix}_grouped_needed.png**: Two vertically stacked plots showing mean needed items and mean needed epochs (with std error bars) by grouping (descending order).
-- **{prefix}_score_scatter.png**: Scatter plots of mean needed items/epochs vs. performance.
+- **{prefix}_score_scatter.png**: Scatter plots of mean needed items/epochs vs. performance, as before.
 
 You can control this behavior:
-- **Python:** Pass `generate_diagnostics=False` to `convergence_posthoc` to disable diagnostics, or set `diagnostics_prefix` to change the output file prefix (default: `convergence_eval`).
-- **CLI:** Use `--no_diagnostics` to disable diagnostics, and `--diagnostics_prefix` to set the output file prefix (default: `convergence_eval`).
+- **Python:** Pass `generate_diagnostics=False` to `convergence_posthoc` to turn off diagnostics, or set `diagnostics_prefix` to change the output file prefix.
+- **CLI:** Use `--no_diagnostics` to turn off diagnostics, and `--diagnostics_prefix` to set the output file prefix (default: `convergence_eval`).
 
 ### Example (Python)
 ```python
@@ -866,10 +817,11 @@ result = convergence_posthoc(
 
 ### Example (CLI)
 ```bash
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --diagnostics_prefix my_convergence_eval
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 
-The output files will be named `my_convergence_eval_grouped_needed.png` and `my_convergence_eval_score_scatter.png`. To disable diagnostics, add `--no_diagnostics` to the command.
+- By default, diagnostics are ON. Use `--no_diagnostics` to disable.
+- The output files will be named `my_convergence_eval_grouped_needed.png` and `my_convergence_eval_score_scatter.png`.
 
 See the CLI help (`optstop-convergence --help`) for all options.
 
@@ -884,16 +836,12 @@ See the CLI help (`optstop-convergence --help`) for all options.
 - **draws & tune:** For reliable Bayesian inference, use at least `draws=3000` and `tune=3000` (per chain) for real analyses. Lower values (e.g., 50) are only for quick tests or debugging.
 - **chains & cores:** Default values of `chains=4` and `cores=4` are suitable for most analyses. Increase `chains` for more robust MCMC sampling and `cores` for faster parallel sampling (up to your system's CPU core count).
 - **CI width thresholds:**
-  - `delta_item`: 0.05 is a common choice for binary data; 0.15 is typical for ordinal data (wider due to categorical nature)
-  - `delta_cap`: 0.05 for group-level precision; increase for faster but less precise stopping
+  - `delta_item`: 0.05 is a common choice for high precision; 0.1 is more lenient.
+  - `delta_cap`: 0.05 for group-level precision; increase for faster but less precise stopping.
 - **Stabilization parameter:**
   - `CI_delta` controls how stable the CI slope must be before stopping. Smaller values (e.g., 0.0002) require more stability; larger values allow earlier stopping.
 - **Conservatism:**
   - `conservatism=5` is typical; increase for more caution in low-performance scenarios.
-- **Ordinal scoring recommendations:**
-  - Use `ordinal_inference='hybrid'` for best balance of speed and safety
-  - Set `delta_item=0.15` (higher than binary 0.05) to account for categorical uncertainties
-  - Adjust `entropy_threshold` based on scale: 1.0 for 5-point, 1.5 for 11-point, 2.0 for 21-point scales
 - **Reproducibility:**
   - For reproducible pruned DataFrames, set a random seed before running your analysis (e.g., `np.random.seed(42)` or pass `random_seed` in params).
   - **Note:** Due to the stochastic nature of MCMC and parallelization, summary statistics (e.g., CI bounds, widths) are not guaranteed to be bitwise reproducible, even with the same random seed. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
@@ -1019,10 +967,10 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
-- **--ordinal_tasks**: Comma-separated list of substring patterns for identifying ordinal groupings (e.g., "confidence,rating"). Any grouping name containing these substrings (case-insensitive) will use ordinal scoring; others use binary scoring.
-- **--ordinal_max_score**: Maximum score for ordinal data (default: 10). Applies only to matched ordinal groupings.
-- **--ordinal_inference**: Ordinal inference method: modal (fast), entropy (slow), or hybrid (recommended) (default: modal)
-- **--entropy_threshold**: Entropy validation threshold in hybrid mode for false peak detection. Scale-dependent (default: 1.5 for 11-point scale)
+- **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
+- **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
+- **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 
 ### 2. Live Optimal Stopping
 **Command:**
@@ -1051,10 +999,10 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
-- **--ordinal_tasks**: Comma-separated list of substring patterns for identifying ordinal groupings (e.g., "confidence,rating"). Any grouping name containing these substrings (case-insensitive) will use ordinal scoring; others use binary scoring.
-- **--ordinal_max_score**: Maximum score for ordinal data (default: 10). Applies only to matched ordinal groupings.
-- **--ordinal_inference**: Ordinal inference method: modal (fast), entropy (slow), or hybrid (recommended) (default: modal)
-- **--entropy_threshold**: Entropy validation threshold in hybrid mode for false peak detection. Scale-dependent (default: 1.5 for 11-point scale)
+- **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
+- **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
+- **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
 ### 3. Convergence Analysis
@@ -1087,10 +1035,10 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
 - **--random_seed**: Random seed for reproducible results (optional)
 - **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
-- **--ordinal_tasks**: Comma-separated list of substring patterns for identifying ordinal groupings (e.g., "confidence,rating"). Any grouping name containing these substrings (case-insensitive) will use ordinal scoring; others use binary scoring.
-- **--ordinal_max_score**: Maximum score for ordinal data (default: 10). Applies only to matched ordinal groupings.
-- **--ordinal_inference**: Ordinal inference method: modal (fast), entropy (slow), or hybrid (recommended) (default: modal)
-- **--entropy_threshold**: Entropy validation threshold in hybrid mode for false peak detection. Scale-dependent (default: 1.5 for 11-point scale)
+- **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
+- **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
+- **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 
