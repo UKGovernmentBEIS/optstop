@@ -145,13 +145,13 @@ def _aggregate_with_ci(df: pd.DataFrame, score_col: str = "score", is_binomial: 
     summary['n_reps'] = summary['trials']
     return summary
 
-def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95) -> pd.DataFrame:
+def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95, score_col: str = "score") -> pd.DataFrame:
     """Estimate HDI-based uncertainty across items for each grouping-task pair."""
     results = []
-    
+
     grouped = df.groupby(['grouping', 'task'])
     for (grouping, task), sub_df in grouped:
-        item_means = sub_df.groupby('sample_id')['score'].mean().values
+        item_means = sub_df.groupby('sample_id')[score_col].mean().values
         n_items = len(item_means)
         mean_score = item_means.mean() if n_items > 0 else 0
         
@@ -257,8 +257,8 @@ def _bland_altman(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kw) -> Tuple[flo
     ax.set_title("Bland–Altman")
     return bias, loa
 
-def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame, 
-                              out_prefix: str = "optstop_diagnostics") -> None:
+def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
+                              out_prefix: str = "optstop_diagnostics", score_col: str = "score") -> None:
     """Generate diagnostic plots comparing full vs pruned datasets."""
     logger = logging.getLogger('optstop.diagnostics')
     logger.info(f"Generating diagnostic plots with prefix: {out_prefix}")
@@ -313,15 +313,15 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
                     pruned_df_internal['sample_id'] = pruned_df_internal.index
         
         # Aggregate to item level and compute CIs
-        pruned_item = _aggregate_with_ci(pruned_df_internal)
-        full_item = _aggregate_with_ci(full_df_internal)
+        pruned_item = _aggregate_with_ci(pruned_df_internal, score_col=score_col)
+        full_item = _aggregate_with_ci(full_df_internal, score_col=score_col)
 
         # Calculate confidence intervals for both datasets
-        full_results = _compute_bayesian_hdi_per_task(full_df_internal)
+        full_results = _compute_bayesian_hdi_per_task(full_df_internal, score_col=score_col)
         full_results.rename(columns={'n_items': 'n_samples'}, inplace=True)
         full_results['dataset'] = 'Full'
 
-        trimmed_results = _compute_bayesian_hdi_per_task(pruned_df_internal)
+        trimmed_results = _compute_bayesian_hdi_per_task(pruned_df_internal, score_col=score_col)
         trimmed_results.rename(columns={'n_items': 'n_samples'}, inplace=True)
         trimmed_results['dataset'] = 'Trimmed'
 
@@ -1803,7 +1803,8 @@ def optimal_stopping_posthoc(
                     _generate_diagnostic_plots(
                         original_df[common_columns],
                         final_used_df[common_columns],
-                        diagnostics_prefix
+                        diagnostics_prefix,
+                        score_col=score_column
                     )
                 else:
                     logger.warning("No common columns between original and pruned data for diagnostics")
