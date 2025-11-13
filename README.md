@@ -336,15 +336,15 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `delta_cap`              | 0.05      | Both         | Max acceptable CI width for task/grouping                                   |
 | `cred_level`             | 0.95      | Both         | Credibility level for intervals (e.g., 0.95 for 95% CI)                     |
 | `conservatism`           | 5         | Both         | Factor for rare event conservatism (higher = more conservative)             |
-| `low_performance_threshold` | 0.05   | Both         | Below this success rate, use conservative stopping                          |
-| `draws`                  | 3000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
-| `tune`                   | 3000      | Both         | Number of tuning steps for PyMC                                             |
+| `low_performance_threshold` | 0.01   | Both         | Below this success rate, use conservative stopping                          |
+| `draws`                  | 6000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
+| `tune`                   | 6000      | Both         | Number of tuning steps for PyMC                                             |
 | `chains`                 | 4         | Both         | Number of MCMC chains for PyMC                                              |
 | `cores`                  | 4         | Both         | Number of CPU cores for PyMC sampling                                       |
 | `rep_batch_size`         | 1         | Both         | Number of repetitions to process in each batch                              |
 | `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
-| `stab_window`            | 5         | Both         | Window size for assessing CI stabilization                                  |
-| `CI_delta`               | 0.0002    | Both         | Slope threshold for determining CI stabilization                            |
+| `stab_window`            | 10         | Both         | Window size for assessing CI stabilization                                  |
+| `CI_delta`               | 0.00005    | Both         | Slope threshold for determining CI stabilization                            |
 | `use_gpu`                | Auto      | Both         | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
 | `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
 | `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |
@@ -358,18 +358,18 @@ You can set any combination of these in your `params` dict. For example:
 
 ```python
 params = {
-    'delta_item': 0.1,                # Require a narrower CI for stopping items
-    'delta_cap': 0.2,                 # Task/grouping CI width threshold
-    'cred_level': 0.99,               # Use 99% credible intervals
+    'delta_item': 0.05,                # Require a narrower CI for stopping items
+    'delta_cap': 0.05,                 # Task/grouping CI width threshold
+    'cred_level': 0.95,               # Use 95% credible intervals
     'conservatism': 5,                # More conservative for rare events
-    'low_performance_threshold': 0.05,# Adjust threshold for low performance
-    'draws': 3000,                    # (post-hoc only) MCMC samples for speed
-    'tune': 3000,                     # (post-hoc only) Tuning steps
+    'low_performance_threshold': 0.01,# Adjust threshold for low performance
+    'draws': 6000,                    # (post-hoc only) MCMC samples for speed
+    'tune': 6000,                     # (post-hoc only) Tuning steps
     'chains': 4,                      # Number of MCMC chains
     'cores': 4,                       # Number of CPU cores for sampling
     'rep_batch_size': 2,              # (post-hoc only) Process 2 reps at a time
     'pymc_refresh_every': 1,          # (post-hoc only) Run PyMC every item
-    'stab_window': 3,                 # (post-hoc only) Use a smaller stabilization window
+    'stab_window': 10,                 # (post-hoc only) Use a smaller stabilization window
     'CI_delta': 0.0001,               # (post-hoc only) Stricter stabilization threshold
 }
 ```
@@ -458,11 +458,11 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
+    'draws': 6000,
+    'tune': 6000,
     'chains': 4,
     'cores': 4,
-    'CI_delta': 0.0002,
+    'CI_delta': 0.00005,
     'conservatism': 5,
 }
 
@@ -497,11 +497,11 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
+    'draws': 6000,
+    'tune': 6000,
     'chains': 4,
     'cores': 4,
-    'CI_delta': 0.0002,
+    'CI_delta': 0.00005,
     'conservatism': 5,
 }
 
@@ -586,12 +586,12 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
+    'draws': 6000,
+    'tune': 6000,
     'chains': 4,
     'cores': 4,
-    'stab_window': 5,
-    'CI_delta': 0.0002,
+    'stab_window': 10,
+    'CI_delta': 0.00005,
     'rep_batch_size': 1,
     'pymc_refresh_every': 2,
     'item_seqs': 3,      # Randomization sequences
@@ -649,9 +649,9 @@ The package provides functions for adaptive optimal stopping, allowing you to de
 params = {
     'delta_item': 0.05,      # High precision for items
     'delta_cap': 0.05,       # High precision for group/task
-    'draws': 3000,           # Minimum recommended for inference
-    'tune': 3000,            # Minimum recommended for inference
-    'CI_delta': 0.0002,      # Require stable CI slope
+    'draws': 6000,           # Minimum recommended for inference
+    'tune': 6000,            # Minimum recommended for inference
+    'CI_delta': 0.00005,      # Require stable CI slope
     'conservatism': 5,       # Typical value
     # ... other parameters as needed ...
 }
@@ -676,9 +676,9 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
-    'CI_delta': 0.0002,
+    'draws': 6000,
+    'tune': 6000,
+    'CI_delta': 0.00005,
     'conservatism': 5,
 }
 
@@ -712,9 +712,9 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
-    'CI_delta': 0.0002,
+    'draws': 6000,
+    'tune': 6000,
+    'CI_delta': 0.00005,
     'conservatism': 5,
 }
 
@@ -851,11 +851,11 @@ See the CLI help (`optstop-convergence --help`) for all options.
 params = {
     'delta_item': 0.05,      # High precision for items
     'delta_cap': 0.05,       # High precision for group/task
-    'draws': 3000,           # Minimum recommended for inference
-    'tune': 3000,            # Minimum recommended for inference
+    'draws': 6000,           # Minimum recommended for inference
+    'tune': 6000,            # Minimum recommended for inference
     'chains': 4,             # Number of MCMC chains
     'cores': 4,              # Number of CPU cores for sampling
-    'CI_delta': 0.0002,      # Require stable CI slope
+    'CI_delta': 0.00005,      # Require stable CI slope
     'conservatism': 5,       # Typical value
     # ... other parameters as needed ...
 }
@@ -891,11 +891,11 @@ df = pd.DataFrame({
 params = {
     'delta_item': 0.05,
     'delta_cap': 0.05,
-    'draws': 3000,
-    'tune': 3000,
+    'draws': 6000,
+    'tune': 6000,
     'chains': 4,
     'cores': 4,
-    'CI_delta': 0.0002,
+    'CI_delta': 0.0005,
     'conservatism': 5,
     'random_seed': 42
 }
@@ -939,7 +939,7 @@ The package provides CLI entry points for all major functions. After installing 
 ### 1. Post-hoc Optimal Stopping
 **Command:**
 ```
-optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 3000 --tune 3000 --chains 4 --cores 4 --CI_delta 0.0002 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
+optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 6000 --tune 6000 --chains 4 --cores 4 --CI_delta 0.00005 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 10 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output pruned CSV file (required)
@@ -954,17 +954,17 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: optstop_diagnostics)
 - **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
 - **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
-- **--draws**: Number of MCMC samples for PyMC (default: 3000)
-- **--tune**: Number of tuning steps for PyMC (default: 3000)
+- **--draws**: Number of MCMC samples for PyMC (default: 6000)
+- **--tune**: Number of tuning steps for PyMC (default: 6000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00005)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--stab_window**: Window size for assessing CI stabilization (default: 10)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -975,7 +975,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 ### 2. Live Optimal Stopping
 **Command:**
 ```
-optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 3000 --tune 3000 --chains 4 --cores 4 --CI_delta 0.0002 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --random_seed 42
+optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 6000 --tune 6000 --chains 4 --cores 4 --CI_delta 0.00005 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 10 --random_seed 42
 ```
 - **--csv**: Path to input CSV file (required)
 - **--grouping_columns**: Comma-separated list or single column name for grouping (required)
@@ -986,17 +986,17 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--no_progress**: Disable the progress bar (shown by default)
 - **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
 - **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
-- **--draws**: Number of MCMC samples for PyMC (default: 3000)
-- **--tune**: Number of tuning steps for PyMC (default: 3000)
+- **--draws**: Number of MCMC samples for PyMC (default: 6000)
+- **--tune**: Number of tuning steps for PyMC (default: 6000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00005)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--stab_window**: Window size for assessing CI stabilization (default: 10)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -1008,7 +1008,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 ### 3. Convergence Analysis
 **Command:**
 ```
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 3000 --tune 3000 --chains 4 --cores 4 --CI_delta 0.0002 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 5 --item_seqs 20 --epoch_seqs 20 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 6000 --tune 6000 --chains 4 --cores 4 --CI_delta 0.00005 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 10 --item_seqs 20 --epoch_seqs 20 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output convergence stats CSV file (required)
@@ -1022,19 +1022,19 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--diagnostics_prefix**: Prefix for diagnostic output files (default: convergence_eval)
 - **--delta_item**: Max acceptable CI width for individual items (default: 0.05)
 - **--delta_cap**: Max acceptable CI width for task/grouping (default: 0.05)
-- **--draws**: Number of MCMC samples for PyMC (default: 3000)
-- **--tune**: Number of tuning steps for PyMC (default: 3000)
+- **--draws**: Number of MCMC samples for PyMC (default: 6000)
+- **--tune**: Number of tuning steps for PyMC (default: 6000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.0002)
+- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00005)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 5)
+- **--stab_window**: Window size for assessing CI stabilization (default: 10)
 - **--item_seqs**: Number of randomized item orderings per grouping (default: 20)
 - **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.05)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)

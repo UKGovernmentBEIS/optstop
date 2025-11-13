@@ -169,7 +169,7 @@ def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95, s
                 ci_high = min(1, mean_score + ci_width/2)
             else:
                 bootstrap_samples = np.random.choice(
-                    item_means, size=(3000, len(item_means)), replace=True
+                    item_means, size=(6000, len(item_means)), replace=True
                 )
                 bootstrap_means = bootstrap_samples.mean(axis=1)
                 
@@ -690,13 +690,13 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
         try:
             delta_item = params.get('delta_item', 0.05)
             delta_cap = params.get('delta_cap', 0.05)
-            CI_delta = params.get('CI_delta', 0.0002)
+            CI_delta = params.get('CI_delta', 0.00005)
             cred_level = params.get('cred_level', 0.95)
             conservatism = params.get('conservatism', 5)
-            low_perf_threshold = params.get('low_performance_threshold', 0.05)
+            low_perf_threshold = params.get('low_performance_threshold', 0.01)
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
-            stab_window = params.get('stab_window', 5)
+            stab_window = params.get('stab_window', 10)
 
             # Determine score type for this grouping
             ordinal_tasks = params.get('ordinal_tasks', None)
@@ -1186,13 +1186,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         # Extract parameters
         delta_item = params.get('delta_item', 0.05)
         delta_cap = params.get('delta_cap', 0.05)
-        CI_delta = params.get('CI_delta', 0.0002)
+        CI_delta = params.get('CI_delta', 0.00005)
         cred_level = params.get('cred_level', 0.95)
         conservatism = params.get('conservatism', 5)
-        low_perf_threshold = params.get('low_performance_threshold', 0.05)
+        low_perf_threshold = params.get('low_performance_threshold', 0.01)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
-        stab_window = params.get('stab_window', 5)
+        stab_window = params.get('stab_window', 10)
 
         # Extract ordinal parameters
         ordinal_tasks = params.get('ordinal_tasks', None)

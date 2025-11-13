@@ -239,8 +239,8 @@ def _ordinal_entropy_ci_adaptive(
     cred_level: float = 0.95,
     conservatism: float = 1.0,
     low_perf_threshold: float = 0.2,
-    n_samples: int = 1000,
-    n_tune: int = 500,
+    n_samples: int = 6000,
+    n_tune: int = 6000,
     model_cache: Optional[Dict[str, Any]] = None,
     compute_kwargs: Optional[Dict[str, Any]] = None
 ) -> Tuple[float, float, float, Dict[str, Any]]:
@@ -272,9 +272,9 @@ def _ordinal_entropy_ci_adaptive(
         Higher conservatism → wider CI → more data needed
     low_perf_threshold : float, default=0.2
         Performance below this triggers conservatism
-    n_samples : int, default=1000
+    n_samples : int, default=6000
         Number of posterior samples to draw
-    n_tune : int, default=500
+    n_tune : int, default=6000
         Number of tuning samples for MCMC
     model_cache : dict, optional
         Cache for PyMC model to avoid recompilation

@@ -167,6 +167,7 @@ SESSION_SUMMARY_ORDINAL_IMPLEMENTATION.md
 TEST_EXECUTION_READINESS.md
 USER_WORKFLOW_GUIDE.md
 GITIGNORE_UPDATE_SUMMARY.md
+integration_assessment.md
 
 # Development test scripts (not for public repository)
 # Keep tests/ directory for proper package tests
