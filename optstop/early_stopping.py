@@ -376,7 +376,7 @@ class OptimalStoppingManager:
             if task.metadata and key in task.metadata:
                 return task.metadata[key]
             else:
-                # QUESTION C: Missing metadata key - warn user
+                # MINOR FLAG: Missing metadata key - warn user
                 logger.warning(
                     f"Grouping column '{column}' not found in task.metadata. "
                     f"Using None as grouping value."
