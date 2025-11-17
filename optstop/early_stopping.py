@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Any, Optional
+from typing import Any, Optional, override
 import pandas as pd
 import numpy as np
 import logging
@@ -11,28 +11,25 @@ from pydantic import BaseModel, Field, JsonValue
 # Import GPU utilities for configuration
 from . import gpu_utils
 
-if TYPE_CHECKING:
-    from inspect_ai.log._log import EvalSpec
-    from inspect_ai.scorer._metric import SampleScore
+# Import inspect_ai classes
+from inspect_ai.dataset._dataset import Sample
+from inspect_ai.log._log import EvalSpec
+from inspect_ai.scorer._metric import SampleScore
+from inspect_ai.util import EarlyStopping
+from inspect_ai.util._early_stopping import EarlyStop
 
 # Configure logger
 logger = logging.getLogger(__name__)
 
 
-class EarlyStop(BaseModel):
-    """Directive to stop a sample early."""
-
-    reason: str | None = Field(default=None)
-    """Reason for the early stop."""
-
-    metadata: dict[str, JsonValue] | None = Field(default=None)
-    """Metadata related to early stop."""
-
-
 class StoppedSample(BaseModel):
-    """Record of early stop for a sample/epoch."""
+    """Record of early stop for a sample/epoch.
 
-    id: str | int  ## MINOR FLAG: Consider changing to sample_id for consistency (quick double check with inspect_ai side)
+    This is an internal tracking class used by OptimalStoppingManager
+    to maintain records of stopped samples for diagnostic purposes.
+    """
+
+    id: str | int
     """Sample dataset id."""
 
     epoch: int
@@ -41,103 +38,8 @@ class StoppedSample(BaseModel):
     early_stop: EarlyStop
     """Early stop directive."""
 
-## MINOR FLAG: This is currently redundant, so could be removed unless deemed necessary/useful.
-# class EarlyStoppingSummary(BaseModel):
-#     manager: str
-#     """Name of early stopping manager."""
 
-#     stopped_samples: list[StoppedSample]
-#     """Samples that were stopped early."""
-
-#     metadata: dict[str, JsonValue]
-#     """Metadata about early stopping"""
-
-
-class EarlyStopping(Protocol):
-    compiled_dataset: Optional[pd.DataFrame]
-
-    async def start_task(self, task: "EvalSpec") -> str:
-        """Called at the beginning of an eval run to initialize the stopping manager.
-
-        Implementations should build an internal dataset with all planned trials
-        (every grouping × sample_id × epoch combination) and initialize any
-        tracking structures needed for incremental stopping decisions.
-
-        Args:
-            task: Task metadata from inspect_ai containing dataset, config, etc.
-
-        Returns:
-            Name of early stopping manager (for logging/identification).
-
-        Raises:
-            ValueError: If task structure is invalid (e.g., missing dataset/samples).
-        """
-        ...
-
-    async def schedule_sample(
-        self, task: "EvalSpec", id: str | int, epoch: int
-    ) -> EarlyStop | None:
-        """Called before scheduling a sample to check for early stop directive.
-
-        Implementations should perform a fast lookup (typically O(1) with caching)
-        to determine if this specific trial should be skipped due to a previous
-        stopping decision.
-
-        Args:
-            task: Task metadata for extracting grouping values.
-            id: Sample dataset id (matches task.dataset.sample_ids).
-            epoch: Sample epoch number (1-indexed).
-
-        Returns:
-            EarlyStop with reason/metadata if trial should be skipped, None if should run.
-        """
-        ...
-
-    async def complete_sample(
-        self,
-        task: "EvalSpec",
-        id: str | int,
-        epoch: int,
-        scores: dict[str, "SampleScore"],
-    ) -> None:
-        """Called when a sample trial completes with results.
-
-        Implementations should:
-        1. Extract and validate the score value
-        2. Update internal tracking with completed trial
-        3. Periodically run optimal stopping inference (based on reanalysis_interval)
-        4. Update stopping decisions and mark samples/groupings as stopped if criteria met
-
-        This is where the core optimal stopping logic runs incrementally as trials complete.
-
-        Args:
-           task: Task metadata for extracting grouping values.
-           id: Sample dataset id that completed.
-           epoch: Sample epoch that completed.
-           scores: Dictionary of scores from inspect_ai scorers (may have multiple).
-        """
-        ...
-
-    async def complete_task(self, task: "EvalSpec") -> dict[str, JsonValue]:
-        """Called when the entire evaluation task completes.
-
-        Implementations should return comprehensive diagnostics including:
-        - Total trials planned vs. actually run (efficiency metrics)
-        - Per-grouping stopping decisions and reasons
-        - Stopped samples with metadata
-        - Inference timing statistics
-        - Any error/warning information
-
-        Args:
-           task: Task metadata (may not be needed, but provided for consistency).
-
-        Returns:
-            Dictionary of metadata and diagnostics for logging/analysis.
-        """
-        ...
-
-
-class OptimalStoppingManager:
+class OptimalStoppingManager(EarlyStopping):
     """Optimal stopping manager for inspect_ai evaluations using optstop.
 
     This class implements the EarlyStopping protocol and provides Bayesian optimal
@@ -162,6 +64,9 @@ class OptimalStoppingManager:
         - Group-level checks append to history each time they run
     """
 
+    # Protocol-required attribute from EarlyStopping
+    compiled_dataset: Optional[pd.DataFrame]
+
     def __init__(
         self,
         optstop_params: dict[str, Any],
@@ -176,7 +81,10 @@ class OptimalStoppingManager:
         ordinal_inference: str = 'hybrid',
         gpu_ids: Optional[list[int]] = None,
         max_workers: Optional[int] = None,
-        manager_name: str = "optstop"
+        manager_name: str = "optstop",
+        shadow_mode: bool = False,
+        score_choice: Optional[str] = None,
+        score_agg: Optional[str] = None
     ):
         """Initialize optimal stopping manager.
 
@@ -185,13 +93,8 @@ class OptimalStoppingManager:
                 (delta_item, delta_cap, cred_level, conservatism, etc.)
             grouping_columns: List of columns to use for grouping decisions.
                 REQUIRED - user must specify.
-                Recommended: ['model', 'task']
-
-                Supported syntax:
-                - 'model' -> EvalSpec.model
-                - 'task' -> EvalSpec.task
-                - 'metadata.<key>' -> EvalSpec.metadata[<key>]
-                - 'tag.<name>' -> Check if <name> in EvalSpec.tags
+                Can reference any column in compiled_dataset (from EvalSpec or sample metadata).
+                Examples: ['model', 'task'], ['model', 'difficulty'], ['dataset', 'temperature']
 
             score_column: Name for score column in compiled_dataset
             sample_id_column: Name for sample_id column
@@ -204,7 +107,28 @@ class OptimalStoppingManager:
             gpu_ids: GPU IDs to use for computation
             max_workers: Max parallel workers
             manager_name: Name identifier for this manager
+            shadow_mode: If True, schedule_sample() always returns None (run all trials).
+                Useful for comparing performance with/without early stopping.
+            score_choice: Key name for specific score to extract from scores dict.
+                If None, uses first score in dict. Mutually exclusive with score_agg.
+            score_agg: Aggregation method for multiple scores ('mean', 'median', 'mode', 'max').
+                If None, uses single score. Mutually exclusive with score_choice.
+
+        Raises:
+            ValueError: If both score_choice and score_agg are specified (mutually exclusive).
         """
+        # Validate score extraction parameters
+        if score_choice is not None and score_agg is not None:
+            raise ValueError(
+                "score_choice and score_agg are mutually exclusive. "
+                "Specify only one or leave both as None."
+            )
+
+        if score_agg is not None and score_agg not in ['mean', 'median', 'mode', 'max']:
+            raise ValueError(
+                f"score_agg must be one of ['mean', 'median', 'mode', 'max'], got '{score_agg}'"
+            )
+
         # Configuration
         self.optstop_params = optstop_params
         self.grouping_columns = grouping_columns
@@ -214,6 +138,9 @@ class OptimalStoppingManager:
         self.reanalysis_interval = reanalysis_interval
         self.min_samples_per_grouping = min_samples_per_grouping
         self.manager_name = manager_name
+        self.shadow_mode = shadow_mode
+        self.score_choice = score_choice
+        self.score_agg = score_agg
 
         # Ordinal configuration
         self.ordinal_tasks = ordinal_tasks
@@ -348,50 +275,136 @@ class OptimalStoppingManager:
         if not self.epoch_column:
             raise ValueError("epoch_column cannot be empty")
 
-    def _extract_grouping_value(self, task: "EvalSpec", column: str) -> Any:
-        """Extract value for a grouping column from EvalSpec.
-
-        Supports:
-        - 'model' -> task.model
-        - 'task' -> task.task (or task_display_name if task is None)
-        - 'metadata.<key>' -> task.metadata[<key>]
-        - 'tag.<name>' -> '<name>' if in task.tags else None
+    def _print_configuration_summary(self, num_samples: int, num_epochs: int) -> None:
+        """Print comprehensive configuration summary to console.
 
         Args:
-            task: EvalSpec instance
-            column: Grouping column specification
+            num_samples: Number of samples in the dataset
+            num_epochs: Number of epochs per sample
+        """
+        print("\n" + "="*80)
+        print(f"OptimalStoppingManager Configuration Summary ({self.manager_name})")
+        print("="*80)
+
+        # Dataset Configuration
+        print("\n📊 Dataset Configuration:")
+        print(f"  • Samples: {num_samples}")
+        print(f"  • Epochs per sample: {num_epochs}")
+        print(f"  • Total planned trials: {num_samples * num_epochs}")
+        print(f"  • Grouping columns: {', '.join(self.grouping_columns)}")
+        print(f"  • Sample ID column: {self.sample_id_column}")
+        print(f"  • Epoch column: {self.epoch_column}")
+        print(f"  • Score column: {self.score_column}")
+
+        # Stopping Parameters (from optstop_params)
+        print("\n🎯 Optimal Stopping Parameters:")
+        params_to_show = {
+            'delta_item': ('Item CI width threshold', 0.05),
+            'delta_cap': ('Grouping CI width threshold', 0.05),
+            'cred_level': ('Credibility level', 0.95),
+            'conservatism': ('Conservatism factor', 5),
+            'low_performance_threshold': ('Low performance threshold', 0.01),
+            'CI_delta': ('CI stabilization slope threshold', 0.00005),
+            'stab_window': ('Stabilization window', 10),
+            'rep_batch_size': ('Repetition batch size', 1),
+            'draws': ('MCMC draws', 6000),
+            'tune': ('MCMC tune steps', 6000),
+            'chains': ('MCMC chains', 4),
+            'cores': ('CPU cores', 4)
+        }
+
+        for key, (label, default) in params_to_show.items():
+            value = self.optstop_params.get(key, default)
+            print(f"  • {label}: {value}")
+
+        # Inference Control
+        print("\n⚙️  Inference Control:")
+        print(f"  • Reanalysis interval: every {self.reanalysis_interval} completed samples")
+        print(f"  • Min samples per grouping: {self.min_samples_per_grouping}")
+        if self.shadow_mode:
+            print("  • Shadow mode: ENABLED (all trials will run, stopping disabled)")
+        else:
+            print("  • Shadow mode: Disabled (normal stopping behavior)")
+
+        # Score Extraction Configuration
+        print("\n📊 Score Extraction:")
+        if self.score_choice is not None:
+            print(f"  • Mode: Extract specific score by key")
+            print(f"  • Score key: '{self.score_choice}'")
+        elif self.score_agg is not None:
+            print(f"  • Mode: Aggregate all scores")
+            print(f"  • Aggregation method: {self.score_agg}")
+        else:
+            print("  • Mode: Default (use first score from dict)")
+
+        # Ordinal Configuration
+        print("\n📈 Ordinal Scoring Configuration:")
+        if self.ordinal_tasks:
+            print(f"  • Ordinal tasks: {', '.join(self.ordinal_tasks)}")
+            print(f"  • Max ordinal score: {self.ordinal_max_score}")
+            print(f"  • Inference mode: {self.ordinal_inference}")
+        else:
+            print("  • Ordinal tasks: None (binary scoring only)")
+
+        # GPU Configuration
+        print("\n🖥️  Hardware Configuration:")
+        if self.gpu_ids and len(self.gpu_ids) > 0:
+            print(f"  • GPU IDs: {self.gpu_ids}")
+            print(f"  • Max workers: {self.max_workers if self.max_workers else 'auto'}")
+            # Check actual GPU availability
+            gpu_available, gpu_backend, _ = gpu_utils.check_gpu_availability()
+            if gpu_available:
+                print(f"  • GPU status: Available ({gpu_backend})")
+            else:
+                print("  • GPU status: Requested but not available (falling back to CPU)")
+        else:
+            print("  • GPU: Disabled (CPU-only mode)")
+            print(f"  • Max workers: {self.max_workers if self.max_workers else 'auto'}")
+
+        print("\n" + "="*80 + "\n")
+
+    def _get_grouping_values_for_sample(self, sample_id: str | int) -> dict[str, Any]:
+        """Extract grouping values for a sample from compiled_dataset.
+
+        All grouping columns (from EvalSpec or sample metadata) are now in the
+        compiled_dataset, so we can extract them directly by looking up the sample.
+
+        Args:
+            sample_id: The sample ID to look up
 
         Returns:
-            Extracted value or None if not found
+            Dictionary mapping grouping column names to their values
 
         Raises:
-            ValueError: If column specification is invalid
+            ValueError: If sample_id not found in compiled_dataset
         """
-        if column == 'model':
-            return task.model
-        elif column == 'task':
-            return task.task or task.task_display_name
-        elif column.startswith('metadata.'):
-            key = column.split('.', 1)[1]
-            if task.metadata and key in task.metadata:
-                return task.metadata[key]
+        if self.compiled_dataset is None:
+            raise ValueError("compiled_dataset not initialized")
+
+        # Find any row with this sample_id (all rows for a sample have same grouping values)
+        sample_rows = self.compiled_dataset[
+            self.compiled_dataset[self.sample_id_column] == sample_id
+        ]
+
+        if len(sample_rows) == 0:
+            raise ValueError(f"Sample ID '{sample_id}' not found in compiled_dataset")
+
+        # Extract grouping values from first row (they're all the same for this sample)
+        first_row = sample_rows.iloc[0]
+        grouping_values = {}
+
+        for col in self.grouping_columns:
+            if col in first_row.index:
+                grouping_values[col] = first_row[col]
             else:
-                # MINOR FLAG: Missing metadata key - warn user
+                # Column not in dataframe - warn and use None
                 logger.warning(
-                    f"Grouping column '{column}' not found in task.metadata. "
+                    f"Grouping column '{col}' not found in compiled_dataset. "
                     f"Using None as grouping value."
                 )
-                return None
-        elif column.startswith('tag.'):
-            tag_name = column.split('.', 1)[1]
-            if task.tags and tag_name in task.tags:
-                return tag_name
-            return None
-        else:
-            raise ValueError(
-                f"Invalid grouping column '{column}'. "
-                f"Supported formats: 'model', 'task', 'metadata.<key>', 'tag.<name>'"
-            )
+                grouping_values[col] = None
+
+        return grouping_values
 
     def _build_grouping_name(self, grouping_values: dict[str, Any]) -> str:
         """Build a consistent grouping name from grouping values dictionary.
@@ -404,23 +417,25 @@ class OptimalStoppingManager:
         """
         return '-'.join(str(v) if v is not None else 'None' for v in grouping_values.values())
 
-    def _extract_score_value(self, scores: dict[str, "SampleScore"]) -> float | None:
-        """Extract numeric score from potentially multiple scorers.
+    def _extract_score_value(self, scores: dict[str, SampleScore]) -> float | None:
+        """Extract numeric score from scores dictionary with configurable selection/aggregation.
 
-        Uses inspect_ai's value_to_float() for conversion of special values
-        (CORRECT, INCORRECT, PARTIAL, NOANSWER, booleans, etc.).
+        Supports three modes based on initialization parameters:
+        1. Default (both None): Take first score from dict
+        2. score_choice: Extract specific score by key name
+        3. score_agg: Aggregate all scores using specified method
 
-        If multiple scorers provide scores, takes the mode. If scores cannot
-        be converted to float or are all None/NaN, returns None.
+        Uses inspect_ai's value_to_float() for type conversion if needed.
 
         Args:
             scores: Dictionary of scorer_name -> SampleScore
 
         Returns:
-            float | None: Mode of numeric scores, or None if unavailable
+            float | None: Extracted/aggregated score, or None if unavailable
         """
-
-        ## MAJOR FLAG: Confirm appropriate approach to dealing with scoring (e.g., taking correct user inputs for multiple scorers, etc.)
+        if not scores:
+            logger.warning("Empty scores dictionary provided")
+            return None
 
         # Import inspect_ai's conversion function
         try:
@@ -433,108 +448,170 @@ class OptimalStoppingManager:
             )
             converter = None
 
-        numeric_scores = []
+        def convert_to_float(value: Any) -> float | None:
+            """Convert a value to float, handling strings and other types."""
+            # If already a float or int, return it
+            if isinstance(value, (float, int)):
+                return float(value)
 
-        for scorer_name, sample_score in scores.items():
-            try:
-                # First try using inspect_ai's converter if available
+            # If string, use converter
+            if isinstance(value, str):
                 if converter is not None:
-                    value = converter(sample_score.score.value)
+                    try:
+                        return converter(value)
+                    except Exception as e:
+                        logger.debug(f"Converter failed on '{value}': {e}")
+                        return None
                 else:
-                    # Fallback to as_float() method
-                    value = sample_score.score.as_float()
+                    # Fallback: try direct float conversion
+                    try:
+                        return float(value)
+                    except ValueError:
+                        logger.debug(f"Could not convert string '{value}' to float")
+                        return None
 
-                if value is not None and not pd.isna(value):
-                    numeric_scores.append(value)
-            except (ValueError, TypeError, AttributeError) as e:
-                # Non-numeric or missing score
-                logger.debug(
-                    f"Could not convert score from scorer '{scorer_name}': {e}"
-                )
-                continue
+            # Try using converter for other types (booleans, etc.)
+            if converter is not None:
+                try:
+                    return converter(value)
+                except Exception:
+                    pass
 
-        if not numeric_scores:
+            # Last resort: try as_float() method if available
+            if hasattr(value, 'as_float'):
+                try:
+                    return value.as_float()
+                except Exception:
+                    pass
+
             return None
 
-        if len(numeric_scores) == 1:
-            return numeric_scores[0]
+        # Mode 1: Extract specific score by key
+        if self.score_choice is not None:
+            if self.score_choice not in scores:
+                logger.warning(
+                    f"Requested score key '{self.score_choice}' not found in scores. "
+                    f"Available keys: {list(scores.keys())}"
+                )
+                return None
 
-        # MAJOR FLAG: Here is the particular area where decisions are being made about multiple scores - take mode
-        # Count occurrences
-        score_counts = Counter(numeric_scores)
-        mode_value, mode_count = score_counts.most_common(1)[0]
+            sample_score = scores[self.score_choice]
+            value = convert_to_float(sample_score.score.value)
 
-        # Check if multimodal (multiple values with same max count)
-        max_count = mode_count
-        modes = [val for val, count in score_counts.items() if count == max_count]
+            if value is None or pd.isna(value):
+                logger.warning(f"Could not convert score '{self.score_choice}' to float")
+                return None
 
-        if len(modes) > 1:
-            logger.debug(
-                f"Multiple scores are multimodal: {modes}. "
-                f"Taking first mode: {mode_value}"
-            )
+            return float(value)
 
-        return float(mode_value)
+        # Mode 2 & 3: Collect all scores (for aggregation or taking first)
+        numeric_scores = []
+        for scorer_name, sample_score in scores.items():
+            value = convert_to_float(sample_score.score.value)
 
-    async def start_task(self, task: "EvalSpec") -> str:
+            if value is not None and not pd.isna(value):
+                numeric_scores.append(value)
+            else:
+                logger.debug(f"Could not convert score from scorer '{scorer_name}'")
+
+        if not numeric_scores:
+            logger.warning("No valid numeric scores found")
+            return None
+
+        # Mode 2: Aggregate multiple scores
+        if self.score_agg is not None:
+            if self.score_agg == 'mean':
+                return float(np.mean(numeric_scores))
+            elif self.score_agg == 'median':
+                return float(np.median(numeric_scores))
+            elif self.score_agg == 'mode':
+                score_counts = Counter(numeric_scores)
+                mode_value = score_counts.most_common(1)[0][0]
+                return float(mode_value)
+            elif self.score_agg == 'max':
+                return float(max(numeric_scores))
+
+        # Mode 3 (Default): Take first score
+        return float(numeric_scores[0])
+
+    @override
+    async def start_task(self, task: EvalSpec, samples: list[Sample], epochs: int) -> str:
         """Initialize compiled_dataset with full evaluation plan.
 
         Creates DataFrame with rows for every planned trial:
-        - One row per (grouping × sample_id × epoch) combination
+        - One row per (sample × epoch) combination
 
         Columns:
-        - Grouping columns (from user config)
-        - sample_id, epoch, score (initially NaN)
+        - EvalSpec core columns (model, task, eval_id, etc.)
+        - Sample metadata columns (all keys from sample.metadata dictionaries)
+        - sample_id (from Sample.id), epoch, score (initially NaN)
         - trial_ran (initially 0)
         - schedule_status (initially True)
 
         Args:
-            task: Task metadata from inspect_ai
+            task: EvalSpec metadata from inspect_ai
+            samples: List of Sample objects with id and metadata
+            epochs: Number of epochs per sample
 
         Returns:
             Name of early stopping manager
 
         Raises:
-            ValueError: If task.dataset is None or sample_ids is empty
+            ValueError: If samples list is empty
         """
-        ## MAJOR FLAG: Need to confirm the extraction of information from EvalSpec is correct.
-
-        # Validate task structure
-        if task.dataset is None:
+        # Validate inputs
+        if not samples:
             raise ValueError(
-                "task.dataset is None. Cannot initialize optimal stopping without dataset."
+                "samples list is empty. Cannot run optimal stopping without samples to evaluate."
             )
 
-        if task.config is None:
-            logger.warning(
-                "task.config is None. Defaulting to 1 epoch per sample."
-            )
-            epochs = 1
-        else:
-            epochs = task.config.epochs or 1
-
-        # Validate sample_ids
-        sample_ids = task.dataset.sample_ids
-        if not sample_ids:
+        if epochs <= 0:
             raise ValueError(
-                "task.dataset.sample_ids is empty. Cannot run optimal stopping "
-                "without samples to evaluate."
+                f"epochs must be > 0, got {epochs}"
             )
 
-        # 1. Extract grouping values for all grouping columns
-        grouping_values = {}
-        for col in self.grouping_columns:
-            grouping_values[col] = self._extract_grouping_value(task, col)
+        # 1. Extract EvalSpec core columns (constant across all rows)
+        evalspec_columns = {}
+        if hasattr(task, 'model') and task.model is not None:
+            evalspec_columns['model'] = task.model
+        if hasattr(task, 'task') and task.task is not None:
+            evalspec_columns['task'] = task.task
+        elif hasattr(task, 'task_display_name') and task.task_display_name is not None:
+            evalspec_columns['task'] = task.task_display_name
+        if hasattr(task, 'eval_id') and task.eval_id is not None:
+            evalspec_columns['eval_id'] = task.eval_id
 
-        # 3. Build cartesian product of all combinations
+        # 2. Collect all unique metadata keys across all samples
+        all_metadata_keys = set()
+        for sample in samples:
+            if hasattr(sample, 'metadata') and sample.metadata:
+                all_metadata_keys.update(sample.metadata.keys())
+
+        # 3. Build cartesian product of all combinations (sample × epoch)
         rows = []
-        for sample_id in sample_ids:
-            for epoch in range(1, epochs + 1):
+        for sample in samples:
+            # Get sample ID
+            sample_id = sample.id
+
+            # Get sample metadata (may be incomplete for some samples)
+            sample_metadata = {}
+            if hasattr(sample, 'metadata') and sample.metadata:
+                sample_metadata = sample.metadata
+
+            # Create row for each epoch
+            for epoch_num in range(1, epochs + 1):
                 row = {
-                    **grouping_values,
+                    # EvalSpec core columns
+                    **evalspec_columns,
+                    # Sample ID
                     self.sample_id_column: sample_id,
-                    self.epoch_column: epoch,
+                    # Epoch
+                    self.epoch_column: epoch_num,
+                    # Sample metadata columns (NaN if missing)
+                    **{key: sample_metadata.get(key, np.nan) for key in all_metadata_keys},
+                    # Score column (initially empty)
                     self.score_column: np.nan,
+                    # Control columns
                     'trial_ran': 0,
                     'schedule_status': True
                 }
@@ -552,35 +629,50 @@ class OptimalStoppingManager:
 
         logger.info(
             f"Initialized optimal stopping dataset with {len(self.compiled_dataset)} "
-            f"planned trials ({len(sample_ids)} samples × {epochs} epochs)"
+            f"planned trials ({len(samples)} samples × {epochs} epochs)"
         )
+
+        # Print configuration summary to console
+        self._print_configuration_summary(len(samples), epochs)
 
         return self.manager_name
 
+    @override
     async def schedule_sample(
-        self, task: "EvalSpec", id: str | int, epoch: int
+        self, id: str | int, epoch: int
     ) -> EarlyStop | None:
         """Check if a sample should be scheduled or stopped early.
 
-        Fast lookup in compiled_dataset to check schedule_status.
+        Fast lookup in compiled_dataset to check schedule_status. All necessary
+        information is extracted from compiled_dataset (populated during start_task).
 
         Args:
-            task: Task metadata
             id: Sample dataset id
             epoch: Sample epoch
 
         Returns:
             EarlyStop if the sample should be stopped early, otherwise None
+
+        Note:
+            If shadow_mode=True, always returns None (run all trials) without
+            checking stopping status. Useful for comparison runs.
         """
+        # Shadow mode: run all trials without stopping
+        if self.shadow_mode:
+            return None
+
         if self.compiled_dataset is None:
             logger.error("compiled_dataset not initialized. Call start_task() first.")
             return None
 
-        # Build cache key from grouping values + sample_id + epoch
-        grouping_values = tuple(
-            self._extract_grouping_value(task, col)
-            for col in self.grouping_columns
-        )
+        # Get grouping values for this sample from compiled_dataset
+        try:
+            grouping_values_dict = self._get_grouping_values_for_sample(id)
+            grouping_values = tuple(grouping_values_dict.values())
+        except ValueError as e:
+            logger.error(f"Error getting grouping values: {e}")
+            return None
+
         cache_key = (*grouping_values, id, epoch)
 
         # Check cache first
@@ -593,17 +685,12 @@ class OptimalStoppingManager:
                 )
             return None
 
-        # Build mask for filtering (more robust than query)
-        mask = pd.Series([True] * len(self.compiled_dataset))
-        for col in self.grouping_columns:
-            col_value = self._extract_grouping_value(task, col)
-            if col_value is None:
-                mask &= self.compiled_dataset[col].isna()
-            else:
-                mask &= (self.compiled_dataset[col] == col_value)
-
-        mask &= (self.compiled_dataset[self.sample_id_column] == id)
-        mask &= (self.compiled_dataset[self.epoch_column] == epoch)
+        # Build mask for filtering - sample_id + epoch uniquely identifies the row
+        # (Grouping columns are already determined by sample_id, so we don't need to filter by them)
+        mask = (
+            (self.compiled_dataset[self.sample_id_column] == id) &
+            (self.compiled_dataset[self.epoch_column] == epoch)
+        )
 
         matching_rows = self.compiled_dataset[mask]
 
@@ -626,24 +713,26 @@ class OptimalStoppingManager:
 
         return None
 
+    @override
     async def complete_sample(
         self,
-        task: "EvalSpec",
         id: str | int,
         epoch: int,
-        scores: dict[str, "SampleScore"],
+        scores: dict[str, SampleScore],
     ) -> None:
         """Process completed sample and potentially run optimal stopping inference.
+
+        All necessary information is extracted from compiled_dataset (populated
+        during start_task).
 
         Steps:
         1. Extract and convert score to float
         2. Update compiled_dataset with score and trial_ran=1
-        3. Increment decision counter
-        4. If reanalysis_interval reached, run optimal_stopping_live()
+        3. Increment decision counter for grouping
+        4. If reanalysis_interval reached, run optimal_stopping_live_single()
         5. Update schedule_status based on stopping decisions
 
         Args:
-            task: Task metadata
             id: Sample dataset id
             epoch: Sample epoch
             scores: Scores for this sample
@@ -652,53 +741,86 @@ class OptimalStoppingManager:
             logger.error("compiled_dataset not initialized. Call start_task() first.")
             return
 
-        ## MAJOR FLAG: This is where scoring decisions have impact on stopping logic.
         # Step 1: Extract score value
         score_value = self._extract_score_value(scores)
 
-        # Validate score value
-        ## NOTE: This validation is basic; users may want to customize based on their scoring system - this might entail users not just specifying ordinal tasks, but also what the upper bounds are for that specific autograder.
-        if score_value is not None and not pd.isna(score_value):
-            # Check for suspicious values
-            if score_value < 0:
-                logger.warning(
-                    f"Negative score ({score_value}) for sample_id={id}, epoch={epoch}. "
-                    f"This may indicate a data issue."
+        # Step 2: Get grouping values and task name for validation
+        try:
+            grouping_values = self._get_grouping_values_for_sample(id)
+        except ValueError as e:
+            logger.error(f"Error getting grouping values: {e}")
+            return
+
+        # Extract task name from grouping values for ordinal task checking
+        task_name = grouping_values.get('task', None)
+
+        # Step 3: Validate score for inference eligibility
+        score_valid_for_inference = True
+        validation_message = None
+
+        # Check 1: None or string scores are invalid for inference
+        if score_value is None:
+            score_valid_for_inference = False
+            validation_message = "Score is None - cannot perform inference"
+        elif isinstance(score_value, str):
+            score_valid_for_inference = False
+            validation_message = "Score is a string - cannot perform inference"
+
+        # Check 2: Negative scores are invalid
+        elif score_value < 0:
+            score_valid_for_inference = False
+            validation_message = f"Score is negative ({score_value}) - invalid for inference"
+
+        # Check 3: Binary task (not ordinal) with score > 1
+        elif task_name is not None:
+            is_ordinal = False
+            if self.ordinal_tasks:
+                # Check if task name matches any ordinal task pattern
+                for ordinal_pattern in self.ordinal_tasks:
+                    if ordinal_pattern in str(task_name):
+                        is_ordinal = True
+                        break
+
+            if not is_ordinal and score_value > 1:
+                score_valid_for_inference = False
+                validation_message = (
+                    f"Binary task '{task_name}' has score > 1 ({score_value}) - "
+                    f"expected scores in [0, 1]. Cannot perform inference."
                 )
-            elif score_value > 100:  # Arbitrary upper bound for sanity check
-                logger.warning(
-                    f"Unusually large score ({score_value}) for sample_id={id}, epoch={epoch}. "
-                    f"Ensure this is expected for your scoring system."
+
+            # Check 4: Ordinal task with score exceeding max
+            elif is_ordinal and score_value > self.ordinal_max_score:
+                score_valid_for_inference = False
+                validation_message = (
+                    f"Ordinal task '{task_name}' has score > max ({score_value} > {self.ordinal_max_score}) - "
+                    f"exceeds ordinal_max_score. Cannot perform inference."
                 )
-        else:
-            logger.debug(
-                f"Non-numeric score for sample_id={id}, epoch={epoch}. "
-                f"Marking as non-actionable."
+
+        # Log validation result
+        if not score_valid_for_inference:
+            logger.warning(
+                f"⚠️  Invalid score for sample_id={id}, epoch={epoch}: {validation_message}. "
+                f"Score will be recorded but no inference will run for this sample. "
+                f"Task will continue to completion without early stopping."
             )
 
-        # Step 2: Update compiled_dataset
-        grouping_values = {
-            col: self._extract_grouping_value(task, col)
-            for col in self.grouping_columns
-        }
-
-        # Build update mask
-        mask = pd.Series([True] * len(self.compiled_dataset))
-        for col, val in grouping_values.items():
-            if val is None:
-                mask &= self.compiled_dataset[col].isna()
-            else:
-                mask &= (self.compiled_dataset[col] == val)
-
-        mask &= (self.compiled_dataset[self.sample_id_column] == id)
-        mask &= (self.compiled_dataset[self.epoch_column] == epoch)
+        # Step 4: Update compiled_dataset regardless of validation
+        # (Record the score even if invalid for inference)
+        mask = (
+            (self.compiled_dataset[self.sample_id_column] == id) &
+            (self.compiled_dataset[self.epoch_column] == epoch)
+        )
 
         # Update the row
         self.compiled_dataset.loc[mask, self.score_column] = score_value
         self.compiled_dataset.loc[mask, 'trial_ran'] = 1
         self.compiled_dataset.loc[mask, 'schedule_status'] = False  # Already ran
 
-        # Step 3: Increment per-grouping counter
+        # Step 5: If score invalid, skip inference for this sample
+        if not score_valid_for_inference:
+            return
+
+        # Step 6: Increment per-grouping counter (only for valid scores)
         grouping_name = self._build_grouping_name(grouping_values)
         if grouping_name not in self._decision_counters:
             self._decision_counters[grouping_name] = 0
@@ -709,11 +831,11 @@ class OptimalStoppingManager:
             f"Grouping '{grouping_name}' counter: {self._decision_counters[grouping_name]}"
         )
 
-        # Step 4: Check if we should run inference for this grouping
+        # Step 7: Check if we should run inference for this grouping
         if self._decision_counters[grouping_name] % self.reanalysis_interval != 0:
             return
 
-        # Run optimal stopping inference for this grouping
+        # Step 8: Run optimal stopping inference for this grouping
         await self._run_stopping_inference(grouping_values)
 
     async def _run_stopping_inference(
@@ -736,7 +858,7 @@ class OptimalStoppingManager:
         # Filter to current grouping
         mask = pd.Series([True] * len(self.compiled_dataset))
         for col, val in grouping_values.items():
-            if val is None:
+            if pd.isna(val):
                 mask &= self.compiled_dataset[col].isna()
             else:
                 mask &= (self.compiled_dataset[col] == val)
@@ -782,9 +904,9 @@ class OptimalStoppingManager:
         # Configure sampling kwargs based on available resources
         # Only check GPU if gpu_ids is explicitly provided as a non-empty list
         if self.gpu_ids is not None and len(self.gpu_ids) > 0:
-            gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
+            gpu_available, gpu_backend, _ = gpu_utils.check_gpu_availability()
         else:
-            gpu_available, gpu_backend, gpu_info = False, 'cpu', {}
+            gpu_available, gpu_backend = False, 'cpu'
 
         sampling_kwargs = gpu_utils.get_sampling_kwargs(
             params=self.optstop_params,
@@ -965,14 +1087,13 @@ class OptimalStoppingManager:
 
         return result
 
-    async def complete_task(self, task: "EvalSpec") -> dict[str, JsonValue]:
+    @override
+    async def complete_task(self) -> dict[str, JsonValue]:
         """Generate final diagnostics and metadata for completed task.
 
-        Note: Group-level stopping checks run automatically during
+        All necessary information is extracted from compiled_dataset (populated
+        during start_task). Group-level stopping checks run automatically during
         _run_stopping_inference() calls, so no additional check is needed here.
-
-        Args:
-            task: Task metadata
 
         Returns:
             Metadata dictionary with diagnostics, stopping decisions, and efficiency stats

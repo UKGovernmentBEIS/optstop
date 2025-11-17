@@ -19,9 +19,10 @@ sys.path.insert(0, '/home/ubuntu/optstop')
 
 from optstop.early_stopping import (
     OptimalStoppingManager,
-    EarlyStop,
     StoppedSample
 )
+# Import EarlyStop from inspect_ai
+from inspect_ai.util._early_stopping import EarlyStop
 
 
 # ============================================================================
@@ -51,21 +52,48 @@ def valid_grouping_columns():
 
 
 @pytest.fixture
+def mock_samples_valid():
+    """Mock Sample objects with metadata."""
+    mock_samples = []
+    for i in range(1, 4):  # 3 samples
+        sample = Mock()
+        sample.id = f'sample{i}'
+        sample.metadata = {}  # Empty metadata for basic tests
+        mock_samples.append(sample)
+    return mock_samples
+
+
+@pytest.fixture
+def mock_samples():
+    """Generic mock samples fixture."""
+    mock_samples = []
+    for i in range(1, 6):  # 5 samples
+        sample = Mock()
+        sample.id = f'sample{i}'
+        sample.metadata = {}
+        mock_samples.append(sample)
+    return mock_samples
+
+
+@pytest.fixture
+def mock_samples1():
+    """Mock samples for grouping test 1."""
+    return [Mock(id=f's{i}', metadata={}) for i in range(1, 4)]
+
+
+@pytest.fixture
+def mock_samples2():
+    """Mock samples for grouping test 2."""
+    return [Mock(id=f's{i}_grp2', metadata={}) for i in range(1, 4)]
+
+
+@pytest.fixture
 def mock_task_valid():
     """Mock EvalSpec with valid structure."""
-    mock_dataset = Mock()
-    mock_dataset.sample_ids = ['sample1', 'sample2', 'sample3']
-
-    mock_config = Mock()
-    mock_config.epochs = 5
-
     mock_task = Mock()
-    mock_task.dataset = mock_dataset
-    mock_task.config = mock_config
     mock_task.model = 'gpt4'
     mock_task.task = 'math'
-    mock_task.metadata = {}
-    mock_task.tags = []
+    mock_task.eval_id = 'test_eval_001'
 
     return mock_task
 
@@ -302,9 +330,10 @@ class TestTaskValidation:
     """Test Priority 1: Task validation in start_task()."""
 
     @pytest.mark.asyncio
-    async def test_valid_task(self, manager_basic, mock_task_valid):
+    async def test_valid_task(self, manager_basic, mock_task_valid, mock_samples_valid):
         """Test start_task with valid task."""
-        result = await manager_basic.start_task(mock_task_valid)
+        epochs = 5
+        result = await manager_basic.start_task(mock_task_valid, mock_samples_valid, epochs)
 
         assert result == manager_basic.manager_name
         assert manager_basic.compiled_dataset is not None
@@ -318,7 +347,7 @@ class TestTaskValidation:
         mock_task.config = Mock(epochs=5)
 
         with pytest.raises(ValueError, match="task.dataset is None"):
-            await manager_basic.start_task(mock_task)
+            await manager_basic.start_task(mock_task, mock_samples, epochs=5)
 
     @pytest.mark.asyncio
     async def test_task_with_empty_sample_ids(self, manager_basic):
@@ -331,7 +360,7 @@ class TestTaskValidation:
         mock_task.config = Mock(epochs=5)
 
         with pytest.raises(ValueError, match="sample_ids is empty"):
-            await manager_basic.start_task(mock_task)
+            await manager_basic.start_task(mock_task, mock_samples, epochs=5)
 
     @pytest.mark.asyncio
     async def test_task_with_none_config(self, manager_basic, caplog):
@@ -347,7 +376,7 @@ class TestTaskValidation:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        result = await manager_basic.start_task(mock_task)
+        result = await manager_basic.start_task(mock_task, mock_samples, epochs=5)
 
         assert result == manager_basic.manager_name
         assert len(manager_basic.compiled_dataset) == 1  # 1 sample × 1 epoch (default)
@@ -385,10 +414,10 @@ class TestLocFiltering:
         mock_task.tags = []
 
         # Initialize
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Should handle None gracefully in schedule_sample
-        result = await manager.schedule_sample(mock_task, id='sample1', epoch=1)
+        result = await manager.schedule_sample(id='sample1', epoch=1)
 
         assert result is None  # Should run (not stopped)
 
@@ -410,10 +439,10 @@ class TestLocFiltering:
         mock_task.tags = []
 
         # Initialize
-        await manager_basic.start_task(mock_task)
+        await manager_basic.start_task(mock_task, mock_samples, epochs=5)
 
         # Should handle special characters without crashing
-        result = await manager_basic.schedule_sample(mock_task, id='sample_1', epoch=1)
+        result = await manager_basic.schedule_sample(id='sample_1', epoch=1)
 
         assert result is None  # Should run
 
@@ -438,11 +467,11 @@ class TestLocFiltering:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Test filtering works correctly with underscores
-        result1 = await manager.schedule_sample(mock_task, id='item_123', epoch=1)
-        result2 = await manager.schedule_sample(mock_task, id='item_456', epoch=2)
+        result1 = await manager.schedule_sample(id='item_123', epoch=1)
+        result2 = await manager.schedule_sample(id='item_456', epoch=2)
 
         assert result1 is None
         assert result2 is None
@@ -450,10 +479,10 @@ class TestLocFiltering:
     @pytest.mark.asyncio
     async def test_schedule_sample_cache_hit(self, manager_basic, mock_task_valid):
         """Test that cache is populated and used correctly."""
-        await manager_basic.start_task(mock_task_valid)
+        await manager_basic.start_task(mock_task_valid, mock_samples_valid, epochs=5)
 
         # First call - cache miss, should query dataframe
-        result1 = await manager_basic.schedule_sample(mock_task_valid, id='sample1', epoch=1)
+        result1 = await manager_basic.schedule_sample(id='sample1', epoch=1)
         assert result1 is None
 
         # Check cache was populated
@@ -463,7 +492,7 @@ class TestLocFiltering:
         assert manager_basic._schedule_cache[cache_key] == True  # Should run
 
         # Second call - cache hit
-        result2 = await manager_basic.schedule_sample(mock_task_valid, id='sample1', epoch=1)
+        result2 = await manager_basic.schedule_sample(id='sample1', epoch=1)
         assert result2 is None
 
 
@@ -498,11 +527,11 @@ class TestCacheInvalidation:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Schedule all epochs (populate cache)
         for epoch in range(1, 11):
-            result = await manager.schedule_sample(mock_task, id='sample1', epoch=epoch)
+            result = await manager.schedule_sample(id='sample1', epoch=epoch)
             assert result is None  # All should be schedulable initially
 
         # Verify cache populated
@@ -514,7 +543,7 @@ class TestCacheInvalidation:
         mock_sample_score = Mock()
         mock_sample_score.score = mock_score_obj
         mock_scores = {'scorer1': mock_sample_score}
-        await manager.complete_sample(mock_task, id='sample1', epoch=1, scores=mock_scores)
+        await manager.complete_sample(id='sample1', epoch=1, scores=mock_scores)
 
         # Note: Actual stopping depends on inference running
         # Cache invalidation should happen if sample stops
@@ -541,7 +570,7 @@ class TestCacheInvalidation:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify compiled_dataset created correctly
         assert len(manager.compiled_dataset) == 50
@@ -578,12 +607,12 @@ class TestCacheInvalidation:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Populate cache for multiple samples
         for sample_id in ['s1', 's2', 's3']:
             for epoch in [1, 2]:
-                await manager.schedule_sample(mock_task, id=sample_id, epoch=epoch)
+                await manager.schedule_sample(id=sample_id, epoch=epoch)
 
         initial_cache_size = len(manager._schedule_cache)
         assert initial_cache_size > 0
@@ -622,7 +651,7 @@ class TestCacheInvalidation:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Manually test .pop() behavior (simulating Priority 2.2 optimization)
         fake_key = ('gpt4', 'sample1', 999)  # Key that doesn't exist
@@ -659,7 +688,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify grouping structure
         assert manager.compiled_dataset is not None
@@ -692,7 +721,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify both grouping columns exist
         assert 'model' in manager.compiled_dataset.columns
@@ -725,7 +754,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {'temperature': 0.7, 'max_tokens': 1000}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify metadata column extracted correctly
         assert 'metadata.temperature' in manager.compiled_dataset.columns
@@ -756,7 +785,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = ['difficulty', 'hard']  # Exact match for tag.difficulty
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify tag column extracted correctly
         assert 'tag.difficulty' in manager.compiled_dataset.columns
@@ -792,7 +821,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {'temperature': 0.5}
         mock_task.tags = ['difficulty', 'easy']
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify all grouping columns created
         assert 'model' in manager.compiled_dataset.columns
@@ -829,7 +858,7 @@ class TestMultiGroupingIntegration:
         mock_task1.metadata = {}
         mock_task1.tags = []
 
-        await manager.start_task(mock_task1)
+        await manager.start_task(mock_task1, mock_samples1, epochs=5)
 
         # Mark sample as stopped in compiled_dataset (schedule_status=False)
         manager.compiled_dataset.loc[
@@ -840,12 +869,12 @@ class TestMultiGroupingIntegration:
         ] = False
 
         # Schedule should return EarlyStop object for stopped sample
-        result1 = await manager.schedule_sample(mock_task1, id='s1', epoch=1)
+        result1 = await manager.schedule_sample(id='s1', epoch=1)
         assert result1 is not None  # Should return EarlyStop
         assert result1.reason == "Stopped by optimal stopping criteria"
 
         # Verify other epochs for same sample are still schedulable (independent)
-        result2 = await manager.schedule_sample(mock_task1, id='s1', epoch=2)
+        result2 = await manager.schedule_sample(id='s1', epoch=2)
         assert result2 is None  # Should still be schedulable
 
         # Verify that different groupings would maintain independent schedule_status
@@ -883,8 +912,8 @@ class TestMultiGroupingIntegration:
         mock_task2.metadata = {}
         mock_task2.tags = []
 
-        await manager.start_task(mock_task1)
-        await manager.start_task(mock_task2)
+        await manager.start_task(mock_task1, mock_samples1, epochs=5)
+        await manager.start_task(mock_task2, mock_samples2, epochs=5)
 
         # Mock score
         mock_score_obj = Mock()
@@ -894,12 +923,12 @@ class TestMultiGroupingIntegration:
         mock_scores = {'scorer1': mock_sample_score}
 
         # Complete 2 samples for gpt4 (counter = 2, not enough for reanalysis_interval=3)
-        await manager.complete_sample(mock_task1, id='s1', epoch=1, scores=mock_scores)
-        await manager.complete_sample(mock_task1, id='s2', epoch=1, scores=mock_scores)
+        await manager.complete_sample(id='s1', epoch=1, scores=mock_scores)
+        await manager.complete_sample(id='s2', epoch=1, scores=mock_scores)
         assert manager._decision_counters['gpt4'] == 2
 
         # Complete 1 sample for claude (counter = 1)
-        await manager.complete_sample(mock_task2, id='s1', epoch=1, scores=mock_scores)
+        await manager.complete_sample(id='s1', epoch=1, scores=mock_scores)
         assert manager._decision_counters['claude'] == 1
 
         # Verify counters are independent
@@ -927,10 +956,10 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Schedule a sample to populate cache
-        await manager.schedule_sample(mock_task, id='s1', epoch=1)
+        await manager.schedule_sample(id='s1', epoch=1)
 
         # Verify cache key structure includes all grouping columns
         # Keys should be tuples: (grouping_values..., sample_id, epoch)
@@ -967,7 +996,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}  # No 'temperature' key
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify metadata column created with None value
         assert 'metadata.temperature' in manager.compiled_dataset.columns
@@ -995,7 +1024,7 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = ['easy', 'algebra']  # No 'difficulty' tag
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify tag column created with None value
         assert 'tag.difficulty' in manager.compiled_dataset.columns
@@ -1023,14 +1052,14 @@ class TestMultiGroupingIntegration:
         mock_task.metadata = {}
         mock_task.tags = []
 
-        await manager.start_task(mock_task)
+        await manager.start_task(mock_task, mock_samples, epochs=5)
 
         # Verify dataset created with special characters in grouping values
         assert all(manager.compiled_dataset['model'] == 'gpt-4-turbo')
         assert all(manager.compiled_dataset['task'] == 'math_basic')
 
         # Verify schedule works with special characters
-        result = await manager.schedule_sample(mock_task, id='s1', epoch=1)
+        result = await manager.schedule_sample(id='s1', epoch=1)
         assert result is None  # Should schedule without issues
 
 
