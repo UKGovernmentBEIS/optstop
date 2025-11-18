@@ -1,0 +1,62 @@
+[
+  {
+    "scenario_name": "modal_consistent_good",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "pattern": "consistent_good",
+    "inference_mode": "modal",
+    "score_mode": "default",
+    "n_scores": 1,
+    "execution_time": 2.0522022247314453,
+    "efficiency_percent": 91.0,
+    "stopped_samples_count": 46,
+    "stopped_groupings_count": 1,
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "modal_consistent_bad",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "pattern": "consistent_bad",
+    "inference_mode": "modal",
+    "score_mode": "default",
+    "n_scores": 1,
+    "execution_time": 2.0302069187164307,
+    "efficiency_percent": 91.0,
+    "stopped_samples_count": 46,
+    "stopped_groupings_count": 1,
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "modal_consistent_mid",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "pattern": "consistent_mid",
+    "inference_mode": "modal",
+    "score_mode": "default",
+    "n_scores": 1,
+    "execution_time": 2.0697808265686035,
+    "efficiency_percent": 91.0,
+    "stopped_samples_count": 46,
+    "stopped_groupings_count": 1,
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "modal_inconsistent",
+    "n_samples": 50,
+    "n_epochs": 15,
+    "pattern": "inconsistent",
+    "inference_mode": "modal",
+    "score_mode": "default",
+    "n_scores": 1,
+    "execution_time": 252.48604726791382,
+    "efficiency_percent": 0.67,
+    "stopped_samples_count": 1,
+    "stopped_groupings_count": 0,
+    "success": true,
+    "error": null
+  }
+]

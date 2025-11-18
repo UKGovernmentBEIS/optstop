@@ -11,12 +11,45 @@ from pydantic import BaseModel, Field, JsonValue
 # Import GPU utilities for configuration
 from . import gpu_utils
 
-# Import inspect_ai classes
-from inspect_ai.dataset._dataset import Sample
-from inspect_ai.log._log import EvalSpec
-from inspect_ai.scorer._metric import SampleScore
-from inspect_ai.util import EarlyStopping
-from inspect_ai.util._early_stopping import EarlyStop
+# Import inspect_ai classes - with fallback to mock for testing
+try:
+    from inspect_ai.dataset._dataset import Sample
+    from inspect_ai.log._log import EvalSpec
+    from inspect_ai.scorer._metric import SampleScore
+    from inspect_ai.util import EarlyStopping
+    from inspect_ai.util._early_stopping import EarlyStop
+except (ImportError, AttributeError):
+    # Use mock protocol for testing
+    import sys
+    import os
+    # Add parent directory to path to find mock_inspect_early_stop
+    sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+    from mock_inspect_early_stop import EarlyStopping, EarlyStop, StoppedSample as _MockStoppedSample
+
+    # Create minimal mocks for other types
+    class Sample:
+        def __init__(self, id, metadata=None):
+            self.id = id
+            self.metadata = metadata or {}
+
+    class EvalSpec:
+        def __init__(self, model, task, eval_id=None, metadata=None, tags=None):
+            self.model = model
+            self.task = task
+            self.eval_id = eval_id
+            self.metadata = metadata or {}
+            self.tags = tags or []
+
+    class MockScore:
+        def __init__(self, value):
+            self.value = value
+
+    class SampleScore:
+        def __init__(self, score):
+            if hasattr(score, 'value'):
+                self.score = score
+            else:
+                self.score = MockScore(score)
 
 # Configure logger
 logger = logging.getLogger(__name__)
