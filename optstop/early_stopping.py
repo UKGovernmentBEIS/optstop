@@ -804,8 +804,11 @@ class OptimalStoppingManager(EarlyStopping):
             score_valid_for_inference = False
             validation_message = f"Score is negative ({score_value}) - invalid for inference"
 
-        # Check 3: Binary task (not ordinal) with score > 1
+        # Check 3: Score validation depends on aggregation mode and task type
         elif task_name is not None:
+            is_aggregated = bool(self.score_agg in ['mean', 'median'])
+
+            # Determine if this is an ordinal task
             is_ordinal = False
             if self.ordinal_tasks:
                 # Check if task name matches any ordinal task pattern
@@ -814,20 +817,33 @@ class OptimalStoppingManager(EarlyStopping):
                         is_ordinal = True
                         break
 
-            if not is_ordinal and score_value > 1:
-                score_valid_for_inference = False
-                validation_message = (
-                    f"Binary task '{task_name}' has score > 1 ({score_value}) - "
-                    f"expected scores in [0, 1]. Cannot perform inference."
-                )
+            if not is_ordinal:
+                # Binary task validation
+                if is_aggregated:
+                    # Aggregated binary: allow continuous [0, 1]
+                    if score_value > 1.0:
+                        score_valid_for_inference = False
+                        validation_message = (
+                            f"Binary task '{task_name}' with aggregation has score > 1 ({score_value}) - "
+                            f"expected continuous values in [0, 1]. Cannot perform inference."
+                        )
+                else:
+                    # Discrete binary: only 0 or 1
+                    if score_value > 1:
+                        score_valid_for_inference = False
+                        validation_message = (
+                            f"Binary task '{task_name}' has score > 1 ({score_value}) - "
+                            f"expected discrete scores in {{0, 1}}. Cannot perform inference."
+                        )
 
-            # Check 4: Ordinal task with score exceeding max
-            elif is_ordinal and score_value > self.ordinal_max_score:
-                score_valid_for_inference = False
-                validation_message = (
-                    f"Ordinal task '{task_name}' has score > max ({score_value} > {self.ordinal_max_score}) - "
-                    f"exceeds ordinal_max_score. Cannot perform inference."
-                )
+            elif is_ordinal:
+                # Ordinal task validation (both discrete and aggregated)
+                if score_value > self.ordinal_max_score:
+                    score_valid_for_inference = False
+                    validation_message = (
+                        f"Ordinal task '{task_name}' has score > max ({score_value} > {self.ordinal_max_score}) - "
+                        f"exceeds ordinal_max_score. Cannot perform inference."
+                    )
 
         # Log validation result
         if not score_valid_for_inference:
@@ -949,6 +965,13 @@ class OptimalStoppingManager(EarlyStopping):
             auto_decide=True
         ) if gpu_available else None
 
+        # Determine if scores are aggregated (mean/median)
+        is_aggregated = bool(self.score_agg in ['mean', 'median'])
+
+        # Add aggregation context to params for determine_score_type routing
+        params_with_aggregation = self.optstop_params.copy()
+        params_with_aggregation['is_aggregated'] = is_aggregated
+
         # Call optimal_stopping_live_single() in a thread (since it's CPU/GPU intensive)
         import asyncio
         try:
@@ -956,7 +979,7 @@ class OptimalStoppingManager(EarlyStopping):
                 optimal_stopping_live_single,
                 df_grouping=completed_data,
                 grouping_name=grouping_name,
-                params=self.optstop_params,
+                params=params_with_aggregation,  # Pass updated params with aggregation flag
                 sample_id_column=self.sample_id_column,
                 epoch_column=self.epoch_column,
                 score_column=self.score_column,

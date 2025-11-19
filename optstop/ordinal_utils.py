@@ -28,7 +28,7 @@ References:
 
 import numpy as np
 import logging
-from typing import Tuple, Optional
+from typing import Tuple, Optional, Dict
 
 
 def _ordinal_ci_adaptive(
@@ -216,49 +216,91 @@ def validate_ordinal_scores(
 
 def determine_score_type(
     grouping_name: str,
-    ordinal_tasks: Optional[list] = None
-) -> str:
+    ordinal_tasks: Optional[list] = None,
+    is_aggregated: bool = False,
+    upper_bound: float = 1.0
+) -> Tuple[str, Dict[str, float]]:
     """
-    Determine score type (binary or ordinal) based on grouping name and ordinal_tasks list.
+    Determine score type and bounds based on grouping name, ordinal_tasks, and aggregation context.
 
-    This function checks if the grouping name contains any substring from the ordinal_tasks
-    list. Matching is case-insensitive.
+    This function determines whether to use binary, ordinal, or continuous bounded inference
+    based on:
+    1. Whether the grouping name matches ordinal task patterns
+    2. Whether scores are aggregated (mean/median)
+
+    Score Type Logic:
+    - If is_aggregated=True:
+        - Ordinal task → 'continuous_bounded' with bounds [0, upper_bound]
+        - Binary task → 'continuous_01' with bounds [0, 1]
+    - If is_aggregated=False:
+        - Ordinal task → 'ordinal' (discrete categories)
+        - Binary task → 'binary' (discrete 0/1)
 
     Args:
         grouping_name: String identifier for the grouping (e.g., "1-1", "subject1-likert_task")
-        ordinal_tasks: List of substrings to match for ordinal scoring. If None, returns 'binary'.
+        ordinal_tasks: List of substrings to match for ordinal scoring. If None, defaults to binary.
+        is_aggregated: Whether scores are aggregated (mean/median), producing continuous floats.
+        upper_bound: Upper bound for score range. Use 1.0 for binary, ordinal_max_score for ordinal.
 
     Returns:
-        'binary' or 'ordinal'
+        Tuple of (score_type, bounds_dict):
+        - score_type: One of 'binary', 'ordinal', 'continuous_01', 'continuous_bounded'
+        - bounds_dict: Dictionary with keys 'lower' and 'upper'
 
     Examples:
-        >>> determine_score_type("subject1-accuracy", None)
-        'binary'
+        >>> # Discrete binary
+        >>> determine_score_type("subject1-accuracy", None, is_aggregated=False)
+        ('binary', {'lower': 0.0, 'upper': 1.0})
 
-        >>> determine_score_type("subject1-likert_scale", ['likert'])
-        'ordinal'
+        >>> # Aggregated binary (mean of multiple 0/1 scores)
+        >>> determine_score_type("subject1-accuracy", None, is_aggregated=True)
+        ('continuous_01', {'lower': 0.0, 'upper': 1.0})
 
-        >>> determine_score_type("1-task_rating", ['rating', 'likert'])
-        'ordinal'
+        >>> # Discrete ordinal
+        >>> determine_score_type("subject1-likert", ['likert'], is_aggregated=False, upper_bound=10.0)
+        ('ordinal', {'lower': 0.0, 'upper': 10.0})
 
-        >>> determine_score_type("subject2-accuracy", ['rating', 'likert'])
-        'binary'
+        >>> # Aggregated ordinal (mean of multiple ordinal scores)
+        >>> determine_score_type("subject1-likert", ['likert'], is_aggregated=True, upper_bound=10.0)
+        ('continuous_bounded', {'lower': 0.0, 'upper': 10.0})
     """
     logger = logging.getLogger('optstop.ordinal_utils')
 
-    # Default to binary if no ordinal tasks specified
-    if ordinal_tasks is None or len(ordinal_tasks) == 0:
-        return 'binary'
+    # Determine base type (binary or ordinal) via substring matching
+    is_ordinal = False
+    if ordinal_tasks is not None and len(ordinal_tasks) > 0:
+        # Handle None or non-string grouping_name gracefully
+        if grouping_name is None:
+            grouping_name_str = ""
+        else:
+            grouping_name_str = str(grouping_name)
 
-    # Check if any ordinal substring matches this grouping name (case-insensitive)
-    grouping_name_lower = grouping_name.lower()
+        grouping_name_lower = grouping_name_str.lower()
+        for ordinal_substring in ordinal_tasks:
+            if ordinal_substring.lower() in grouping_name_lower:
+                is_ordinal = True
+                break
 
-    for ordinal_substring in ordinal_tasks:
-        if ordinal_substring.lower() in grouping_name_lower:
+    # If aggregated, return continuous type
+    if is_aggregated:
+        if is_ordinal:
+            score_type = 'continuous_bounded'
+            bounds = {'lower': 0.0, 'upper': upper_bound}
             logger.info(
-                f"Grouping '{grouping_name}' matched ordinal pattern '{ordinal_substring}' → using ordinal scoring"
+                f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_BOUNDED [0, {upper_bound}]"
             )
-            return 'ordinal'
+        else:
+            score_type = 'continuous_01'
+            bounds = {'lower': 0.0, 'upper': 1.0}
+            logger.info(
+                f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_01 [0, 1]"
+            )
+        return score_type, bounds
 
-    logger.debug(f"Grouping '{grouping_name}' does not match any ordinal patterns → using binary scoring")
-    return 'binary'
+    # Non-aggregated: return discrete types
+    if is_ordinal:
+        logger.info(f"Grouping '{grouping_name}' → ORDINAL (discrete)")
+        return 'ordinal', {'lower': 0.0, 'upper': upper_bound}
+    else:
+        logger.debug(f"Grouping '{grouping_name}' → BINARY (discrete)")
+        return 'binary', {'lower': 0.0, 'upper': 1.0}

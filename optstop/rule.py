@@ -704,7 +704,13 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             ordinal_inference = params.get('ordinal_inference', 'modal')
             entropy_threshold = params.get('entropy_threshold', 1.5)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
-            score_type = determine_score_type(grouping_name, ordinal_tasks)
+            is_aggregated = params.get('is_aggregated', False)
+            score_type, bounds = determine_score_type(
+                grouping_name,
+                ordinal_tasks,
+                is_aggregated=is_aggregated,
+                upper_bound=ordinal_max_score
+            )
 
             logger.info(f"Processing grouping {pid} ('{grouping_name}') with {score_type} scoring" +
                        (f" (inference: {ordinal_inference})" if score_type == 'ordinal' else ""))
@@ -1202,7 +1208,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
         # Determine score type for this grouping
         from .ordinal_utils import determine_score_type
-        score_type = determine_score_type(grouping, ordinal_tasks)
+        is_aggregated = params.get('is_aggregated', False)
+        score_type, bounds = determine_score_type(
+            grouping,
+            ordinal_tasks,
+            is_aggregated=is_aggregated,
+            upper_bound=ordinal_max_score
+        )
         logger.info(f"Grouping '{grouping}' identified as {score_type.upper()}")
 
         # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
@@ -1686,7 +1698,13 @@ def optimal_stopping_posthoc(
 
         # Validate ordinal scores upfront for all ordinal groupings
         for grouping_name in df['grouping'].unique():
-            score_type = determine_score_type(grouping_name, ordinal_tasks)
+            is_aggregated = params_with_context.get('is_aggregated', False)
+            score_type, bounds = determine_score_type(
+                grouping_name,
+                ordinal_tasks,
+                is_aggregated=is_aggregated,
+                upper_bound=ordinal_max_score
+            )
             if score_type == 'ordinal':
                 grouping_data = df[df['grouping'] == grouping_name]
                 validate_ordinal_scores(
@@ -1912,8 +1930,40 @@ def optimal_stopping_live_single(
     stab_window = params.get('stab_window', 10)
 
     # Determine score type for this grouping
-    score_type = determine_score_type(grouping_name, ordinal_tasks)
+    is_aggregated = params.get('is_aggregated', False)
+    score_type, bounds = determine_score_type(
+        grouping_name,
+        ordinal_tasks,
+        is_aggregated=is_aggregated,
+        upper_bound=ordinal_max_score
+    )
     logger.info(f"Processing grouping '{grouping_name}' as {score_type.upper()}")
+
+    # Temporary fallback for continuous types (Phase 1)
+    # Until continuous bounded inference is implemented (Phases 2-3), return early with warning
+    if score_type in ['continuous_01', 'continuous_bounded']:
+        logger.warning(
+            f"⚠️  Grouping '{grouping_name}' requires continuous bounded inference "
+            f"(score_type='{score_type}'), which is not yet implemented. "
+            f"No early stopping will be applied to this grouping. "
+            f"All trials will run to completion."
+        )
+        return {
+            'grouping': grouping_name,
+            'stop_sample_ids': [],
+            'stop_this_grouping': [],
+            'stabilization_history': stabilization_history if stabilization_history else {
+                'ci_width_history': [],
+                'ci_slope_history': [],
+                'entropy_history': [],
+                'n_samples_evaluated': 0
+            },
+            'metadata': {
+                'warning': 'continuous_inference_not_implemented',
+                'score_type': score_type,
+                'bounds': bounds
+            }
+        }
 
     # Auto-configure sampling kwargs if not provided
     if sampling_kwargs is None:
