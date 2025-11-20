@@ -564,6 +564,188 @@ def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.95, con
         effective_width = hi - lo
     return lo, hi, effective_width
 
+def _continuous_bounded_ci_adaptive(
+    scores: np.ndarray,
+    lower_bound: float = 0.0,
+    upper_bound: float = 1.0,
+    cred_level: float = 0.95,
+    conservatism: float = 1.0,
+    low_perf_threshold: float = 0.2,
+    base_strength: int = 2,
+    samples: int = 10000
+) -> Tuple[float, float, float]:
+    """
+    Compute adaptive Bayesian credible interval for continuous bounded scores.
+
+    Designed for aggregated scores (mean/median) that are continuous floats:
+    - Binary aggregated: scores in [0, 1]
+    - Ordinal aggregated: scores in [0, ordinal_max_score]
+
+    Method: Beta distribution (or scaled/shifted Beta for arbitrary bounds)
+    with method-of-moments parameter estimation and adaptive conservatism.
+
+    Args:
+        scores: Array of continuous scores
+        lower_bound: Lower bound of score range (default: 0.0)
+        upper_bound: Upper bound of score range (default: 1.0)
+        cred_level: Credibility level (e.g., 0.95 for 95% CI)
+        conservatism: Multiplier for CI width in low-performance scenarios (>= 1.0)
+        low_perf_threshold: Performance threshold for conservatism (normalized 0-1)
+        base_strength: Base prior strength for Bayesian estimation
+        samples: Number of Monte Carlo samples for posterior
+
+    Returns:
+        Tuple of (lower_bound_ci, upper_bound_ci, effective_width)
+        - All values in original scale [lower_bound, upper_bound]
+        - effective_width: CI width, adjusted for conservatism if needed
+
+    Statistical Approach:
+        1. Normalize scores to [0, 1]
+        2. Estimate Beta distribution parameters using method of moments:
+           - mean = alpha / (alpha + beta)
+           - var = (alpha * beta) / ((alpha + beta)^2 * (alpha + beta + 1))
+        3. Apply conservative priors for low performance
+        4. Generate posterior samples from Beta distribution
+        5. Compute credible interval
+        6. Scale back to original bounds
+
+    Example:
+        # Binary aggregated: [0.8, 0.9, 0.7, 0.85, 0.9]
+        scores = np.array([0.8, 0.9, 0.7, 0.85, 0.9])
+        lo, hi, width = _continuous_bounded_ci_adaptive(scores, 0.0, 1.0)
+        # Returns: (0.75, 0.92, 0.17) - "95% confident mean is 0.75-0.92"
+
+        # Ordinal aggregated: [8.2, 8.7, 8.4, 8.9, 8.5]
+        scores = np.array([8.2, 8.7, 8.4, 8.9, 8.5])
+        lo, hi, width = _continuous_bounded_ci_adaptive(scores, 0.0, 10.0)
+        # Returns: (8.1, 8.9, 0.8) in original scale
+
+    References:
+        Beta distribution for bounded continuous data
+        Method of moments parameter estimation
+    """
+    # Handle edge case: empty array
+    if len(scores) == 0:
+        return lower_bound, upper_bound, upper_bound - lower_bound
+
+    # Handle edge case: single observation
+    if len(scores) == 1:
+        # Return wide interval centered on observation
+        obs = scores[0]
+        # Use 50% of range as conservative width
+        width = (upper_bound - lower_bound) * 0.5
+        lo = max(lower_bound, obs - width / 2)
+        hi = min(upper_bound, obs + width / 2)
+        return lo, hi, hi - lo
+
+    # Normalize scores to [0, 1]
+    score_range = upper_bound - lower_bound
+    if score_range <= 0:
+        # Invalid bounds
+        return lower_bound, upper_bound, upper_bound - lower_bound
+
+    scores_normalized = (scores - lower_bound) / score_range
+
+    # Clip to [0, 1] to handle any numerical issues
+    scores_normalized = np.clip(scores_normalized, 0.0, 1.0)
+
+    # Compute sample statistics
+    mean_normalized = np.mean(scores_normalized)
+    var_normalized = np.var(scores_normalized, ddof=1) if len(scores) > 1 else 0.0
+
+    # Handle edge case: zero variance (all scores identical)
+    if var_normalized < 1e-10:
+        # All scores are essentially the same - return tight interval
+        # Use small width based on sample size
+        n = len(scores)
+        width_normalized = min(0.1, 1.0 / np.sqrt(n))
+        lo_normalized = max(0.0, mean_normalized - width_normalized / 2)
+        hi_normalized = min(1.0, mean_normalized + width_normalized / 2)
+
+        # Scale back to original bounds
+        lo = lo_normalized * score_range + lower_bound
+        hi = hi_normalized * score_range + lower_bound
+        return lo, hi, hi - lo
+
+    # Method of moments: estimate Beta(alpha, beta) parameters
+    # mean = alpha / (alpha + beta)
+    # var = (alpha * beta) / ((alpha + beta)^2 * (alpha + beta + 1))
+    #
+    # Solving for alpha, beta:
+    # Let m = mean, v = var
+    # alpha = m * ((m * (1 - m) / v) - 1)
+    # beta = (1 - m) * ((m * (1 - m) / v) - 1)
+
+    # Ensure variance is valid (must be < mean * (1 - mean))
+    max_var = mean_normalized * (1 - mean_normalized)
+    if var_normalized >= max_var:
+        # Variance too large for Beta - use conservative estimate
+        var_normalized = max_var * 0.95
+
+    # Compute method-of-moments estimates
+    ratio = (mean_normalized * (1 - mean_normalized) / var_normalized) - 1
+
+    # Ensure ratio is positive (required for valid Beta parameters)
+    if ratio <= 0:
+        # Fall back to uniform-ish prior
+        alpha_mle = 1.0
+        beta_mle = 1.0
+    else:
+        alpha_mle = mean_normalized * ratio
+        beta_mle = (1 - mean_normalized) * ratio
+
+    # Ensure parameters are at least 0.5 (avoid extreme distributions)
+    alpha_mle = max(0.5, alpha_mle)
+    beta_mle = max(0.5, beta_mle)
+
+    # Apply Bayesian prior (decays with sample size)
+    n = len(scores)
+
+    # Determine if performance is low (requires conservatism)
+    if mean_normalized < low_perf_threshold:
+        # Low performance: apply conservatism boost
+        alpha_boost = conservatism
+        prior_scaling = base_strength * np.exp(-n / (10 * conservatism))
+
+        # Boost alpha more for low performance (makes prior stronger)
+        alpha_prior = max(prior_scaling * mean_normalized * alpha_boost, 0.5)
+        beta_prior = max(prior_scaling * (1 - mean_normalized), 0.5)
+    else:
+        # Normal performance: standard prior
+        prior_scaling = base_strength * np.exp(-n / 10)
+
+        alpha_prior = max(prior_scaling * mean_normalized, 0.5)
+        beta_prior = max(prior_scaling * (1 - mean_normalized), 0.5)
+
+    # Combine prior with data (Bayesian update)
+    # For Beta, this is simple addition due to conjugacy
+    # We approximate data contribution as alpha_mle, beta_mle
+    alpha_post = alpha_prior + alpha_mle
+    beta_post = beta_prior + beta_mle
+
+    # Generate posterior samples
+    posterior_draws = np.random.beta(alpha_post, beta_post, samples)
+
+    # Compute credible interval
+    alpha_tail = (1 - cred_level) / 2
+    lo_normalized = np.quantile(posterior_draws, alpha_tail)
+    hi_normalized = np.quantile(posterior_draws, 1 - alpha_tail)
+
+    # Scale back to original bounds
+    lo = lo_normalized * score_range + lower_bound
+    hi = hi_normalized * score_range + lower_bound
+
+    # Compute width
+    width = hi - lo
+
+    # Apply conservatism to effective width for low performance
+    if mean_normalized < low_perf_threshold:
+        effective_width = width * conservatism
+    else:
+        effective_width = width
+
+    return lo, hi, effective_width
+
 def configure_optstop_logging(logfile: str = 'optstop_run.log', level: int = logging.INFO, console_output: bool = False) -> None:
     """
     Configure logging for the optstop package to log to file and optionally to console.
@@ -1939,31 +2121,9 @@ def optimal_stopping_live_single(
     )
     logger.info(f"Processing grouping '{grouping_name}' as {score_type.upper()}")
 
-    # Temporary fallback for continuous types (Phase 1)
-    # Until continuous bounded inference is implemented (Phases 2-3), return early with warning
-    if score_type in ['continuous_01', 'continuous_bounded']:
-        logger.warning(
-            f"⚠️  Grouping '{grouping_name}' requires continuous bounded inference "
-            f"(score_type='{score_type}'), which is not yet implemented. "
-            f"No early stopping will be applied to this grouping. "
-            f"All trials will run to completion."
-        )
-        return {
-            'grouping': grouping_name,
-            'stop_sample_ids': [],
-            'stop_this_grouping': [],
-            'stabilization_history': stabilization_history if stabilization_history else {
-                'ci_width_history': [],
-                'ci_slope_history': [],
-                'entropy_history': [],
-                'n_samples_evaluated': 0
-            },
-            'metadata': {
-                'warning': 'continuous_inference_not_implemented',
-                'score_type': score_type,
-                'bounds': bounds
-            }
-        }
+    # Extract bounds for continuous inference
+    lower_bound = bounds['lower']
+    upper_bound = bounds['upper']
 
     # Auto-configure sampling kwargs if not provided
     if sampling_kwargs is None:
@@ -2044,7 +2204,7 @@ def optimal_stopping_live_single(
 
             item_summaries.append({'successes': successes, 'trials': trials})
 
-        else:
+        elif score_type == 'ordinal':
             # === ORDINAL SAMPLE-LEVEL STOPPING ===
             accumulated_scores = df_item[score_column].tolist()
 
@@ -2120,11 +2280,57 @@ def optimal_stopping_live_single(
                 'trials': len(accumulated_scores)
             })
 
+        elif score_type in ['continuous_01', 'continuous_bounded']:
+            # === CONTINUOUS SAMPLE-LEVEL STOPPING ===
+            accumulated_scores = df_item[score_column].values
+
+            # Normalize performance for conservatism check (to [0, 1])
+            normalized_perf = np.mean(accumulated_scores) / upper_bound
+            current_conservatism = conservatism if normalized_perf < low_perf_threshold else 1.0
+
+            # Compute CI
+            lo, hi, width = _continuous_bounded_ci_adaptive(
+                accumulated_scores,
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                cred_level=cred_level,
+                conservatism=current_conservatism,
+                low_perf_threshold=low_perf_threshold
+            )
+
+            # ⚠️ CRITICAL: Normalize width for comparison with delta_item
+            width_normalized = width / (upper_bound - lower_bound)
+
+            # Check width criterion
+            if width_normalized < delta_item:
+                stop_sample_ids.append(f"{grouping_name}:::{original_sample_id}")
+                metadata['sample_stopping_reasons'][str(original_sample_id)] = {
+                    'reason': 'continuous_bounded_ci_width',
+                    'ci_width': float(width),
+                    'ci_width_normalized': float(width_normalized),
+                    'threshold': delta_item,
+                    'epochs_used': len(accumulated_scores),
+                    'bounds': {'lower': lower_bound, 'upper': upper_bound}
+                }
+                logger.info(f"Stopping continuous sample {original_sample_id}: CI width_norm {width_normalized:.4f} < {delta_item}")
+
+            item_summaries.append({
+                'mean': float(np.mean(accumulated_scores)),
+                'count': len(accumulated_scores)
+            })
+
     # Group-level stopping check (runs automatically after sample checks)
     if len(item_summaries) > 0:
         logger.info(f"Running group-level stopping check for '{grouping_name}'")
 
-        current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries])
+        # Compute performance estimate based on score type
+        if score_type in ['binary', 'ordinal']:
+            current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries])
+        else:  # continuous
+            # For continuous, use mean of means weighted by counts
+            total_sum = np.sum([s['mean'] * s['count'] for s in item_summaries])
+            total_count = np.sum([s['count'] for s in item_summaries])
+            current_perf_estimate = total_sum / total_count if total_count > 0 else 0
 
         if score_type == 'binary':
             # === BINARY GROUP-LEVEL STOPPING ===
@@ -2209,7 +2415,7 @@ def optimal_stopping_live_single(
                                 }
                                 logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong stabilization")
 
-        else:
+        elif score_type == 'ordinal':
             # === ORDINAL GROUP-LEVEL STOPPING ===
             all_ord_scores = []
             for item_id in item_ids:
@@ -2283,6 +2489,89 @@ def optimal_stopping_live_single(
                     logger.info(f"Stopping ordinal grouping '{grouping_name}' via {reason_group}")
 
             stabilization_history['entropy_history'] = group_entropy_history
+
+        elif score_type in ['continuous_01', 'continuous_bounded']:
+            # === CONTINUOUS GROUP-LEVEL STOPPING ===
+
+            # Aggregate all scores across all samples
+            all_continuous_scores = []
+            for item_id in item_ids:
+                df_item = df_work[df_work['sample_id_num'] == item_id]
+                all_continuous_scores.extend(df_item[score_column].values)
+
+            all_continuous_scores = np.array(all_continuous_scores)
+
+            # Normalize performance for conservatism check
+            current_perf_estimate = np.mean(all_continuous_scores)
+            normalized_perf = current_perf_estimate / upper_bound
+            current_conservatism = conservatism if normalized_perf < low_perf_threshold else 1.0
+
+            # Compute CI at group level
+            lo, hi, width = _continuous_bounded_ci_adaptive(
+                all_continuous_scores,
+                lower_bound=lower_bound,
+                upper_bound=upper_bound,
+                cred_level=cred_level,
+                conservatism=current_conservatism,
+                low_perf_threshold=low_perf_threshold
+            )
+
+            # ⚠️ CRITICAL: Normalize width for comparison with delta_cap
+            width_normalized = width / (upper_bound - lower_bound)
+
+            # Append NORMALIZED width to history for stabilization tracking
+            stabilization_history['ci_width_history'].append(float(width_normalized))
+
+            # Check width criterion
+            if width_normalized < delta_cap:
+                stop_this_grouping.append(grouping_name)
+                metadata['group_stopping_reason'] = {
+                    'reason': 'continuous_bounded_ci_width',
+                    'ci_width': float(width),
+                    'ci_width_normalized': float(width_normalized),
+                    'threshold': delta_cap,
+                    'samples_used': len(item_summaries),
+                    'bounds': {'lower': lower_bound, 'upper': upper_bound}
+                }
+                logger.info(f"Stopping grouping '{grouping_name}': Continuous CI width_norm {width_normalized:.4f} < {delta_cap}")
+
+            # Check stabilization criterion (if enough history)
+            if len(stabilization_history['ci_width_history']) >= stab_window:
+                recent_widths = stabilization_history['ci_width_history'][-stab_window:]
+                slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                stabilization_history['ci_slope_history'].append(float(slope))
+
+                # Adjust slope threshold based on performance
+                slope_threshold = CI_delta / current_conservatism if normalized_perf < low_perf_threshold else CI_delta
+
+                # Check if slope is near zero (stabilized)
+                if abs(slope) <= slope_threshold and len(stabilization_history['ci_slope_history']) >= 4:
+                    # Check second derivative (slope of slopes) to ensure stabilization is real
+                    recent_slopes = stabilization_history['ci_slope_history'][-3:]
+                    slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+
+                    # Slope of slopes should be >= 0 (not getting steeper in negative direction)
+                    if slope_slopes >= 0:
+                        # For good performance, allow stabilization stopping
+                        if normalized_perf >= low_perf_threshold:
+                            stop_this_grouping.append(grouping_name)
+                            metadata['group_stopping_reason'] = {
+                                'reason': 'continuous_bounded_stabilization',
+                                'slope': float(slope),
+                                'slope_threshold': slope_threshold,
+                                'samples_used': len(item_summaries)
+                            }
+                            logger.info(f"Stopping grouping '{grouping_name}' via continuous stabilization: slope {slope:.6f}")
+                        # For low performance, require stronger stabilization
+                        elif abs(slope) <= slope_threshold / 2:
+                            stop_this_grouping.append(grouping_name)
+                            metadata['group_stopping_reason'] = {
+                                'reason': 'continuous_bounded_stabilization_low_perf',
+                                'slope': float(slope),
+                                'slope_threshold': slope_threshold,
+                                'samples_used': len(item_summaries)
+                            }
+                            logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong continuous stabilization")
 
     # Update samples evaluated count
     stabilization_history['n_samples_evaluated'] = len(item_summaries)
