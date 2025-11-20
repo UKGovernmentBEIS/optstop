@@ -21,6 +21,7 @@ import numpy as np
 from unittest.mock import Mock, AsyncMock
 from typing import List, Any
 
+import time
 # Add to path
 import sys
 sys.path.insert(0, '/home/ubuntu/optstop')
@@ -84,13 +85,13 @@ class TestBinaryDiscreteHighPerformance:
                 'cred_level': 0.95,
                 'conservatism': 5.0,
                 'low_performance_threshold': 0.2,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model', 'task'],
             score_choice=None,
             score_agg=None,  # No aggregation = discrete binary
-            reanalysis_interval=30,
+            reanalysis_interval=188,  # 25%, 50%, 75% of 750 trials
             ordinal_tasks=None,
             ordinal_max_score=10
         )
@@ -118,11 +119,11 @@ class TestBinaryDiscreteHighPerformance:
         # Assertions
         assert 'stopped_samples' in final_result
         assert 'stopped_groupings' in final_result
-        assert 'efficiency_metrics' in final_result
+        assert 'efficiency_percent' in final_result
 
         # With consistent high performance, should have some stopped samples
         print(f"✓ Binary discrete (high): {len(final_result['stopped_samples'])} samples stopped out of 50")
-        print(f"  Efficiency: {final_result['efficiency_metrics']}")
+        print(f"  Efficiency: {final_result['efficiency_percent']}")
 
         # Verify dataset structure
         assert len(manager.compiled_dataset) == 50 * 15
@@ -150,11 +151,11 @@ class TestBinaryDiscreteVariablePerformance:
                 'delta_cap': 0.10,
                 'cred_level': 0.95,
                 'conservatism': 5.0,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
-            reanalysis_interval=30
+            reanalysis_interval=300  # 25%, 50%, 75% of 1200 trials
         )
 
         task = create_mock_task('claude', 'reasoning')
@@ -210,11 +211,11 @@ class TestOrdinalDiscreteHighPerformance:
                 'delta_cap': 0.08,
                 'cred_level': 0.95,
                 'conservatism': 5.0,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model', 'task'],
-            reanalysis_interval=30,
+            reanalysis_interval=225,  # reanalysis_interval=225,  # 25%, 50%, 75% of 900 trials
             ordinal_tasks=['quality'],  # Identifies as ordinal
             ordinal_max_score=10,
             ordinal_inference='modal'
@@ -236,7 +237,7 @@ class TestOrdinalDiscreteHighPerformance:
         final_result = await manager.complete_task()
 
         print(f"✓ Ordinal discrete (high): {len(final_result['stopped_samples'])} samples stopped out of 60")
-        print(f"  Efficiency: {final_result['efficiency_metrics']}")
+        print(f"  Efficiency: {final_result['efficiency_percent']}")
 
         # Verify ordinal inference was used
         assert len(manager.compiled_dataset) == 60 * 15
@@ -262,11 +263,11 @@ class TestOrdinalDiscreteBimodal:
                 'delta_item': 0.12,
                 'delta_cap': 0.12,
                 'cred_level': 0.95,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['task'],
-            reanalysis_interval=30,
+            reanalysis_interval=200,  # reanalysis_interval=200,  # 25%, 50%, 75% of 800 trials
             ordinal_tasks=['rating'],
             ordinal_max_score=10
         )
@@ -316,12 +317,12 @@ class TestBinaryAggregatedHighPerformance:
                 'delta_cap': 0.10,
                 'cred_level': 0.95,
                 'conservatism': 5.0,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model', 'task'],
             score_agg='mean',  # CRITICAL: Triggers continuous inference
-            reanalysis_interval=30
+            reanalysis_interval=225  # 25%, 50%, 75% of 900 trials
         )
 
         task = create_mock_task('gpt4', 'summarization')
@@ -341,7 +342,7 @@ class TestBinaryAggregatedHighPerformance:
 
         print(f"✓ Binary aggregated (high): {len(final_result['stopped_samples'])} samples stopped out of 75")
         print(f"  Continuous inference used for [0, 1] bounds")
-        print(f"  Efficiency: {final_result['efficiency_metrics']}")
+        print(f"  Efficiency: {final_result['efficiency_percent']}")
 
         # Verify continuous inference was triggered
         assert len(manager.compiled_dataset) == 75 * 12
@@ -367,12 +368,12 @@ class TestBinaryAggregatedLowVariance:
                 'delta_item': 0.08,
                 'delta_cap': 0.08,
                 'cred_level': 0.95,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
             score_agg='mean',
-            reanalysis_interval=30
+            reanalysis_interval=250  # 25%, 50%, 75% of 1000 trials
         )
 
         task = create_mock_task('claude', 'classification')
@@ -415,12 +416,12 @@ class TestOrdinalAggregatedHighPerformance:
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
                 'cred_level': 0.95,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model', 'task'],
             score_agg='median',  # CRITICAL: Triggers continuous inference
-            reanalysis_interval=30,
+            reanalysis_interval=225,  # reanalysis_interval=225,  # 25%, 50%, 75% of 900 trials
             ordinal_tasks=['quality'],  # Identifies task for bounds determination
             ordinal_max_score=10
         )
@@ -442,7 +443,7 @@ class TestOrdinalAggregatedHighPerformance:
 
         print(f"✓ Ordinal aggregated (high): {len(final_result['stopped_samples'])} samples stopped out of 60")
         print(f"  Continuous inference used for [0, 10] bounds")
-        print(f"  Efficiency: {final_result['efficiency_metrics']}")
+        print(f"  Efficiency: {final_result['efficiency_percent']}")
 
         assert len(manager.compiled_dataset) == 60 * 15
 
@@ -467,12 +468,12 @@ class TestOrdinalAggregatedHighVariance:
                 'delta_item': 0.15,
                 'delta_cap': 0.15,
                 'cred_level': 0.95,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['task'],
             score_agg='mean',
-            reanalysis_interval=30,
+            reanalysis_interval=175,  # reanalysis_interval=175,  # 25%, 50%, 75% of 700 trials
             ordinal_tasks=['rating'],
             ordinal_max_score=10
         )
@@ -517,12 +518,12 @@ class TestEdgeCaseIdenticalScores:
                 'delta_item': 0.05,
                 'delta_cap': 0.05,
                 'cred_level': 0.95,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
             score_agg='mean',
-            reanalysis_interval=30
+            reanalysis_interval=150  # 25%, 50%, 75% of 600 trials
         )
 
         task = create_mock_task('test_model', 'constant_task')
@@ -563,12 +564,12 @@ class TestEdgeCaseSingleEpoch:
             optstop_params={
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
             score_agg='mean',
-            reanalysis_interval=30
+            reanalysis_interval=10  # 25%, 50%, 75% of 30 trials
         )
 
         task = create_mock_task('test_model', 'single_epoch_task')
@@ -609,12 +610,12 @@ class TestMultiGroupingMixedScores:
             optstop_params={
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model', 'task'],
             score_agg='mean',
-            reanalysis_interval=30
+            reanalysis_interval=150  # 25%, 50%, 75% of 600 trials
         )
 
         # Create tasks for 2 models × 2 tasks
@@ -679,12 +680,12 @@ class TestGradualPerformanceImprovement:
             optstop_params={
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
             score_agg='mean',
-            reanalysis_interval=30
+            reanalysis_interval=250  # 25%, 50%, 75% of 1000 trials
         )
 
         task = create_mock_task('learning_model', 'improving_task')
@@ -728,12 +729,12 @@ class TestStressTestLargeScale:
             optstop_params={
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
-                'mcmc_draws': 500,
-                'mcmc_tune': 500
+                'draws': 500,
+                'tune': 500
             },
             grouping_columns=['model'],
             score_agg='mean',
-            reanalysis_interval=30  # Reduced inference frequency for performance
+            reanalysis_interval=563  # 25%, 50%, 75% of 2250 trials  # Reduced inference frequency for performance
         )
 
         task = create_mock_task('stress_test_model', 'large_scale_task')
@@ -760,7 +761,7 @@ class TestStressTestLargeScale:
 
         print(f"✓ Stress test: {len(final_result['stopped_samples'])} samples stopped out of 150")
         print(f"  Dataset size: {len(manager.compiled_dataset)} rows")
-        print(f"  Efficiency: {final_result['efficiency_metrics']}")
+        print(f"  Efficiency: {final_result['efficiency_percent']}")
 
         assert len(manager.compiled_dataset) == 150 * 15
 
