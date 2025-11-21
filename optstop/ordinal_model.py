@@ -318,7 +318,10 @@ def _ordinal_entropy_ci_adaptive(
         raise ValueError(f"Scores must be in [0, {ordinal_max_score}]")
 
     n_categories = ordinal_max_score + 1
-    n_items = len(scores)
+    # FIX: All scores come from a single distribution, not separate items
+    # Using n_items=len(scores) caused memory explosion (39GB+ arrays)
+    # and extreme slowdown with large datasets
+    n_items = 1
 
     # Create or reuse model
     if model_cache is not None and 'model' in model_cache:
@@ -346,6 +349,13 @@ def _ordinal_entropy_ci_adaptive(
 
     # Sample from posterior
     compute_kwargs = compute_kwargs or {}
+
+    # === DIAGNOSTIC LOGGING: Track parameter passing ===
+    logger.warning(f"🔍 _ordinal_entropy_ci_adaptive called:")
+    logger.warning(f"   n_samples (default parameter): {n_samples}")
+    logger.warning(f"   n_tune (default parameter): {n_tune}")
+    logger.warning(f"   compute_kwargs received: {compute_kwargs}")
+
     default_kwargs = {
         'draws': n_samples,
         'tune': n_tune,
@@ -354,6 +364,10 @@ def _ordinal_entropy_ci_adaptive(
         'return_inferencedata': True
     }
     default_kwargs.update(compute_kwargs)
+
+    # === DIAGNOSTIC LOGGING: Track final values being used ===
+    logger.warning(f"   Final draws (after update): {default_kwargs['draws']}")
+    logger.warning(f"   Final tune (after update): {default_kwargs['tune']}")
 
     try:
         with model:

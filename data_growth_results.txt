@@ -1,0 +1,106 @@
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+================================================================================
+CAUSE 4: DATA GROWTH INVESTIGATION
+================================================================================
+
+Hypothesis: MCMC sampling time grows with dataset size
+Testing with bimodal ordinal data (like Test 4)
+
+--------------------------------------------------------------------------------
+Running inference with increasing dataset sizes...
+--------------------------------------------------------------------------------
+
+Inference 1 (trial 200):
+  Dataset size: 200 trials
+  Score distribution: mean=5.54, std=2.58
+There were 8 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ❌ ERROR after 23.7 seconds: Unable to allocate 39.3 GiB for an array with shape (6, 200, 10, 200, 200, 11) and data type float64
+
+Inference 2 (trial 400):
+  Dataset size: 400 trials
+  Score distribution: mean=5.38, std=2.63
+There were 11 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ❌ ERROR after 41.3 seconds: Unable to allocate 315. GiB for an array with shape (6, 400, 10, 400, 400, 11) and data type float64
+
+Inference 3 (trial 600):
+  Dataset size: 600 trials
+  Score distribution: mean=5.48, std=2.64
+There were 34 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ❌ ERROR after 57.7 seconds: Unable to allocate 1.04 TiB for an array with shape (6, 600, 10, 600, 600, 11) and data type float64
+
+Inference 4 (trial 800):
+  Dataset size: 800 trials
+  Score distribution: mean=5.48, std=2.60
+There were 13 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+  ❌ ERROR after 71.6 seconds: Unable to allocate 2.46 TiB for an array with shape (6, 800, 10, 800, 800, 11) and data type float64
+
+================================================================================
+TIMING ANALYSIS
+================================================================================
+
+Timing progression:
+Size       Time (s)     Relative     Description                   
+----------------------------------------------------------------------
+200        23.7         1.0         x  Inference 1 (trial 200) (ERROR)
+400        41.3         1.7         x  Inference 2 (trial 400) (ERROR)
+600        57.7         2.4         x  Inference 3 (trial 600) (ERROR)
+800        71.6         3.0         x  Inference 4 (trial 800) (ERROR)
+
+Average time growth ratio: 1.46x per doubling
+
+⚠️  FINDING: Moderate time growth with dataset size
+   Time increases somewhat with more data
+
+================================================================================
+CONCLUSION: Does this explain Test 4 hang?
+================================================================================
+
+⚠️  POSSIBLY - Getting close to problematic
+   Inference on 800 trials took 72s
+   Combined with test overhead, could cause perceived hang
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+1. Reduce dataset size for inference:
+   - Limit to last N trials instead of all accumulated data
+   - Example: max_trials_for_inference = 400
+
+2. Increase reanalysis_interval:
+   - Current: 200 (4 calls for 800 trials)
+   - Suggested: 400 (2 calls for 800 trials)
+
+3. Use sampling instead of full dataset:
+   - Randomly sample N trials if dataset > threshold
+
+4. Reduce MCMC samples for large datasets:
+   - Adaptive: draws=500 for <200 trials, draws=300 for >500 trials
+================================================================================

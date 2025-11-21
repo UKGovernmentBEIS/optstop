@@ -975,21 +975,43 @@ class OptimalStoppingManager(EarlyStopping):
         # Call optimal_stopping_live_single() in a thread (since it's CPU/GPU intensive)
         import asyncio
         try:
-            result = await asyncio.to_thread(
-                optimal_stopping_live_single,
-                df_grouping=completed_data,
-                grouping_name=grouping_name,
-                params=params_with_aggregation,  # Pass updated params with aggregation flag
-                sample_id_column=self.sample_id_column,
-                epoch_column=self.epoch_column,
-                score_column=self.score_column,
-                stabilization_history=stabilization_history,
-                ordinal_tasks=self.ordinal_tasks,
-                ordinal_max_score=self.ordinal_max_score,
-                ordinal_inference=self.ordinal_inference,
-                entropy_threshold=1.5,  # Could be added as init parameter if needed
-                sampling_kwargs=sampling_kwargs
+            # Add timeout to prevent indefinite hangs (5 minutes default)
+            # MCMC sampling should complete well within this time for reasonable datasets
+            timeout_seconds = 300.0  # 5 minutes
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    optimal_stopping_live_single,
+                    df_grouping=completed_data,
+                    grouping_name=grouping_name,
+                    params=params_with_aggregation,  # Pass updated params with aggregation flag
+                    sample_id_column=self.sample_id_column,
+                    epoch_column=self.epoch_column,
+                    score_column=self.score_column,
+                    stabilization_history=stabilization_history,
+                    ordinal_tasks=self.ordinal_tasks,
+                    ordinal_max_score=self.ordinal_max_score,
+                    ordinal_inference=self.ordinal_inference,
+                    entropy_threshold=1.5,  # Could be added as init parameter if needed
+                    sampling_kwargs=sampling_kwargs
+                ),
+                timeout=timeout_seconds
             )
+        except asyncio.TimeoutError:
+            logger.error(
+                f"Timeout ({timeout_seconds}s) running optimal stopping inference for '{grouping_name}'. "
+                f"MCMC sampling took too long. This may indicate convergence issues or dataset too large. "
+                f"Consider: (1) reducing draws/tune, (2) using simpler inference mode, or (3) limiting dataset size."
+            )
+            # Return safe default - no stopping decisions
+            return {
+                'stopped_samples': [],
+                'stopped_groupings': [],
+                'metadata': {
+                    'error': 'timeout',
+                    'timeout_seconds': timeout_seconds,
+                    'grouping': grouping_name
+                }
+            }
         except Exception as e:
             logger.error(
                 f"Error running optimal stopping inference for '{grouping_name}': {e}",

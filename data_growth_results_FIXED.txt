@@ -1,0 +1,97 @@
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+================================================================================
+CAUSE 4: DATA GROWTH INVESTIGATION
+================================================================================
+
+Hypothesis: MCMC sampling time grows with dataset size
+Testing with bimodal ordinal data (like Test 4)
+
+--------------------------------------------------------------------------------
+Running inference with increasing dataset sizes...
+--------------------------------------------------------------------------------
+
+Inference 1 (trial 200):
+  Dataset size: 200 trials
+  Score distribution: mean=5.54, std=2.58
+There were 40 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ✅ Completed in 11.5 seconds
+  Entropy CI: [2.653, 2.851], width: 0.198
+
+Inference 2 (trial 400):
+  Dataset size: 400 trials
+  Score distribution: mean=5.38, std=2.63
+There were 231 divergences after tuning. Increase `target_accept` or reparameterize.
+The effective sample size per chain is smaller than 100 for some parameters.  A higher number is needed for reliable rhat and ess computation. See https://arxiv.org/abs/1903.08008 for details
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ✅ Completed in 14.3 seconds
+  Entropy CI: [2.640, 2.751], width: 0.111
+
+Inference 3 (trial 600):
+  Dataset size: 600 trials
+  Score distribution: mean=5.48, std=2.64
+There were 35 divergences after tuning. Increase `target_accept` or reparameterize.
+WARNING - 🔍 _ordinal_entropy_ci_adaptive called:
+WARNING -    n_samples (default parameter): 6000
+WARNING -    n_tune (default parameter): 6000
+WARNING -    compute_kwargs received: {'draws': 500, 'tune': 500, 'chains': 2, 'cores': 2}
+WARNING -    Final draws (after update): 500
+WARNING -    Final tune (after update): 500
+  ✅ Completed in 17.0 seconds
+  Entropy CI: [2.636, 2.734], width: 0.098
+
+Inference 4 (trial 800):
+  Dataset size: 800 trials
+  Score distribution: mean=5.48, std=2.60
+There were 44 divergences after tuning. Increase `target_accept` or reparameterize.
+  ✅ Completed in 20.3 seconds
+  Entropy CI: [2.629, 2.703], width: 0.073
+
+================================================================================
+TIMING ANALYSIS
+================================================================================
+
+Timing progression:
+Size       Time (s)     Relative     Description                   
+----------------------------------------------------------------------
+200        11.5         1.0         x  Inference 1 (trial 200)       
+400        14.3         1.2         x  Inference 2 (trial 400)       
+600        17.0         1.5         x  Inference 3 (trial 600)       
+800        20.3         1.8         x  Inference 4 (trial 800)       
+
+Average time growth ratio: 1.21x per doubling
+
+⚠️  FINDING: Moderate time growth with dataset size
+   Time increases somewhat with more data
+
+================================================================================
+CONCLUSION: Does this explain Test 4 hang?
+================================================================================
+
+❌ NO - Times are reasonable
+   Inference on 800 trials took only 20s
+   Data growth is NOT the primary cause
+
+================================================================================
+RECOMMENDATIONS
+================================================================================
+
+Data growth does not appear to be the primary issue.
+Continue investigation with other hypotheses.
+================================================================================
