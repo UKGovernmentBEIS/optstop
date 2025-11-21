@@ -2032,6 +2032,9 @@ def optimal_stopping_live_single(
     entropy_threshold: float = 1.5,
     sampling_kwargs: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
+    # TIMING_TEST: Start overall function timing
+    import time
+    _function_start_time = time.perf_counter()
     """
     Run optimal stopping for a SINGLE grouping with stateful stabilization history.
 
@@ -2155,8 +2158,12 @@ def optimal_stopping_live_single(
     ordinal_model_cache = {}
     entropy_history_per_item = {}
 
-    # PyMC model for group-level (binary only)
+    # PyMC models for group-level hierarchical inference
+    # Compiled once before item loop, updated with data during group-level checks
+
     if score_type == 'binary':
+        # === BINARY HIERARCHICAL MODEL ===
+        # Binomial likelihood with logit-scale hierarchical structure
         with pm.Model() as model:
             mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
             sigma_group = pm.Exponential("sigma_group", lam=1.0)
@@ -2168,6 +2175,99 @@ def optimal_stopping_live_single(
             mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
             Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
             obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+
+    elif score_type in ['continuous_01', 'continuous_bounded']:
+        # === CONTINUOUS HIERARCHICAL MODEL (AGGREGATED) ===
+        # Uses aggregated item-level statistics instead of individual observations
+        # This dramatically reduces computational cost (50 likelihoods vs 950)
+        #
+        # Model Structure:
+        #   - Group level: mu_group (logit mean), sigma_group (between-item SD)
+        #   - Item level: mu_item (transformed to [0,1]), phi_item (precision)
+        #   - Observation level: Normal likelihood on aggregated means with known variance
+        #
+        # Key Change from Original:
+        #   BEFORE: Beta likelihood on ALL individual observations (950 evaluations)
+        #   AFTER: Normal likelihood on aggregated item means (50 evaluations)
+        #   SPEEDUP: ~19x fewer likelihood evaluations per MCMC step
+        #
+        # Statistical Justification:
+        #   By Central Limit Theorem, sample means of Beta-distributed observations
+        #   follow approximately Normal distribution with:
+        #   - Mean = true mu_i
+        #   - SD = sqrt(mu_i * (1-mu_i) / (phi * n_i))
+        #
+        # This is analogous to how Binary uses aggregated Binomial (successes/trials)
+        # rather than individual 0/1 observations.
+        #
+        with pm.Model() as continuous_model:
+            # Group-level parameters (logit scale for mean)
+            # mu_group: centered at 0 → logit^-1(0) = 0.5 on probability scale
+            # Note: For high-performing scenarios (typical p > 0.7), consider mu=1.5
+            # which corresponds to logit^-1(1.5) ≈ 0.82
+            mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+
+            # sigma_group: between-item variability (logit scale)
+            # lam=1.0 → mean=1.0 (moderate between-item variation)
+            # For similar items, consider lam=2.0 → mean=0.5 (tighter)
+            sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
+
+            # Group-level precision (concentration parameter for Beta distributions)
+            # Controls typical within-item variance: higher phi = less variance
+            # FIXED: Changed from beta=0.1 (mean=20, too tight for aggregated data)
+            # to beta=1.0 (mean=2, more appropriate for aggregated sample means)
+            #
+            # For Beta(mu, phi):
+            #   SD = sqrt(mu*(1-mu)/(phi+1))
+            #   phi=2: SD ≈ 0.29 for mu=0.8 (reasonable for aggregated scores)
+            #   phi=20: SD ≈ 0.087 for mu=0.8 (too tight!)
+            phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
+
+            # Mutable data containers (updated during group-level inference)
+            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+
+            # Item-level means (hierarchical, logit scale)
+            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)  # Item deviations from group
+            mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+            mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                       pm.math.clip(mu_item_logit, -6.0, 6.0))
+            mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))  # [0,1]
+
+            # Item-level precision (allows heterogeneity in within-item variance)
+            # z_phi allows items to have different precisions around group mean
+            z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items)
+            log_phi_item = pm.Deterministic("log_phi_item",
+                                            pm.math.log(phi_group) + z_phi * 0.5)
+            phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+
+            # === AGGREGATED OBSERVATION STRUCTURE ===
+            # Instead of individual observations, use item-level aggregated statistics
+            # Data format:
+            #   item_means: [mean1, mean2, ..., mean50]  (observed sample means per item)
+            #   item_ns:    [n1, n2, ..., n50]           (sample sizes per item)
+            #
+            # Variance structure (data-dependent):
+            #   For Beta(mu, phi) distributed observations, sample mean has variance:
+            #   Var(mean) = mu*(1-mu) / (phi * n)
+            #
+            item_means = pm.Data("item_means", np.array([0.5]))  # Placeholder
+            item_ns = pm.Data("item_ns", np.array([10]))  # Placeholder
+
+            # Compute observation SD for each item based on theoretical variance
+            # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
+            # Clip mu away from boundaries to avoid sqrt(0)
+            mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+            obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                 (phi_item * item_ns))
+
+            # Normal likelihood on aggregated means
+            # Each item's observed mean ~ Normal(mu_item, obs_sd)
+            # This is analogous to Binary using Binomial(successes | n, p)
+            # rather than Bernoulli for each trial
+            obs = pm.Normal("obs",
+                           mu=mu_item,
+                           sigma=obs_sd,
+                           observed=item_means)
 
     # Process each sample for sample-level stopping
     item_summaries = []
@@ -2282,13 +2382,15 @@ def optimal_stopping_live_single(
 
         elif score_type in ['continuous_01', 'continuous_bounded']:
             # === CONTINUOUS SAMPLE-LEVEL STOPPING ===
+            # Sample-level uses fast Beta sampling (no hierarchical pooling yet)
+            # Hierarchical pooling happens at group level (after all samples processed)
             accumulated_scores = df_item[score_column].values
 
             # Normalize performance for conservatism check (to [0, 1])
             normalized_perf = np.mean(accumulated_scores) / upper_bound
             current_conservatism = conservatism if normalized_perf < low_perf_threshold else 1.0
 
-            # Compute CI
+            # Compute CI using fast Beta method (no MCMC at sample level)
             lo, hi, width = _continuous_bounded_ci_adaptive(
                 accumulated_scores,
                 lower_bound=lower_bound,
@@ -2314,13 +2416,21 @@ def optimal_stopping_live_single(
                 }
                 logger.info(f"Stopping continuous sample {original_sample_id}: CI width_norm {width_normalized:.4f} < {delta_item}")
 
+            # Store normalized scores for hierarchical group-level inference
+            # Normalization to [0,1] required for Beta likelihood in PyMC model
+            scores_normalized = (accumulated_scores - lower_bound) / (upper_bound - lower_bound)
+            scores_normalized = np.clip(scores_normalized, 0.0, 1.0)  # Safety clipping
+
             item_summaries.append({
-                'mean': float(np.mean(accumulated_scores)),
+                'scores_normalized': scores_normalized,  # For hierarchical model at group level
+                'mean': float(np.mean(accumulated_scores)),  # Original scale
                 'count': len(accumulated_scores)
             })
 
     # Group-level stopping check (runs automatically after sample checks)
     if len(item_summaries) > 0:
+        # TIMING_TEST: Start group-level inference timing
+        _group_inference_start = time.perf_counter()
         logger.info(f"Running group-level stopping check for '{grouping_name}'")
 
         # Compute performance estimate based on score type
@@ -2334,6 +2444,9 @@ def optimal_stopping_live_single(
 
         if score_type == 'binary':
             # === BINARY GROUP-LEVEL STOPPING ===
+            # TIMING_TEST: Binary-specific timing start
+            _binary_start = time.perf_counter()
+
             all_successes = np.array([s['successes'] for s in item_summaries])
             all_trials = np.array([s['trials'] for s in item_summaries])
 
@@ -2415,8 +2528,15 @@ def optimal_stopping_live_single(
                                 }
                                 logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong stabilization")
 
+            # TIMING_TEST: Binary inference complete
+            _binary_elapsed = time.perf_counter() - _binary_start
+            logger.warning(f"🕐 TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
+
         elif score_type == 'ordinal':
             # === ORDINAL GROUP-LEVEL STOPPING ===
+            # TIMING_TEST: Ordinal-specific timing start
+            _ordinal_start = time.perf_counter()
+
             all_ord_scores = []
             for item_id in item_ids:
                 df_item = df_work[df_work['sample_id_num'] == item_id]
@@ -2490,50 +2610,129 @@ def optimal_stopping_live_single(
 
             stabilization_history['entropy_history'] = group_entropy_history
 
+            # TIMING_TEST: Ordinal inference complete
+            _ordinal_elapsed = time.perf_counter() - _ordinal_start
+            logger.warning(f"🕐 TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")
+
         elif score_type in ['continuous_01', 'continuous_bounded']:
-            # === CONTINUOUS GROUP-LEVEL STOPPING ===
+            # === CONTINUOUS GROUP-LEVEL STOPPING (HIERARCHICAL) ===
+            # Uses PyMC hierarchical Beta model (mirrors binary hierarchical structure)
+            #
+            # Why Hierarchical?
+            #   - Accounts for item-to-item variability (some items harder than others)
+            #   - Pools information across items (partial pooling / shrinkage)
+            #   - Items with few observations benefit from group-level information
+            #   - Consistent with binary methodology
+            #
+            # Performance Note:
+            #   - Hierarchical inference uses MCMC sampling (~5-30 seconds)
+            #   - Much slower than sample-level Beta sampling (~1-2ms)
+            #   - Necessary trade-off for proper uncertainty quantification
 
-            # Aggregate all scores across all samples
-            all_continuous_scores = []
-            for item_id in item_ids:
-                df_item = df_work[df_work['sample_id_num'] == item_id]
-                all_continuous_scores.extend(df_item[score_column].values)
+            # TIMING_TEST: Continuous-specific timing start
+            _continuous_start = time.perf_counter()
 
-            all_continuous_scores = np.array(all_continuous_scores)
+            # Prepare aggregated data for hierarchical PyMC model
+            # SOLUTION A: Aggregate to item-level statistics instead of individual observations
+            # This reduces likelihood evaluations from ~950 to ~50 per MCMC step (19x speedup!)
+            # TIMING_TEST: Start data aggregation timing
+            _aggregation_start = time.perf_counter()
 
-            # Normalize performance for conservatism check
-            current_perf_estimate = np.mean(all_continuous_scores)
-            normalized_perf = current_perf_estimate / upper_bound
+            item_means_list = []
+            item_ns_list = []
+            total_obs_count = 0
+
+            for item_summary in item_summaries:
+                # Scores already normalized to [0,1] in sample-level processing
+                scores = item_summary['scores_normalized']
+
+                # Aggregate to mean and sample size
+                item_means_list.append(np.mean(scores))
+                item_ns_list.append(len(scores))
+                total_obs_count += len(scores)
+
+            item_means_array = np.array(item_means_list)
+            item_ns_array = np.array(item_ns_list)
+            n_items_actual = len(item_summaries)
+
+            # TIMING_TEST: Data aggregation complete
+            _aggregation_elapsed = time.perf_counter() - _aggregation_start
+            logger.warning(f"🕐 TIMING_TEST: Continuous data aggregation took {_aggregation_elapsed:.3f}s (aggregated {total_obs_count} obs → {n_items_actual} means)")
+
+            # Compute performance estimate for conservatism check
+            # Use aggregated item means (already in [0,1] scale)
+            current_perf_estimate = np.mean(item_means_array)
+            normalized_perf = current_perf_estimate
             current_conservatism = conservatism if normalized_perf < low_perf_threshold else 1.0
 
-            # Compute CI at group level
-            lo, hi, width = _continuous_bounded_ci_adaptive(
-                all_continuous_scores,
-                lower_bound=lower_bound,
-                upper_bound=upper_bound,
-                cred_level=cred_level,
-                conservatism=current_conservatism,
-                low_perf_threshold=low_perf_threshold
-            )
+            # Run hierarchical Bayesian inference using PyMC
+            # TIMING_TEST: Start PyMC MCMC sampling
+            _mcmc_start = time.perf_counter()
 
-            # ⚠️ CRITICAL: Normalize width for comparison with delta_cap
-            width_normalized = width / (upper_bound - lower_bound)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                with continuous_model:
+                    # Update model with aggregated data (SOLUTION A)
+                    pm.set_data({
+                        "item_means": item_means_array,
+                        "item_ns": item_ns_array,
+                        "n_items": np.int64(n_items_actual)
+                    })
 
-            # Append NORMALIZED width to history for stabilization tracking
+                    # Sample posterior distribution
+                    with suppress_all_output():
+                        trace = pm.sample(**sampling_kwargs)
+
+                    # Extract item-level means HDI (High Density Interval)
+                    with suppress_all_output():
+                        mu_item_hdi = az.hdi(trace.posterior["mu_item"], hdi_prob=cred_level)
+
+                # Extract CI bounds from HDI
+                # mu_item is shape (n_items,) - one mean per item
+                # We want group-level CI, so average across items
+                try:
+                    mu_values_lower = mu_item_hdi["mu_item"].sel(hdi="lower").values
+                    mu_lo_normalized = float(np.mean(mu_values_lower))
+                except Exception:
+                    # Fallback for different arviz versions
+                    mu_lo_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 0]))
+
+                try:
+                    mu_values_upper = mu_item_hdi["mu_item"].sel(hdi="upper").values
+                    mu_hi_normalized = float(np.mean(mu_values_upper))
+                except Exception:
+                    # Fallback for different arviz versions
+                    mu_hi_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 1]))
+
+                # Compute width in normalized [0,1] space
+                width_normalized = mu_hi_normalized - mu_lo_normalized
+
+                # Scale back to original bounds for metadata
+                width_original = width_normalized * (upper_bound - lower_bound)
+
+            # TIMING_TEST: PyMC MCMC sampling complete
+            _mcmc_elapsed = time.perf_counter() - _mcmc_start
+            logger.warning(f"🕐 TIMING_TEST: Continuous PyMC MCMC sampling took {_mcmc_elapsed:.3f}s for {n_items_actual} items (aggregated {total_obs_count} obs)")
+
+            # Append normalized width to history for stabilization tracking
             stabilization_history['ci_width_history'].append(float(width_normalized))
 
-            # Check width criterion
-            if width_normalized < delta_cap:
+            # Check width criterion with conservatism adjustment
+            effective_width = width_normalized * current_conservatism if normalized_perf < low_perf_threshold else width_normalized
+
+            if effective_width < delta_cap:
                 stop_this_grouping.append(grouping_name)
                 metadata['group_stopping_reason'] = {
-                    'reason': 'continuous_bounded_ci_width',
-                    'ci_width': float(width),
+                    'reason': 'continuous_hierarchical_ci_width',
+                    'ci_width': float(width_original),
                     'ci_width_normalized': float(width_normalized),
+                    'effective_width': float(effective_width),
                     'threshold': delta_cap,
                     'samples_used': len(item_summaries),
+                    'n_observations': total_obs_count,
                     'bounds': {'lower': lower_bound, 'upper': upper_bound}
                 }
-                logger.info(f"Stopping grouping '{grouping_name}': Continuous CI width_norm {width_normalized:.4f} < {delta_cap}")
+                logger.info(f"Stopping grouping '{grouping_name}': Hierarchical CI effective_width {effective_width:.4f} < {delta_cap}")
 
             # Check stabilization criterion (if enough history)
             if len(stabilization_history['ci_width_history']) >= stab_window:
@@ -2556,25 +2755,33 @@ def optimal_stopping_live_single(
                         if normalized_perf >= low_perf_threshold:
                             stop_this_grouping.append(grouping_name)
                             metadata['group_stopping_reason'] = {
-                                'reason': 'continuous_bounded_stabilization',
+                                'reason': 'continuous_hierarchical_stabilization',
                                 'slope': float(slope),
                                 'slope_threshold': slope_threshold,
                                 'samples_used': len(item_summaries)
                             }
-                            logger.info(f"Stopping grouping '{grouping_name}' via continuous stabilization: slope {slope:.6f}")
+                            logger.info(f"Stopping grouping '{grouping_name}' via hierarchical continuous stabilization: slope {slope:.6f}")
                         # For low performance, require stronger stabilization
                         elif abs(slope) <= slope_threshold / 2:
                             stop_this_grouping.append(grouping_name)
                             metadata['group_stopping_reason'] = {
-                                'reason': 'continuous_bounded_stabilization_low_perf',
+                                'reason': 'continuous_hierarchical_stabilization_low_perf',
                                 'slope': float(slope),
                                 'slope_threshold': slope_threshold,
                                 'samples_used': len(item_summaries)
                             }
-                            logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong continuous stabilization")
+                            logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong hierarchical continuous stabilization")
+
+            # TIMING_TEST: Continuous inference complete
+            _continuous_elapsed = time.perf_counter() - _continuous_start
+            logger.warning(f"🕐 TIMING_TEST: Continuous group inference TOTAL took {_continuous_elapsed:.3f}s for {len(item_summaries)} items")
 
     # Update samples evaluated count
     stabilization_history['n_samples_evaluated'] = len(item_summaries)
+
+    # TIMING_TEST: Overall function complete
+    _function_elapsed = time.perf_counter() - _function_start_time
+    logger.warning(f"🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
 
     return {
         'grouping': grouping_name,
