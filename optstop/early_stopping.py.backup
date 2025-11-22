@@ -5,8 +5,6 @@ import pandas as pd
 import numpy as np
 import logging
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
-from functools import partial
 
 from pydantic import BaseModel, Field, JsonValue
 
@@ -204,14 +202,6 @@ class OptimalStoppingManager(EarlyStopping):
 
         # Stabilization histories per grouping
         self._stabilization_histories: dict[str, dict[str, list[float]]] = {}
-
-        # Initialize dedicated executor for inference operations
-        # Uses max_workers=1 to ensure sequential inference per manager
-        # (PyMC creates its own multiprocessing pool internally with 4 chains)
-        self._inference_executor = ThreadPoolExecutor(
-            max_workers=1,
-            thread_name_prefix=f"optstop_inference_{manager_name}"
-        )
 
         # Validate configuration
         self._validate_configuration()
@@ -985,43 +975,40 @@ class OptimalStoppingManager(EarlyStopping):
         # Call optimal_stopping_live_single() in a thread (since it's CPU/GPU intensive)
         import asyncio
         try:
-            # Get event loop for executor usage
-            loop = asyncio.get_running_loop()
-
-            # Run inference in dedicated executor (no fixed timeout)
-            # User controls inference time via draws/tune in optstop_params
-            # Using functools.partial to pass keyword arguments to executor
-            inference_call = partial(
-                optimal_stopping_live_single,
-                df_grouping=completed_data,
-                grouping_name=grouping_name,
-                params=params_with_aggregation,  # Pass updated params with aggregation flag
-                sample_id_column=self.sample_id_column,
-                epoch_column=self.epoch_column,
-                score_column=self.score_column,
-                stabilization_history=stabilization_history,
-                ordinal_tasks=self.ordinal_tasks,
-                ordinal_max_score=self.ordinal_max_score,
-                ordinal_inference=self.ordinal_inference,
-                entropy_threshold=1.5,  # Could be added as init parameter if needed
-                sampling_kwargs=sampling_kwargs
+            # Add timeout to prevent indefinite hangs (5 minutes default)
+            # MCMC sampling should complete well within this time for reasonable datasets
+            timeout_seconds = 300.0  # 5 minutes
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    optimal_stopping_live_single,
+                    df_grouping=completed_data,
+                    grouping_name=grouping_name,
+                    params=params_with_aggregation,  # Pass updated params with aggregation flag
+                    sample_id_column=self.sample_id_column,
+                    epoch_column=self.epoch_column,
+                    score_column=self.score_column,
+                    stabilization_history=stabilization_history,
+                    ordinal_tasks=self.ordinal_tasks,
+                    ordinal_max_score=self.ordinal_max_score,
+                    ordinal_inference=self.ordinal_inference,
+                    entropy_threshold=1.5,  # Could be added as init parameter if needed
+                    sampling_kwargs=sampling_kwargs
+                ),
+                timeout=timeout_seconds
             )
-
-            result = await loop.run_in_executor(
-                self._inference_executor,
-                inference_call
-            )
-        except asyncio.CancelledError:
+        except asyncio.TimeoutError:
             logger.error(
-                f"Inference cancelled for '{grouping_name}'. "
-                f"This may occur if the evaluation was interrupted."
+                f"Timeout ({timeout_seconds}s) running optimal stopping inference for '{grouping_name}'. "
+                f"MCMC sampling took too long. This may indicate convergence issues or dataset too large. "
+                f"Consider: (1) reducing draws/tune, (2) using simpler inference mode, or (3) limiting dataset size."
             )
             # Return safe default - no stopping decisions
             return {
                 'stopped_samples': [],
                 'stopped_groupings': [],
                 'metadata': {
-                    'error': 'cancelled',
+                    'error': 'timeout',
+                    'timeout_seconds': timeout_seconds,
                     'grouping': grouping_name
                 }
             }
@@ -1191,13 +1178,6 @@ class OptimalStoppingManager(EarlyStopping):
         """
         if self.compiled_dataset is None:
             return {"error": "compiled_dataset not initialized"}
-
-        # Shutdown inference executor gracefully
-        # wait=True ensures any running inference completes before proceeding
-        # This blocks until PyMC worker pools terminate cleanly
-        logger.info("Shutting down inference executor...")
-        self._inference_executor.shutdown(wait=True)
-        logger.info("Inference executor shutdown complete.")
 
         # Calculate summary statistics
         total_planned = len(self.compiled_dataset)
