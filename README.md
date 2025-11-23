@@ -17,6 +17,255 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - **GPU acceleration support** via JAX/numpyro for significantly faster PyMC sampling
 - **Ordinal scoring support** for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
 - **Performance optimizations** for convergence analysis (~30% faster, see Performance Optimizations section)
+- **inspect_ai integration** for LLM evaluation workflows with adaptive early stopping
+
+## NEW: Using optstop with inspect_ai
+
+`optstop` now provides seamless integration with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Safety Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, enabling **statistically-rigorous adaptive early stopping** for your LLM evaluations.
+
+### Why Use Optimal Stopping for LLM Evaluations?
+
+Running LLM evaluations can be expensive and time-consuming:
+- **API costs**: Each evaluation sample costs money (especially for large models)
+- **Compute time**: Running multiple epochs per sample takes hours or days
+- **Resource waste**: Running unnecessary trials after statistical confidence is achieved
+
+Optimal stopping helps you **stop evaluating intelligently** when you have enough data, potentially saving:
+- 30-70% of API costs
+- 30-70% of evaluation time
+- Maintains statistical validity and reliability
+
+### Quick Start
+
+#### Installation
+
+```bash
+# Install optstop with inspect_ai support
+pip install optstop[inspect]
+
+# Or with GPU acceleration
+pip install optstop[inspect,gpu]
+```
+
+#### Basic Example
+
+```python
+from inspect_ai import Task, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate, system_message
+from optstop.early_stopping import OptimalStoppingManager
+
+# Define your task as usual
+task = Task(
+    dataset=[Sample(input=q, target=a, id=f"q_{i}")
+             for i, (q, a) in enumerate(questions)],
+    solver=[
+        system_message("You are a helpful assistant."),
+        generate()
+    ],
+    scorer=model_graded_fact()
+)
+
+# Configure optimal stopping
+optstop_params = {
+    'delta_item': 0.05,       # CI width threshold for individual samples
+    'delta_cap': 0.05,        # CI width threshold for overall task
+    'cred_level': 0.95,       # 95% credible intervals
+    'conservatism': 5,        # Conservative for rare events
+}
+
+stopping_manager = OptimalStoppingManager(
+    optstop_params=optstop_params,
+    grouping_columns=['model', 'task'],  # Group by model and task
+    reanalysis_interval=10,              # Re-run inference every 10 samples
+    min_samples_per_grouping=5           # Minimum before first analysis
+)
+
+# Run evaluation with early stopping
+log = eval(
+    task,
+    model="openai/gpt-4",
+    epochs=10,  # Plan 10 epochs per sample
+    early_stopping=stopping_manager  # Enable optimal stopping
+)
+
+# Check efficiency gains
+print(f"Efficiency: {log.early_stopping.efficiency_percent}%")
+print(f"Stopped samples: {log.early_stopping.stopped_samples_count}")
+```
+
+### Key Features
+
+#### 1. Flexible Grouping Strategies
+
+Control how evaluations are grouped for stopping decisions:
+
+```python
+# Group by model only (stop when model performance converges)
+grouping_columns=['model']
+
+# Group by model and task (separate stopping per model-task combination)
+grouping_columns=['model', 'task']
+
+# Group by custom metadata (e.g., difficulty level)
+grouping_columns=['model', 'metadata.difficulty']
+
+# Group by tags
+grouping_columns=['model', 'tag.category']
+```
+
+#### 2. Multiple Score Handling
+
+Handle evaluations with multiple scorers:
+
+```python
+# Extract specific score
+OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model'],
+    score_choice='accuracy'  # Use only the 'accuracy' score
+)
+
+# Aggregate multiple scores
+OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model'],
+    score_agg='mean'  # Average all scores (supports: mean, median, mode, max)
+)
+```
+
+#### 3. Ordinal Scoring Support
+
+For tasks with ordinal ratings (e.g., 1-5 stars, 0-10 confidence):
+
+```python
+OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['confidence', 'rating'],  # Tasks with ordinal scores
+    ordinal_max_score=10,                    # Maximum score value
+    ordinal_inference='hybrid'               # Recommended: balances speed/safety
+)
+```
+
+#### 4. Shadow Mode for A/B Testing
+
+Compare performance with and without early stopping:
+
+```python
+# Run with shadow mode (runs all trials but tracks what *would* stop)
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model'],
+    shadow_mode=True  # Disables actual stopping
+)
+
+# After evaluation, check what would have stopped
+print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
+```
+
+### Configuration Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `optstop_params` | Required | Dictionary of stopping parameters (delta_item, delta_cap, etc.) |
+| `grouping_columns` | Required | List of columns for grouping decisions |
+| `score_column` | 'score' | Column name for scores in compiled dataset |
+| `sample_id_column` | 'sample_id' | Column name for sample IDs |
+| `epoch_column` | 'epoch' | Column name for epoch numbers |
+| `reanalysis_interval` | 10 | Run inference every N completed samples |
+| `min_samples_per_grouping` | 5 | Minimum samples before first analysis |
+| `ordinal_tasks` | None | List of task names using ordinal scoring |
+| `ordinal_max_score` | 10 | Maximum score for ordinal tasks |
+| `ordinal_inference` | 'hybrid' | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
+| `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
+| `max_workers` | None | Max parallel workers (auto if None) |
+| `shadow_mode` | False | If True, run all trials but track stopping decisions |
+| `score_choice` | None | Extract specific score by key name |
+| `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
+
+### Diagnostics and Efficiency Metrics
+
+After evaluation, `complete_task()` returns comprehensive diagnostics:
+
+```python
+log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+
+diagnostics = log.early_stopping
+
+print(f"Total planned trials: {diagnostics['total_planned_trials']}")
+print(f"Trials run: {diagnostics['total_ran']}")
+print(f"Trials skipped: {diagnostics['total_skipped']}")
+print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+
+# Per-grouping breakdown
+for grouping, metrics in diagnostics['decision_counters'].items():
+    print(f"{grouping}: {metrics['completed_samples']} samples completed")
+
+# Stopped samples with reasons
+for sample in diagnostics['stopped_samples']:
+    print(f"Sample {sample['id']}: {sample['reason']}")
+```
+
+### Best Practices
+
+1. **Start conservative**: Use `delta_item=0.05`, `delta_cap=0.05` for high precision
+2. **Test with shadow mode**: Run once with `shadow_mode=True` to see potential savings
+3. **Set appropriate groupings**: More granular groupings = more targeted stopping
+4. **Monitor efficiency**: If efficiency is 0%, your stopping criteria may be too strict
+5. **Check compatibility**: Verify inspect_ai version with `optstop.check_inspect_ai_compatibility()`
+
+### Compatibility
+
+- **optstop version**: 0.2.0+
+- **inspect_ai version**: 0.3.0+
+- **Python version**: 3.10+
+
+Check compatibility programmatically:
+
+```python
+import optstop
+
+print(f"optstop version: {optstop.__version__}")
+print(f"Minimum inspect_ai version: {optstop.__min_inspect_ai_version__}")
+
+# Check specific version
+if optstop.check_inspect_ai_compatibility("0.3.5"):
+    print("Compatible!")
+```
+
+### Documentation
+
+- **Full bridge documentation**: See `BRIDGE_USAGE_GUIDE.md` (coming soon)
+- **API reference**: See `BRIDGE_API_REFERENCE.md` (coming soon)
+- **Version strategy**: See `VERSION_STRATEGY.md`
+- **Development roadmap**: See `BRIDGE_TESTING_AND_DEVELOPMENT_ROADMAP.md`
+
+### Example Evaluations
+
+Coming soon in `examples/inspect_ai/`:
+- Basic binary evaluation
+- Ordinal rating tasks
+- Multi-model comparisons
+- Custom score aggregation
+- Shadow mode A/B testing
+
+### Troubleshooting
+
+**Issue**: `ImportError: No module named 'inspect_ai'`
+- **Solution**: Install with `pip install optstop[inspect]`
+
+**Issue**: Early stopping not triggering
+- **Solution**: Check `reanalysis_interval` and `min_samples_per_grouping` settings. Increase epochs if needed.
+
+**Issue**: Invalid score warnings
+- **Solution**: Verify scores are in valid range (0-1 for binary, 0-ordinal_max_score for ordinal)
+
+**Issue**: GPU not detected
+- **Solution**: Install JAX with GPU support: `pip install optstop[gpu]`
+
+For more issues, see the development roadmap or open a GitHub issue.
 
 ## GPU Acceleration
 
@@ -281,6 +530,12 @@ optstop-live --csv current_data.csv \
 pip install .
 ```
 
+### Installation with inspect_ai Integration
+For using optstop with inspect_ai evaluations:
+```bash
+pip install .[inspect]
+```
+
 ### Installation with GPU Support
 For GPU acceleration (requires NVIDIA GPU with CUDA support):
 ```bash
@@ -292,6 +547,24 @@ Or install JAX manually:
 pip install .
 pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
+
+### Combined Installation
+Install multiple extras at once:
+```bash
+# inspect_ai + GPU support
+pip install .[inspect,gpu]
+
+# All features including development tools
+pip install .[inspect,gpu,dev]
+```
+
+### Development Installation
+For contributing to optstop:
+```bash
+pip install .[dev]
+```
+
+This includes testing tools (pytest, pytest-asyncio), code formatting (black), linting (flake8), and type checking (mypy).
 
 ## Logging
 

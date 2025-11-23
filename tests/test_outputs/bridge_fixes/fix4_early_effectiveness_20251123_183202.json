@@ -1,0 +1,18 @@
+{
+  "total_planned": 160,
+  "total_ran": 18,
+  "total_skipped": 142,
+  "efficiency_percent": 88.75,
+  "samples_completed": 3,
+  "samples_total": 20,
+  "completion_percent": 15.0,
+  "target_met": false,
+  "target_range": [
+    30,
+    50
+  ],
+  "validation": {
+    "early_stopping_effective": true,
+    "better_than_test_1_1_1a": true
+  }
+}

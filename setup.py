@@ -1,9 +1,22 @@
 from setuptools import setup, find_packages
+import os
+
+# Read version from __version__.py
+version = {}
+version_file = os.path.join('optstop', '__version__.py')
+with open(version_file) as f:
+    exec(f.read(), version)
+
+# Read long description from README
+with open('README.md', 'r', encoding='utf-8') as f:
+    long_description = f.read()
 
 setup(
     name='optstop',
-    version='0.1.1',
+    version=version['__version__'],
     description='Adaptive optimal stopping rule algorithms for efficient data collection and analysis',
+    long_description=long_description,
+    long_description_content_type='text/markdown',
     author='Toby D. Pilditch, PhD',
     packages=find_packages(),
     install_requires=[
@@ -15,8 +28,25 @@ setup(
         'statsmodels',
         'matplotlib',
         'tqdm',
+        'pydantic>=2.0',  # Required for inspect_ai bridge
     ],
-    python_requires='>=3.7',
+    extras_require={
+        'inspect': [
+            'inspect-ai>=0.3.0',
+        ],
+        'gpu': [
+            'jax[cuda12]>=0.4.0',
+        ],
+        'dev': [
+            'pytest>=7.0',
+            'pytest-asyncio>=0.21',
+            'pytest-cov>=4.0',
+            'black>=22.0',
+            'flake8>=5.0',
+            'mypy>=1.0',
+        ],
+    },
+    python_requires='>=3.10',
     entry_points={
         'console_scripts': [
             'optstop-posthoc=optstop.cli:main',
@@ -24,4 +54,14 @@ setup(
             'optstop-convergence=optstop.cli:main_convergence',
         ],
     },
+    classifiers=[
+        'Development Status :: 4 - Beta',
+        'Intended Audience :: Science/Research',
+        'License :: OSI Approved :: MIT License',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
+        'Topic :: Scientific/Engineering',
+    ],
 ) 

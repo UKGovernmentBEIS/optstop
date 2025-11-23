@@ -1,0 +1,12 @@
+{
+  "normal_mode": {
+    "completed": 120,
+    "stopped": 0,
+    "efficiency_percent": 0.0
+  },
+  "shadow_mode": {
+    "completed": 120,
+    "stopped": 0,
+    "efficiency_percent": 0.0
+  }
+}

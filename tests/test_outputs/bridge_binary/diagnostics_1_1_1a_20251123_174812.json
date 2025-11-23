@@ -1,0 +1,34 @@
+{
+  "manager": "test_binary_single",
+  "total_planned_trials": 200,
+  "total_ran": 200,
+  "total_skipped": 0,
+  "efficiency_percent": 0.0,
+  "stopped_samples_count": 0,
+  "grouping_columns": [
+    "model",
+    "task"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 3,
+  "stopped_samples_per_grouping": {
+    "gpt-4-math": 0
+  },
+  "stopped_groupings": [],
+  "stopped_groupings_count": 0,
+  "decision_counters": {
+    "gpt-4-math": {
+      "completed_samples": 200,
+      "inference_calls": 40,
+      "next_inference_at": 205
+    }
+  },
+  "stabilization_histories": {
+    "gpt-4-math": {
+      "n_samples": 20,
+      "final_ci_width": 0.3017601130808511,
+      "final_slope": 0.005017581608990442,
+      "n_group_checks": 36
+    }
+  }
+}
