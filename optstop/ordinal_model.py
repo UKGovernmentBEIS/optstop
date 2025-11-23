@@ -554,10 +554,10 @@ def _ordinal_hybrid_stopping_criterion(
             # FALSE PEAK: Modal CI narrow but entropy high (distribution uncertain)
             diagnostics = {
                 'pathway': 0,
-                'modal_ci': (modal_lo, modal_hi),
-                'modal_width': modal_width,
-                'entropy_median': entropy_median,
-                'entropy_threshold': entropy_threshold,
+                'modal_ci': (float(modal_lo), float(modal_hi)),
+                'modal_width': float(modal_width),
+                'entropy_median': float(entropy_median),
+                'entropy_threshold': float(entropy_threshold),
                 'false_peak_detected': True,
                 'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {entropy_threshold})'
             }
@@ -570,11 +570,11 @@ def _ordinal_hybrid_stopping_criterion(
             # TRUE PEAK: Modal CI narrow AND entropy low (distribution peaked)
             diagnostics = {
                 'pathway': 1,
-                'modal_ci': (modal_lo, modal_hi),
-                'modal_width': modal_width,
-                'entropy_median': entropy_median,
-                'entropy_threshold': entropy_threshold,
-                'threshold': delta_item,
+                'modal_ci': (float(modal_lo), float(modal_hi)),
+                'modal_width': float(modal_width),
+                'entropy_median': float(entropy_median),
+                'entropy_threshold': float(entropy_threshold),
+                'threshold': float(delta_item),
                 'entropy_epochs': len(entropy_history),
                 'validated': True
             }
@@ -593,10 +593,10 @@ def _ordinal_hybrid_stopping_criterion(
     if len(entropy_history) < min_epochs_for_stabilization:
         diagnostics = {
             'pathway': 0,
-            'modal_width': modal_width,
-            'entropy_ci': (entropy_lo, entropy_hi),
-            'entropy_width': entropy_width,
-            'entropy_median': entropy_diag['entropy_median'],
+            'modal_width': float(modal_width),
+            'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+            'entropy_width': float(entropy_width),
+            'entropy_median': float(entropy_diag['entropy_median']),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization
         }
@@ -617,13 +617,13 @@ def _ordinal_hybrid_stopping_criterion(
     if relative_change < stabilization_threshold:
         diagnostics = {
             'pathway': 2,
-            'modal_width': modal_width,
-            'entropy_ci': (entropy_lo, entropy_hi),
-            'entropy_width': entropy_width,
-            'entropy_median': entropy_diag['entropy_median'],
-            'width_history': recent_widths,
-            'relative_change': relative_change,
-            'stabilization_threshold': stabilization_threshold
+            'modal_width': float(modal_width),
+            'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+            'entropy_width': float(entropy_width),
+            'entropy_median': float(entropy_diag['entropy_median']),
+            'width_history': [float(w) for w in recent_widths],
+            'relative_change': float(relative_change),
+            'stabilization_threshold': float(stabilization_threshold)
         }
         logger.info(
             f"Stopping via Pathway 2 (Entropy stabilized): "
@@ -634,12 +634,12 @@ def _ordinal_hybrid_stopping_criterion(
     # Continue collecting data
     diagnostics = {
         'pathway': 0,
-        'modal_width': modal_width,
-        'entropy_ci': (entropy_lo, entropy_hi),
-        'entropy_width': entropy_width,
-        'entropy_median': entropy_diag['entropy_median'],
-        'width_history': recent_widths,
-        'relative_change': relative_change,
+        'modal_width': float(modal_width),
+        'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+        'entropy_width': float(entropy_width),
+        'entropy_median': float(entropy_diag['entropy_median']),
+        'width_history': [float(w) for w in recent_widths],
+        'relative_change': float(relative_change),
         'learning': True
     }
     logger.debug(
