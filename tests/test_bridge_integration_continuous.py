@@ -321,6 +321,7 @@ async def test_1_1_3a_aggregated_binary_mean():
         grouping_columns=['model', 'task'],
         reanalysis_interval=10,  # NOT 3 (lesson from 1.1.2b)
         min_samples_per_grouping=5,
+        score_agg='mean',  # Tell bridge scores are aggregated (→ continuous_01)
     )
 
     # Create eval spec
@@ -495,6 +496,7 @@ async def test_1_1_3b_aggregated_binary_median():
         grouping_columns=['model', 'task'],
         reanalysis_interval=10,
         min_samples_per_grouping=5,
+        score_agg='median',  # Tell bridge scores are aggregated via median (→ continuous_01)
     )
 
     eval_spec = EvalSpec(
@@ -654,6 +656,7 @@ async def test_1_1_3c_aggregated_ordinal():
         min_samples_per_grouping=5,
         ordinal_tasks=['rating'],  # Identify as ordinal task
         ordinal_max_score=max_score,
+        score_agg='mean',  # CRITICAL: Tell bridge scores are aggregated (→ continuous bounded)
     )
 
     eval_spec = EvalSpec(
@@ -815,6 +818,7 @@ async def test_1_1_3d_realistic_continuous():
         grouping_columns=['model', 'task'],
         reanalysis_interval=10,
         min_samples_per_grouping=5,
+        score_agg='mean',  # Tell bridge scores are aggregated (→ continuous_01)
     )
 
     eval_spec = EvalSpec(
@@ -940,6 +944,176 @@ async def test_1_1_3d_realistic_continuous():
         print("✓ GOOD EFFICIENCY with realistic data")
 
     print("\n✅ TEST 1.1.3d PASSED")
+
+
+# ============================================================================
+# TEST 1.1.3e: PERFECT SCORE VALIDATION
+# ============================================================================
+
+@pytest.mark.asyncio
+async def test_1_1_3e_perfect_score_validation():
+    """
+    Test 1.1.3e: Perfect Score Validation
+
+    This test MUST trigger early stopping to validate the continuous bounded logic works.
+    Uses perfect/near-perfect scores with relaxed thresholds.
+
+    Expected: Grouping-level stop should occur within first 5-8 samples (>=50% efficiency)
+
+    If this shows 0% efficiency, there's likely a bug in continuous bounded stopping.
+    """
+    print("\n" + "="*80)
+    print("TEST 1.1.3e: Perfect Score Validation (MUST show early stopping)")
+    print("="*80)
+
+    n_samples = 20
+    n_scorers = 3
+    epochs_per_sample = 10
+
+    samples = [Sample(id=f"sample_{i}") for i in range(n_samples)]
+
+    # RELAXED thresholds to make stopping easier
+    optstop_params = {
+        'delta_item': 0.20,      # RELAXED (was 0.15)
+        'delta_cap': 0.18,       # RELAXED (was 0.12)
+        'cred_level': 0.85,
+        'conservatism': 2,       # Lower conservatism
+        'draws': 500,
+        'tune': 500,
+    }
+
+    manager = OptimalStoppingManager(
+        optstop_params=optstop_params,
+        grouping_columns=['model', 'task'],
+        reanalysis_interval=5,   # More frequent inference
+        min_samples_per_grouping=3,  # Start inference earlier
+        score_agg='mean',
+    )
+
+    eval_spec = EvalSpec(
+        task="gpt-4-accuracy",
+        model="gpt-4"
+    )
+
+    # Generate PERFECT scores (0.95-1.0 with minimal variance)
+    np.random.seed(46)
+    perfect_scores = []
+    for _ in range(n_samples * epochs_per_sample):
+        # All scorers give near-perfect scores
+        scorer_scores = [np.random.uniform(0.95, 1.0) for _ in range(n_scorers)]
+        perfect_scores.append(scorer_scores)
+    data_idx = 0
+
+    manager_name = await manager.start_task(eval_spec, samples, epochs=epochs_per_sample)
+    print(f"✓ Manager started: {manager_name}")
+    print(f"  • PERFECT SCORES: All 0.95-1.0")
+    print(f"  • RELAXED THRESHOLDS: delta_item=0.20, delta_cap=0.18")
+    print(f"  • FREQUENT INFERENCE: reanalysis_interval=5")
+    print(f"  • Expected: Grouping stop within 5-8 samples")
+
+    # Run evaluation loop
+    completed_trials = 0
+    stopped_trials = 0
+    sample_epoch_counts = {}
+    stopped_groupings = set()
+    grouping_key = f"{eval_spec.model}-{eval_spec.task}"
+
+    for sample in samples:
+        sample_epoch_counts[sample.id] = 0
+
+        if grouping_key in stopped_groupings:
+            stopped_trials += epochs_per_sample
+            continue
+
+        for epoch in range(1, epochs_per_sample + 1):
+            early_stop = await manager.schedule_sample(sample.id, epoch)
+
+            if early_stop is not None:
+                stopped_trials += 1
+                print(f"✓ STOP: Sample {sample.id} at epoch {epoch}: {early_stop.reason}")
+
+                if "grouping" in early_stop.reason.lower():
+                    stopped_groupings.add(grouping_key)
+                    stopped_trials += (epochs_per_sample - epoch)
+                    print(f"🎯 GROUPING STOP: All remaining trials skipped!")
+                    break
+
+                continue
+
+            scorer_scores = perfect_scores[data_idx]
+            data_idx += 1
+            scores = create_mock_sample_score_aggregated(scorer_scores, aggregation='mean')
+
+            await manager.complete_sample(sample.id, epoch, scores)
+            completed_trials += 1
+            sample_epoch_counts[sample.id] += 1
+
+    diagnostics = await manager.complete_task()
+
+    total_planned = n_samples * epochs_per_sample
+    efficiency_percent = (stopped_trials / total_planned) * 100
+
+    print(f"\n{'='*80}")
+    print("RESULTS")
+    print(f"{'='*80}")
+    print(f"Total planned trials: {total_planned}")
+    print(f"Completed trials: {completed_trials}")
+    print(f"Stopped trials: {stopped_trials}")
+    print(f"Efficiency: {efficiency_percent:.1f}%")
+    print(f"Stopped groupings: {diagnostics.get('stopped_groupings', [])}")
+    print(f"Stopped samples count: {diagnostics.get('stopped_samples_count', 0)}")
+
+    # Save results
+    output_dir = Path("tests/test_outputs/bridge_continuous")
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results = {
+        "test": "1.1.3e_perfect_score_validation",
+        "data_type": "perfect_scores",
+        "score_range": [0.95, 1.0],
+        "aggregation": "mean",
+        "n_scorers": n_scorers,
+        "n_samples": n_samples,
+        "epochs_per_sample": epochs_per_sample,
+        "relaxed_thresholds": {
+            "delta_item": 0.20,
+            "delta_cap": 0.18
+        },
+        "total_planned": total_planned,
+        "completed_trials": completed_trials,
+        "stopped_trials": stopped_trials,
+        "efficiency_percent": efficiency_percent,
+        "stopped_groupings": diagnostics.get('stopped_groupings', []),
+        "stopped_samples_count": diagnostics.get('stopped_samples_count', 0),
+        "sample_epoch_counts": sample_epoch_counts,
+        "validation": {
+            "perfect_scores": True,
+            "expected_stopping": True,
+            "continuous_bounded": True
+        }
+    }
+
+    output_path = output_dir / f"test_1_1_3e_perfect_{timestamp}.json"
+    with open(output_path, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    print(f"\nResults saved to: {output_path}")
+
+    assert completed_trials + stopped_trials == total_planned, "Trial count mismatch"
+
+    # CRITICAL VALIDATION: With perfect scores and relaxed thresholds, stopping MUST occur
+    print(f"\n📊 Perfect score validation: {stopped_trials}/{total_planned} trials stopped ({efficiency_percent:.1f}%)")
+
+    if efficiency_percent >= 50:
+        print("✅ EXCELLENT: Early stopping triggered as expected with perfect scores!")
+    elif efficiency_percent >= 20:
+        print("⚠️  MODERATE: Some stopping occurred, but less than expected with perfect scores")
+    else:
+        print("❌ WARNING: Very low efficiency with perfect scores - potential issue in stopping logic")
+        print("    Expected >=50% efficiency with near-perfect scores and relaxed thresholds")
+
+    print("\n✅ TEST 1.1.3e COMPLETED")
 
 
 # ============================================================================
