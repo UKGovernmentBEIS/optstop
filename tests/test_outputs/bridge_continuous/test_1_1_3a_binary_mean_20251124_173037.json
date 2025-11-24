@@ -1,0 +1,42 @@
+{
+  "test": "1.1.3a_aggregated_binary_mean",
+  "aggregation": "mean",
+  "n_scorers": 3,
+  "score_bounds": [
+    0.0,
+    1.0
+  ],
+  "n_samples": 15,
+  "epochs_per_sample": 8,
+  "total_planned": 120,
+  "completed_trials": 100,
+  "stopped_trials": 20,
+  "efficiency_percent": 16.666666666666664,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-accuracy"
+  ],
+  "stopped_samples_count": 1,
+  "sample_epoch_counts": {
+    "sample_0": 8,
+    "sample_1": 8,
+    "sample_2": 8,
+    "sample_3": 8,
+    "sample_4": 8,
+    "sample_5": 8,
+    "sample_6": 8,
+    "sample_7": 8,
+    "sample_8": 6,
+    "sample_9": 8,
+    "sample_10": 8,
+    "sample_11": 8,
+    "sample_12": 6,
+    "sample_13": 0,
+    "sample_14": 0
+  },
+  "validation": {
+    "continuous_bounded": true,
+    "aggregated_scores": true,
+    "hierarchical_beta_model": true,
+    "mean_aggregation": true
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "test": "1.1.3b_aggregated_binary_median",
+  "aggregation": "median",
+  "n_scorers": 3,
+  "score_bounds": [
+    0.0,
+    1.0
+  ],
+  "n_samples": 15,
+  "epochs_per_sample": 8,
+  "total_planned": 120,
+  "completed_trials": 98,
+  "stopped_trials": 22,
+  "efficiency_percent": 18.333333333333332,
+  "stopped_groupings": [],
+  "stopped_samples_count": 7,
+  "sample_epoch_counts": {
+    "sample_0": 8,
+    "sample_1": 8,
+    "sample_2": 8,
+    "sample_3": 8,
+    "sample_4": 8,
+    "sample_5": 8,
+    "sample_6": 8,
+    "sample_7": 4,
+    "sample_8": 8,
+    "sample_9": 2,
+    "sample_10": 8,
+    "sample_11": 2,
+    "sample_12": 8,
+    "sample_13": 2,
+    "sample_14": 8
+  },
+  "validation": {
+    "continuous_bounded": true,
+    "aggregated_scores": true,
+    "hierarchical_beta_model": true,
+    "median_aggregation": true
+  }
+}

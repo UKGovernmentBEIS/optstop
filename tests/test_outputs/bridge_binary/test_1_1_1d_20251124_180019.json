@@ -1,0 +1,26 @@
+{
+  "test": "1.1.1d_perfect_score_validation",
+  "data_type": "perfect_scores",
+  "score_value": 1,
+  "n_samples": 20,
+  "epochs_per_sample": 10,
+  "relaxed_thresholds": {
+    "delta_item": 0.2,
+    "delta_cap": 0.18
+  },
+  "total_planned": 200,
+  "completed_trials": 25,
+  "stopped_trials": 175,
+  "efficiency_percent": 87.5,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-accuracy"
+  ],
+  "stopped_samples_count": 2,
+  "validation": {
+    "binary_discrete": true,
+    "no_aggregation": true,
+    "integer_scores": true,
+    "perfect_scores": true,
+    "expected_stopping": true
+  }
+}

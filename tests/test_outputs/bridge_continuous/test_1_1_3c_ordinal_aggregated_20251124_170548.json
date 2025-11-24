@@ -1,0 +1,41 @@
+{
+  "test": "1.1.3c_aggregated_ordinal",
+  "aggregation": "mean",
+  "n_scorers": 3,
+  "score_bounds": [
+    0.0,
+    10.0
+  ],
+  "ordinal_max_score": 10,
+  "n_samples": 15,
+  "epochs_per_sample": 8,
+  "total_planned": 120,
+  "completed_trials": 104,
+  "stopped_trials": 16,
+  "efficiency_percent": 13.333333333333334,
+  "stopped_groupings": [],
+  "stopped_samples_count": 5,
+  "sample_epoch_counts": {
+    "sample_0": 8,
+    "sample_1": 8,
+    "sample_2": 8,
+    "sample_3": 8,
+    "sample_4": 8,
+    "sample_5": 8,
+    "sample_6": 8,
+    "sample_7": 4,
+    "sample_8": 8,
+    "sample_9": 2,
+    "sample_10": 8,
+    "sample_11": 2,
+    "sample_12": 8,
+    "sample_13": 8,
+    "sample_14": 8
+  },
+  "validation": {
+    "continuous_bounded": true,
+    "aggregated_scores": true,
+    "ordinal_continuous": true,
+    "mean_aggregation": true
+  }
+}

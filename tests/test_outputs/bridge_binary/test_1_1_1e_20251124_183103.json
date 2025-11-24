@@ -1,0 +1,26 @@
+{
+  "test": "1.1.1e_intermediate_variance",
+  "data_type": "high_success_rate",
+  "success_rate": 0.9,
+  "n_samples": 20,
+  "epochs_per_sample": 10,
+  "relaxed_thresholds": {
+    "delta_item": 0.2,
+    "delta_cap": 0.18
+  },
+  "total_planned": 200,
+  "completed_trials": 25,
+  "stopped_trials": 175,
+  "efficiency_percent": 87.5,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-accuracy"
+  ],
+  "stopped_samples_count": 2,
+  "validation": {
+    "binary_discrete": true,
+    "no_aggregation": true,
+    "integer_scores": true,
+    "intermediate_variance": true,
+    "explores_transition": true
+  }
+}
