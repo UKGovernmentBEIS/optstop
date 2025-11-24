@@ -88,6 +88,49 @@ warnings.filterwarnings('ignore', category=RuntimeWarning, module='pytensor')
 
 # Note: Column validation is now done at the beginning of each function
 
+def _sanitize_diagnostics(diagnostics: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert all numpy types in diagnostics dict to native Python types for JSON serialization.
+
+    This ensures compatibility with Pydantic validation in inspect_ai EarlyStop models.
+
+    Args:
+        diagnostics: Dictionary potentially containing numpy types
+
+    Returns:
+        Sanitized dictionary with native Python types
+    """
+    if diagnostics is None:
+        return None
+
+    sanitized = {}
+    for key, value in diagnostics.items():
+        if isinstance(value, (np.integer, np.floating)):
+            # Convert numpy scalar to Python native type
+            sanitized[key] = value.item()
+        elif isinstance(value, np.ndarray):
+            # Convert numpy array to list
+            sanitized[key] = value.tolist()
+        elif isinstance(value, tuple):
+            # Convert tuple to list (Pydantic requires lists for JSON serialization)
+            sanitized[key] = [
+                v.item() if isinstance(v, (np.integer, np.floating)) else v
+                for v in value
+            ]
+        elif isinstance(value, dict):
+            # Recursively sanitize nested dicts
+            sanitized[key] = _sanitize_diagnostics(value)
+        elif isinstance(value, list):
+            # Sanitize list elements
+            sanitized[key] = [
+                v.item() if isinstance(v, (np.integer, np.floating)) else v
+                for v in value
+            ]
+        else:
+            # Keep native Python types as-is
+            sanitized[key] = value
+
+    return sanitized
+
 @contextlib.contextmanager
 def suppress_all_output():
     """Context manager that suppresses all stdout, stderr, and warnings from PyMC sampling"""
@@ -2348,7 +2391,7 @@ def optimal_stopping_live_single(
                         'ci_width': float(width),
                         'threshold': delta_item,
                         'epochs_used': len(accumulated_scores),
-                        'diagnostics': diagnostics
+                        'diagnostics': _sanitize_diagnostics(diagnostics)
                     }
                     logger.info(f"Stopping ordinal sample {original_sample_id}: Entropy CI {width:.4f} < {delta_item}")
 
@@ -2370,7 +2413,7 @@ def optimal_stopping_live_single(
                     metadata['sample_stopping_reasons'][str(original_sample_id)] = {
                         'reason': reason,
                         'epochs_used': len(accumulated_scores),
-                        'diagnostics': diagnostics
+                        'diagnostics': _sanitize_diagnostics(diagnostics)
                     }
                     logger.info(f"Stopping ordinal sample {original_sample_id} via {reason}")
 
