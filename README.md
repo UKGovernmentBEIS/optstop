@@ -238,7 +238,8 @@ if optstop.check_inspect_ai_compatibility("0.3.5"):
 ### Documentation
 
 - **Full bridge documentation**: See `BRIDGE_USAGE_GUIDE.md` (coming soon)
-- **API reference**: See `BRIDGE_API_REFERENCE.md` (coming soon)
+- **API reference**: See [`BRIDGE_API_REFERENCE.md`](BRIDGE_API_REFERENCE.md) - Complete parameter documentation and configuration guide
+- **Testing summary**: See `BRIDGE_TESTING_SUMMARY.md` - Phase 1 testing results and validation
 - **Version strategy**: See `VERSION_STRATEGY.md`
 - **Development roadmap**: See `BRIDGE_TESTING_AND_DEVELOPMENT_ROADMAP.md`
 

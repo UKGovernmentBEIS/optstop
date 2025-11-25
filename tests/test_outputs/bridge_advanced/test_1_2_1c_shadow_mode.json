@@ -1,0 +1,19 @@
+{
+  "test_id": "test_1_2_1c",
+  "test_name": "Shadow Mode Comparison",
+  "normal_mode": {
+    "total_planned": 100,
+    "total_ran": 100,
+    "efficiency": 0.0
+  },
+  "shadow_mode": {
+    "total_planned": 100,
+    "total_ran": 100,
+    "efficiency": 0.0
+  },
+  "validation": {
+    "shadow_runs_all": true,
+    "shadow_zero_efficiency": true,
+    "normal_has_efficiency": false
+  }
+}

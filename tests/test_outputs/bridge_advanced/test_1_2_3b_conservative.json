@@ -1,0 +1,19 @@
+{
+  "test_id": "test_1_2_3b",
+  "test_name": "Very Conservative Thresholds",
+  "configuration": {
+    "delta_item": 0.05,
+    "delta_cap": 0.03,
+    "cred_level": 0.99,
+    "success_rate": 0.95
+  },
+  "diagnostics": {
+    "total_planned": 50,
+    "total_ran": 50,
+    "efficiency": 0.0,
+    "stopped_samples": 0
+  },
+  "validation": {
+    "efficiency": 0.0
+  }
+}
