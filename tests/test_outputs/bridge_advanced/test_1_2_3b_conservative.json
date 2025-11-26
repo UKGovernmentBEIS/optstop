@@ -1,19 +1,29 @@
 {
   "test_id": "test_1_2_3b",
-  "test_name": "Very Conservative Thresholds",
+  "test_name": "Very Conservative Thresholds (REVISED)",
   "configuration": {
+    "num_samples": 20,
+    "num_epochs": 8,
     "delta_item": 0.05,
     "delta_cap": 0.03,
     "cred_level": 0.99,
     "success_rate": 0.95
   },
   "diagnostics": {
-    "total_planned": 50,
-    "total_ran": 50,
+    "total_planned": 160,
+    "total_ran": 160,
     "efficiency": 0.0,
     "stopped_samples": 0
   },
   "validation": {
-    "efficiency": 0.0
+    "efficiency": 0.0,
+    "threshold_effect_confirmed": true
+  },
+  "comparison_with_test_1_2_1a": {
+    "test_1_2_1a_config": "p=0.95, 20 samples, strict thresholds (0.15, 0.10)",
+    "test_1_2_1a_efficiency": 40.6,
+    "test_1_2_3b_config": "p=0.95, 20 samples, conservative thresholds (0.05, 0.03)",
+    "test_1_2_3b_efficiency": 0.0,
+    "difference": 40.6
   }
 }

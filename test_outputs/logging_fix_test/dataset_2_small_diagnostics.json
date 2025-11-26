@@ -1,0 +1,76 @@
+{
+  "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_2_ordinal_with_choice.csv",
+  "subset_samples": 50,
+  "score_columns": [
+    "accuracy",
+    "precision",
+    "recall"
+  ],
+  "configuration": {
+    "optstop_params": {
+      "delta_item": 0.15,
+      "delta_cap": 0.1,
+      "cred_level": 0.95,
+      "conservatism": 10,
+      "draws": 500,
+      "tune": 500
+    },
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "score_choice": "accuracy",
+    "ordinal_max_score": 10,
+    "ordinal_tasks": [
+      "math_easy",
+      "math_hard",
+      "coding_medium",
+      "creative_writing",
+      "reasoning"
+    ]
+  },
+  "execution": {
+    "trial_count": 180,
+    "total_planned": 500,
+    "stopped_samples": 40
+  },
+  "diagnostics": {
+    "manager": "optstop",
+    "total_planned_trials": 500,
+    "total_ran": 90,
+    "total_skipped": 410,
+    "efficiency_percent": 82.0,
+    "stopped_samples_count": 0,
+    "stopped_samples": [],
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "stopped_samples_per_grouping": {
+      "gpt-4-turbo-math_easy": 0
+    },
+    "stopped_groupings": [
+      "gpt-4-turbo-math_easy"
+    ],
+    "stopped_groupings_count": 1,
+    "decision_counters": {
+      "gpt-4-turbo-math_easy": {
+        "completed_samples": 140,
+        "inference_calls": 5,
+        "next_inference_at": 150
+      }
+    },
+    "stabilization_histories": {
+      "gpt-4-turbo-math_easy": {
+        "n_samples": 10,
+        "final_ci_width": null,
+        "final_slope": null,
+        "n_group_checks": 0
+      }
+    }
+  }
+}

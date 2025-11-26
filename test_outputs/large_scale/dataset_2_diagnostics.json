@@ -1,0 +1,92 @@
+{
+  "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_2_ordinal_with_choice.csv",
+  "score_columns": [
+    "accuracy",
+    "precision",
+    "recall"
+  ],
+  "configuration": {
+    "optstop_params": {
+      "delta_item": 0.15,
+      "delta_cap": 0.1,
+      "cred_level": 0.95,
+      "conservatism": 10,
+      "draws": 500,
+      "tune": 500
+    },
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "score_choice": "accuracy",
+    "ordinal_max_score": 10
+  },
+  "execution": {
+    "init_time_sec": 6.985664367675781e-05,
+    "run_time_sec": 105.08622360229492,
+    "total_time_sec": 105.08732628822327,
+    "trial_count": 4707,
+    "total_planned": 5000,
+    "stopped_samples": 33
+  },
+  "diagnostics": {
+    "manager": "optstop",
+    "total_planned_trials": 5000,
+    "total_ran": 4207,
+    "total_skipped": 793,
+    "efficiency_percent": 15.86,
+    "stopped_samples_count": 0,
+    "stopped_samples": [],
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "stopped_samples_per_grouping": {
+      "gpt-3.5-math_hard": 0
+    },
+    "stopped_groupings": [
+      "gpt-3.5-math_hard"
+    ],
+    "stopped_groupings_count": 1,
+    "decision_counters": {
+      "gpt-3.5-math_hard": {
+        "completed_samples": 707,
+        "inference_calls": 28,
+        "next_inference_at": 725
+      },
+      "gemini-pro-reasoning": {
+        "completed_samples": 58,
+        "inference_calls": 2,
+        "next_inference_at": 75
+      },
+      "llama-70b-creative_writing": {
+        "completed_samples": 178,
+        "inference_calls": 7,
+        "next_inference_at": 200
+      }
+    },
+    "stabilization_histories": {
+      "gpt-3.5-math_hard": {
+        "n_samples": 68,
+        "final_ci_width": 0.01008977759319233,
+        "final_slope": -0.0005224142706706446,
+        "n_group_checks": 25
+      }
+    }
+  },
+  "routing_verification": {
+    "expected_type": "ORDINAL",
+    "verified": false,
+    "found_patterns": [],
+    "pattern_count": 0
+  },
+  "group_level_stopping": {
+    "group_level_stopping_events": 0,
+    "stopped_groupings": [],
+    "used_group_level_stopping": false
+  }
+}

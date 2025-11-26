@@ -1,0 +1,140 @@
+{
+  "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_1_binary_discrete.csv",
+  "score_columns": [
+    "score"
+  ],
+  "configuration": {
+    "optstop_params": {
+      "delta_item": 0.15,
+      "delta_cap": 0.1,
+      "cred_level": 0.95,
+      "conservatism": 10,
+      "draws": 500,
+      "tune": 500
+    },
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10
+  },
+  "execution": {
+    "init_time_sec": 4.673004150390625e-05,
+    "run_time_sec": 515.061292886734,
+    "total_time_sec": 515.072695016861,
+    "trial_count": 3604,
+    "total_planned": 5000,
+    "stopped_samples": 156
+  },
+  "diagnostics": {
+    "manager": "optstop",
+    "total_planned_trials": 5000,
+    "total_ran": 3104,
+    "total_skipped": 1896,
+    "efficiency_percent": 37.92,
+    "stopped_samples_count": 0,
+    "stopped_samples": [],
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "stopped_samples_per_grouping": {
+      "gpt-4-turbo-math_easy": 0,
+      "gpt-3.5-math_hard": 0,
+      "claude-3-opus-coding_medium": 0,
+      "gemini-pro-reasoning": 0,
+      "llama-70b-creative_writing": 0
+    },
+    "stopped_groupings": [
+      "gpt-3.5-math_hard",
+      "gpt-4-turbo-math_easy"
+    ],
+    "stopped_groupings_count": 2,
+    "decision_counters": {
+      "gpt-4-turbo-math_easy": {
+        "completed_samples": 392,
+        "inference_calls": 15,
+        "next_inference_at": 400
+      },
+      "gpt-3.5-math_hard": {
+        "completed_samples": 212,
+        "inference_calls": 8,
+        "next_inference_at": 225
+      },
+      "claude-3-opus-coding_medium": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "gemini-pro-reasoning": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "llama-70b-creative_writing": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      }
+    },
+    "stabilization_histories": {
+      "gpt-4-turbo-math_easy": {
+        "n_samples": 33,
+        "final_ci_width": 0.09614705395542,
+        "final_slope": -0.0023382259015397935,
+        "n_group_checks": 12
+      },
+      "gpt-3.5-math_hard": {
+        "n_samples": 13,
+        "final_ci_width": 0.09194667092999387,
+        "final_slope": null,
+        "n_group_checks": 5
+      },
+      "claude-3-opus-coding_medium": {
+        "n_samples": 100,
+        "final_ci_width": 0.2929148667248076,
+        "final_slope": -0.004255117295025309,
+        "n_group_checks": 37
+      },
+      "gemini-pro-reasoning": {
+        "n_samples": 100,
+        "final_ci_width": 0.43593975164137955,
+        "final_slope": -0.0006143992733771002,
+        "n_group_checks": 37
+      },
+      "llama-70b-creative_writing": {
+        "n_samples": 100,
+        "final_ci_width": 0.48130905793770384,
+        "final_slope": 0.0005516435587896912,
+        "n_group_checks": 37
+      }
+    }
+  },
+  "routing_verification": {
+    "expected_type": "BINARY",
+    "verified": true,
+    "found_patterns": [
+      "Processing grouping",
+      "as BINARY",
+      "Binary group inference took"
+    ],
+    "pattern_count": 3
+  },
+  "group_level_stopping": {
+    "group_level_stopping_events": 8,
+    "stopped_groupings": [
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0942 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 33 samples: ci_width (CI width=0.0942, effective width=0.0942, threshold=0.1)",
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0961 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0929 < 0.1",
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0929, effective width=0.0929, threshold=0.1)",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0970 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0968 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0919 < 0.1"
+    ],
+    "used_group_level_stopping": true
+  }
+}

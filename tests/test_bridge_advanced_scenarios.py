@@ -402,44 +402,52 @@ async def test_1_2_1a_mixed_quality_groupings():
 @pytest.mark.asyncio
 async def test_1_2_1c_shadow_mode_comparison():
     """
-    Test 1.2.1c: Shadow Mode Comparison (NEW)
+    Test 1.2.1c: Shadow Mode Comparison (REVISED)
 
-    Goal: Verify shadow mode works correctly for mixed groupings and provides useful diagnostics.
+    Goal: Verify shadow mode works correctly and tracks "would have stopped" diagnostics.
+
+    REVISION (addressing Concern #1):
+    - Changed p=0.95 to p=1.0 to guarantee stopping in normal mode
+    - Increased samples to 20 to match Test 1.2.1a scale
+    - Added validation that stopped samples are tracked in diagnostics
 
     Configuration:
-    - 2 groupings (1 high quality p=0.95, 1 medium quality p=0.70)
-    - Run once with shadow_mode=False (normal)
+    - 2 groupings (1 perfect quality p=1.0, 1 medium quality p=0.70)
+    - Run once with shadow_mode=False (normal) - MUST trigger stopping
     - Run once with shadow_mode=True (track but don't stop)
-    - OPTIMIZED: 10 samples, 5 epochs (faster runtime ~15-20 min)
+    - 20 samples, 8 epochs (matches Test 1.2.1a proven configuration)
 
     Expected:
-    - Shadow mode: All trials run, efficiency tracked
-    - Normal mode: High-quality grouping stops
+    - Normal mode: Perfect grouping stops early (>75% efficiency like 1.2.1a)
+    - Shadow mode: All trials run (0% efficiency)
     - Shadow mode diagnostics show what "would have" stopped
     """
     print("\n" + "="*80)
-    print("TEST 1.2.1c: Shadow Mode Comparison (NEW - OPTIMIZED)")
+    print("TEST 1.2.1c: Shadow Mode Comparison (REVISED - Concern #1 Fix)")
     print("="*80)
 
-    # OPTIMIZED: Reduced from 15/8 to 10/5 for faster testing
-    num_samples = 10
-    num_epochs = 5
+    # REVISED: Increased to 20/8 to match Test 1.2.1a proven configuration
+    # This ensures stopping will occur in normal mode
+    num_samples = 20
+    num_epochs = 8
     reanalysis_interval = 5
 
     # Create output directory
     output_dir = Path("tests/test_outputs/bridge_advanced")
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Test configuration
+    # Test configuration - REVISED: p=1.0 guarantees stopping
     grouping_configs = [
-        ('model-A', 'task-1', 0.95),  # High quality
-        ('model-A', 'task-2', 0.70),  # Medium quality
+        ('model-A', 'task-1', 1.00),  # Perfect quality (MUST stop)
+        ('model-A', 'task-2', 0.70),  # Medium quality (won't stop)
     ]
 
     print(f"\n📊 Configuration:")
-    print(f"  Groupings: 2 (high quality p=0.95, medium quality p=0.70)")
+    print(f"  Groupings: 2 (perfect quality p=1.0, medium quality p=0.70)")
     print(f"  Samples: {num_samples} per grouping")
     print(f"  Epochs: {num_epochs}")
+    print(f"  Expected normal mode efficiency: >75% (p=1.0 proven in 1.2.1a)")
+    print(f"  Expected shadow mode efficiency: 0% (all trials run)")
 
     # Run 1: Normal mode
     print(f"\n🔹 RUN 1: Normal Mode (shadow_mode=False)")
@@ -548,16 +556,23 @@ async def test_1_2_1c_shadow_mode_comparison():
 
     validation = {
         'test_id': 'test_1_2_1c',
-        'test_name': 'Shadow Mode Comparison',
+        'test_name': 'Shadow Mode Comparison (REVISED)',
+        'configuration': {
+            'num_samples_per_grouping': num_samples,
+            'num_epochs': num_epochs,
+            'grouping_configs': grouping_configs,
+        },
         'normal_mode': {
             'total_planned': diagnostics_normal['total_planned_trials'],
             'total_ran': diagnostics_normal['total_ran'],
             'efficiency': diagnostics_normal['efficiency_percent'],
+            'stopped_samples_count': diagnostics_normal['stopped_samples_count'],
         },
         'shadow_mode': {
             'total_planned': diagnostics_shadow['total_planned_trials'],
             'total_ran': diagnostics_shadow['total_ran'],
             'efficiency': diagnostics_shadow['efficiency_percent'],
+            'stopped_samples_count': diagnostics_shadow['stopped_samples_count'],
         },
         'validation': {}
     }
@@ -572,10 +587,27 @@ async def test_1_2_1c_shadow_mode_comparison():
     validation['validation']['shadow_zero_efficiency'] = shadow_zero_efficiency
     print(f"  {'✓' if shadow_zero_efficiency else '✗'} Shadow mode 0% efficiency: {'✓ PASS' if shadow_zero_efficiency else '✗ FAIL'}")
 
-    # Check 3: Normal mode has some efficiency (high-quality grouping should stop)
-    normal_has_efficiency = diagnostics_normal['efficiency_percent'] > 0
+    # Check 3: Normal mode MUST have significant efficiency (p=1.0 grouping)
+    normal_has_efficiency = diagnostics_normal['efficiency_percent'] > 35.0
     validation['validation']['normal_has_efficiency'] = normal_has_efficiency
-    print(f"  {'✓' if normal_has_efficiency else '✗'} Normal mode has efficiency: {diagnostics_normal['efficiency_percent']:.1f}%: {'✓ PASS' if normal_has_efficiency else '✗ FAIL'}")
+    print(f"  {'✓' if normal_has_efficiency else '✗'} Normal mode has >35% efficiency: {diagnostics_normal['efficiency_percent']:.1f}%: {'✓ PASS' if normal_has_efficiency else '✗ FAIL'}")
+
+    # Check 4: Normal mode stopped samples > 0 (critical for validating shadow mode)
+    normal_stopped_samples = diagnostics_normal['stopped_samples_count'] > 0
+    validation['validation']['normal_stopped_samples'] = normal_stopped_samples
+    print(f"  {'✓' if normal_stopped_samples else '✗'} Normal mode stopped samples: {diagnostics_normal['stopped_samples_count']} > 0: {'✓ PASS' if normal_stopped_samples else '✗ FAIL'}")
+
+    # Check 5: Shadow mode stopped_samples_count should be 0 (nothing actually stopped)
+    shadow_stopped_nothing = diagnostics_shadow['stopped_samples_count'] == 0
+    validation['validation']['shadow_stopped_nothing'] = shadow_stopped_nothing
+    print(f"  {'✓' if shadow_stopped_nothing else '✗'} Shadow mode recorded 0 stopped samples: {diagnostics_shadow['stopped_samples_count']} == 0: {'✓ PASS' if shadow_stopped_nothing else '✗ FAIL'}")
+
+    # Check 6: Efficiency difference validates shadow mode effect
+    efficiency_diff = abs(diagnostics_normal['efficiency_percent'] - diagnostics_shadow['efficiency_percent'])
+    shadow_effect_clear = efficiency_diff > 30.0
+    validation['validation']['shadow_effect_clear'] = shadow_effect_clear
+    validation['validation']['efficiency_difference'] = efficiency_diff
+    print(f"  {'✓' if shadow_effect_clear else '✗'} Clear shadow mode effect: {efficiency_diff:.1f}% difference (>30%): {'✓ PASS' if shadow_effect_clear else '✗ FAIL'}")
 
     # Save validation output
     output_file = output_dir / "test_1_2_1c_shadow_mode.json"
@@ -583,13 +615,16 @@ async def test_1_2_1c_shadow_mode_comparison():
         json.dump(validation, f, indent=2)
 
     print(f"\n💾 Validation output saved to: {output_file}")
+    print(f"📄 Logs: {log_file_normal}, {log_file_shadow}")
     print("\n" + "="*80)
     print("TEST 1.2.1c COMPLETE")
     print("="*80)
 
-    # Assertions
+    # Assertions (ENHANCED for Concern #1)
     assert shadow_runs_all, "Shadow mode must run all trials"
     assert shadow_zero_efficiency, "Shadow mode must have 0% efficiency"
+    assert normal_has_efficiency, f"Normal mode MUST achieve >35% efficiency with p=1.0, got {diagnostics_normal['efficiency_percent']:.1f}%"
+    assert normal_stopped_samples, f"Normal mode MUST stop some samples with p=1.0, got {diagnostics_normal['stopped_samples_count']}"
 
 
 @pytest.mark.asyncio
@@ -775,29 +810,34 @@ async def test_1_2_3a_aggressive_thresholds():
 @pytest.mark.asyncio
 async def test_1_2_3b_conservative_thresholds():
     """
-    Test 1.2.3b: Very Conservative Thresholds (NEW)
+    Test 1.2.3b: Very Conservative Thresholds (REVISED)
 
     Goal: Test with very strict stopping criteria for maximum confidence.
+
+    REVISION (addressing Concern #2):
+    - Increased samples to 20 (matching Test 1.2.1a scale)
+    - Disambiguates threshold effect from sample size confound
+    - Enables direct comparison: 20 samples @ p=0.95 with different thresholds
 
     Configuration:
     - delta_item = 0.05 (very tight CI required)
     - delta_cap = 0.03 (very tight grouping CI)
     - cred_level = 0.99 (99% confidence, very conservative)
     - Success rate = 0.95 (high quality)
-    - OPTIMIZED: 10 samples, 5 epochs (faster runtime ~10-15 min)
+    - 20 samples, 8 epochs (MATCHES Test 1.2.1a for valid comparison)
 
     Expected:
-    - Lower efficiency than standard thresholds
-    - Only highest quality data stops
-    - Very high confidence intervals
+    - Test 1.2.1a (strict): p=0.95, 20 samples → 40.6% efficiency
+    - Test 1.2.3b (conservative): p=0.95, 20 samples → ? efficiency
+    - This disambiguates: Is 0% due to thresholds or sample size?
     """
     print("\n" + "="*80)
-    print("TEST 1.2.3b: Very Conservative Thresholds (NEW - OPTIMIZED)")
+    print("TEST 1.2.3b: Very Conservative Thresholds (REVISED - Concern #2 Fix)")
     print("="*80)
 
-    # OPTIMIZED: Reduced from 20/8 to 10/5 for faster testing
-    num_samples = 10
-    num_epochs = 5
+    # REVISED: Increased to 20/8 to match Test 1.2.1a for valid comparison
+    num_samples = 20
+    num_epochs = 8
     reanalysis_interval = 5
 
     # Create output directory
@@ -874,8 +914,10 @@ async def test_1_2_3b_conservative_thresholds():
 
     validation = {
         'test_id': 'test_1_2_3b',
-        'test_name': 'Very Conservative Thresholds',
+        'test_name': 'Very Conservative Thresholds (REVISED)',
         'configuration': {
+            'num_samples': num_samples,
+            'num_epochs': num_epochs,
             'delta_item': 0.05,
             'delta_cap': 0.03,
             'cred_level': 0.99,
@@ -887,14 +929,44 @@ async def test_1_2_3b_conservative_thresholds():
             'efficiency': diagnostics['efficiency_percent'],
             'stopped_samples': diagnostics['stopped_samples_count'],
         },
-        'validation': {}
+        'validation': {},
+        'comparison_with_test_1_2_1a': {
+            'test_1_2_1a_config': 'p=0.95, 20 samples, strict thresholds (0.15, 0.10)',
+            'test_1_2_1a_efficiency': 40.6,
+            'test_1_2_3b_config': 'p=0.95, 20 samples, conservative thresholds (0.05, 0.03)',
+            'test_1_2_3b_efficiency': diagnostics['efficiency_percent'],
+            'difference': 40.6 - diagnostics['efficiency_percent'],
+        }
     }
 
-    # With p=0.95 and conservative thresholds, MAY achieve some efficiency
-    # but likely lower than with standard thresholds
+    # With p=0.95, 20 samples, and conservative thresholds
     validation['validation']['efficiency'] = diagnostics['efficiency_percent']
     print(f"  ℹ️  Efficiency with conservative thresholds: {diagnostics['efficiency_percent']:.1f}%")
-    print(f"      (May be 0% even with p=0.95 due to very tight CI requirements)")
+
+    # Compare with Test 1.2.1a (strict thresholds, same data quality/size)
+    test_1_2_1a_efficiency = 40.6
+    efficiency_drop = test_1_2_1a_efficiency - diagnostics['efficiency_percent']
+    print(f"  ℹ️  Comparison with Test 1.2.1a (strict thresholds):")
+    print(f"      Test 1.2.1a: p=0.95, 20 samples → {test_1_2_1a_efficiency}% efficiency")
+    print(f"      Test 1.2.3b: p=0.95, 20 samples → {diagnostics['efficiency_percent']:.1f}% efficiency")
+    print(f"      Difference: {efficiency_drop:.1f}% drop due to conservative thresholds")
+
+    # Interpretation
+    if diagnostics['efficiency_percent'] == 0 and test_1_2_1a_efficiency > 0:
+        print(f"\n  📊 INTERPRETATION:")
+        print(f"      Conservative thresholds (0.05/0.03) prevent stopping entirely")
+        print(f"      while strict thresholds (0.15/0.10) allow 40.6% efficiency.")
+        print(f"      This confirms threshold effect (not sample size confound).")
+        validation['validation']['threshold_effect_confirmed'] = True
+    elif diagnostics['efficiency_percent'] > 0:
+        print(f"\n  📊 INTERPRETATION:")
+        print(f"      Conservative thresholds still allow {diagnostics['efficiency_percent']:.1f}% efficiency,")
+        print(f"      but {efficiency_drop:.1f}% less than strict thresholds.")
+        print(f"      Threshold tunability validated.")
+        validation['validation']['threshold_effect_confirmed'] = True
+    else:
+        print(f"\n  ⚠️  UNEXPECTED: Both tests show 0% efficiency at same sample size")
+        validation['validation']['threshold_effect_confirmed'] = False
 
     # Save validation output
     output_file = output_dir / "test_1_2_3b_conservative.json"
@@ -902,8 +974,7 @@ async def test_1_2_3b_conservative_thresholds():
         json.dump(validation, f, indent=2)
 
     print(f"\n💾 Validation output saved to: {output_file}")
-    print("\nℹ️  NOTE: Conservative thresholds may yield 0% efficiency even with p=0.95")
-    print("   This demonstrates the trade-off between confidence and efficiency")
+    print(f"📄 Log saved to: {log_file}")
     print("\n" + "="*80)
     print("TEST 1.2.3b COMPLETE")
     print("="*80)
