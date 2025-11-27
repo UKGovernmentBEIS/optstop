@@ -1,0 +1,262 @@
+[
+  {
+    "scenario_name": "ordinal_consistent_good",
+    "score_type": "ordinal",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "performance_pattern": "consistent_good",
+    "score_mode": "default",
+    "shadow_mode": false,
+    "execution_time": 327.5098178386688,
+    "total_planned": 1000,
+    "total_ran": 960,
+    "total_skipped": 40,
+    "efficiency_percent": 4.0,
+    "stopped_samples_count": 4,
+    "stopped_groupings_count": 0,
+    "stopping_diagnostics": {
+      "sample_stops": [
+        {
+          "id": "sample_11",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_23",
+          "epoch": 20,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 20
+        },
+        {
+          "id": "sample_33",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_34",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_38",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_45",
+          "epoch": 20,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 20
+        }
+      ],
+      "group_stop": null,
+      "stabilization_summary": {
+        "test_model-ordinal_task": {
+          "n_samples_evaluated": 50,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0
+        }
+      }
+    },
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "ordinal_consistent_bad",
+    "score_type": "ordinal",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "performance_pattern": "consistent_bad",
+    "score_mode": "default",
+    "shadow_mode": false,
+    "execution_time": 330.7978472709656,
+    "total_planned": 1000,
+    "total_ran": 960,
+    "total_skipped": 40,
+    "efficiency_percent": 4.0,
+    "stopped_samples_count": 4,
+    "stopped_groupings_count": 0,
+    "stopping_diagnostics": {
+      "sample_stops": [
+        {
+          "id": "sample_11",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_23",
+          "epoch": 20,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 20
+        },
+        {
+          "id": "sample_33",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_34",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_38",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 10
+        },
+        {
+          "id": "sample_45",
+          "epoch": 20,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 20
+        }
+      ],
+      "group_stop": null,
+      "stabilization_summary": {
+        "test_model-ordinal_task": {
+          "n_samples_evaluated": 50,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0
+        }
+      }
+    },
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "ordinal_inconsistent",
+    "score_type": "ordinal",
+    "n_samples": 50,
+    "n_epochs": 15,
+    "performance_pattern": "inconsistent",
+    "score_mode": "default",
+    "shadow_mode": false,
+    "execution_time": 246.60878014564514,
+    "total_planned": 750,
+    "total_ran": 739,
+    "total_skipped": 11,
+    "efficiency_percent": 1.47,
+    "stopped_samples_count": 1,
+    "stopped_groupings_count": 0,
+    "stopping_diagnostics": {
+      "sample_stops": [
+        {
+          "id": "sample_6",
+          "epoch": 15,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 15
+        },
+        {
+          "id": "sample_40",
+          "epoch": 15,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 15
+        },
+        {
+          "id": "sample_45",
+          "epoch": 4,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 4
+        },
+        {
+          "id": "sample_48",
+          "epoch": 15,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 15
+        }
+      ],
+      "group_stop": null,
+      "stabilization_summary": {
+        "test_model-ordinal_task": {
+          "n_samples_evaluated": 50,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0
+        }
+      }
+    },
+    "success": true,
+    "error": null
+  },
+  {
+    "scenario_name": "ordinal_improving",
+    "score_type": "ordinal",
+    "n_samples": 50,
+    "n_epochs": 20,
+    "performance_pattern": "improving",
+    "score_mode": "default",
+    "shadow_mode": false,
+    "execution_time": 340.3669784069061,
+    "total_planned": 1000,
+    "total_ran": 982,
+    "total_skipped": 18,
+    "efficiency_percent": 1.8,
+    "stopped_samples_count": 1,
+    "stopped_groupings_count": 0,
+    "stopping_diagnostics": {
+      "sample_stops": [
+        {
+          "id": "sample_25",
+          "epoch": 2,
+          "reason": "ordinal_modal_ci_width",
+          "ci_width": 0.0,
+          "threshold": 0.05,
+          "epochs_used": 2
+        }
+      ],
+      "group_stop": null,
+      "stabilization_summary": {
+        "test_model-ordinal_task": {
+          "n_samples_evaluated": 50,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0
+        }
+      }
+    },
+    "success": true,
+    "error": null
+  }
+]

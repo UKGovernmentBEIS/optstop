@@ -1,0 +1,381 @@
+
+Starting diagnostic test...
+This will create test_ordinal_hybrid_debug.log with detailed parameter tracking.
+
+
+================================================================================
+DIAGNOSTIC TEST: Ordinal Discrete Bimodal with Hybrid Inference
+================================================================================
+
+Test configuration:
+  - Samples: 20
+  - Epochs: 5
+  - Total trials: 100
+  - Inference at: trials 50, 100
+  - draws=500, tune=500 (should be logged)
+  - Expected time: 5-10 minutes
+
+
+================================================================================
+OptimalStoppingManager Configuration Summary (optstop)
+================================================================================
+
+📊 Dataset Configuration:
+  • Samples: 20
+  • Epochs per sample: 5
+  • Total planned trials: 100
+  • Grouping columns: task
+  • Sample ID column: sample_id
+  • Epoch column: epoch
+  • Score column: score
+
+🎯 Optimal Stopping Parameters:
+  • Item CI width threshold: 0.12
+  • Grouping CI width threshold: 0.12
+  • Credibility level: 0.95
+  • Conservatism factor: 5.0
+  • Low performance threshold: 0.2
+  • CI stabilization slope threshold: 5e-05
+  • Stabilization window: 10
+  • Repetition batch size: 1
+  • MCMC draws: 500
+  • MCMC tune steps: 500
+  • MCMC chains: 4
+  • CPU cores: 4
+
+⚙️  Inference Control:
+  • Reanalysis interval: every 50 completed samples
+  • Min samples per grouping: 5
+  • Shadow mode: Disabled (normal stopping behavior)
+
+📊 Score Extraction:
+  • Mode: Default (use first score from dict)
+
+📈 Ordinal Scoring Configuration:
+  • Ordinal tasks: rating
+  • Max ordinal score: 10
+  • Inference mode: hybrid
+
+🖥️  Hardware Configuration:
+  • GPU: Disabled (CPU-only mode)
+  • Max workers: auto
+
+================================================================================
+
+2025-11-21 00:20:26,017 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,018 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,018 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_0, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,021 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,021 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,021 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_1, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,023 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,023 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,024 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_2, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,026 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,026 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,027 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_3, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,029 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,029 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,030 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_4, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,032 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,032 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,032 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_5, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,035 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,035 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,035 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_6, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,037 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,038 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,038 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_7, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,040 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,040 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,041 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_8, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,043 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,043 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,044 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_9, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,046 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,046 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,047 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_10, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,049 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,049 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,049 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_11, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,052 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,052 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,052 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_12, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,054 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,054 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,055 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_13, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,057 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,057 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,058 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_14, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,060 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,060 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,061 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_15, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,063 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,063 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,063 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_16, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,065 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,066 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,066 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_17, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,068 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,068 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,069 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_18, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,071 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,071 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,072 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_19, epoch=1: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,074 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,074 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,075 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_0, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,077 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,077 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,077 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_1, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,080 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,080 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,080 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_2, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,082 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,083 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,083 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_3, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,085 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,085 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,086 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_4, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+  Completed 25/100 trials...
+2025-11-21 00:20:26,088 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,088 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,089 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_5, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,091 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,091 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,092 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_6, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,094 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,094 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,095 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_7, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,097 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,097 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,097 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_8, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,100 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,100 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,100 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_9, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,102 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,102 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,103 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_10, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,105 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,105 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,106 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_11, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,108 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,108 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,108 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_12, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,111 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,111 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,111 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_13, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,113 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,114 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,114 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_14, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,116 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,116 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,117 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_15, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,119 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,119 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,120 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_16, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,122 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,122 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,122 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_17, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,125 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,125 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,125 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_18, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,128 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,128 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,128 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_19, epoch=2: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,130 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,130 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,131 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_0, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,133 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,133 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,134 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_1, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,136 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,136 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,137 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_2, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,139 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,139 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,139 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_3, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,142 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,142 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,142 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_4, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,145 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,145 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,145 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_5, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,147 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,148 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,148 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_6, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,150 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,150 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,151 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_7, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,153 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,153 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,154 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_8, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,156 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,157 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,157 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_9, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+  Completed 50/100 trials...
+2025-11-21 00:20:26,159 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,159 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,160 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_10, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,162 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,162 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,163 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_11, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,165 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,165 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,166 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_12, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,168 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,168 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,168 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_13, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,171 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,171 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,171 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_14, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,174 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,175 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,175 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_15, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,179 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,179 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,179 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_16, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,183 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,183 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,185 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_17, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,188 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,188 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,189 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_18, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,192 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,192 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,193 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_19, epoch=3: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,195 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,195 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,196 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_0, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,198 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,198 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,199 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_1, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,201 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,201 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,202 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_2, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,204 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,204 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,205 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_3, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,207 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,207 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,208 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_4, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,210 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,210 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,211 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_5, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,213 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,213 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,214 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_6, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,216 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,216 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,217 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_7, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,219 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,219 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,220 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_8, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,222 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,222 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,222 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_9, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,225 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,225 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,225 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_10, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,227 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,228 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,228 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_11, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,230 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,230 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,231 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_12, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,233 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,233 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,234 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_13, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,236 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,236 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,236 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_14, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+  Completed 75/100 trials...
+2025-11-21 00:20:26,239 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,239 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,239 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_15, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,241 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,241 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,242 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_16, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,244 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,244 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,245 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_17, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,247 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,247 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,248 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_18, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,250 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,250 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,251 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_19, epoch=4: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,253 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,253 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,254 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_0, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,256 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,256 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,256 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_1, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,259 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,259 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,259 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_2, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,261 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,261 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,262 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_3, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,264 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,264 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,265 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_4, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,267 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,267 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,268 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_5, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,270 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,270 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,271 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_6, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,273 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,273 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,273 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_7, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,276 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,276 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,276 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_8, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,278 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,278 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,279 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_9, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,281 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,281 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,282 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_10, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,284 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,284 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,285 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_11, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,287 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,287 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,287 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_12, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,290 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,290 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,290 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_13, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,292 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,293 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,293 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_14, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,295 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,295 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,296 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_15, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,298 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,298 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,299 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_16, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,301 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,301 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,301 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_17, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,304 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,304 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,304 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_18, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+2025-11-21 00:20:26,307 - optstop.early_stopping - WARNING - Could not import value_to_float from inspect_ai. Falling back to basic float conversion.
+2025-11-21 00:20:26,307 - optstop.early_stopping - WARNING - No valid numeric scores found
+2025-11-21 00:20:26,307 - optstop.early_stopping - WARNING - ⚠️  Invalid score for sample_id=sample_19, epoch=5: Score is None - cannot perform inference. Score will be recorded but no inference will run for this sample. Task will continue to completion without early stopping.
+  Completed 100/100 trials...
+
+================================================================================
+TEST COMPLETE
+================================================================================
+Efficiency: 0.0%
+Trials ran: 100/100
+Stopped samples: 0
+Stopped groupings: 0
+
+Check test_ordinal_hybrid_debug.log for parameter diagnostics!
+Look for lines starting with '🔍 _ordinal_entropy_ci_adaptive called:'
+================================================================================
+
