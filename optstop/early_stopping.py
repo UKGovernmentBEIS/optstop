@@ -1219,20 +1219,74 @@ class OptimalStoppingManager(EarlyStopping):
                     if 'diagnostics' in group_reason_info:
                         diag = group_reason_info['diagnostics']
                         if isinstance(diag, dict):
-                            if 'entropy' in diag:
+                            # Ordinal hybrid diagnostics from _ordinal_hybrid_stopping_criterion
+                            # Pathway 1: modal_ci_narrow_validated
+                            if 'modal_width' in diag:
+                                modal_width = diag['modal_width']
+                                metrics.append(f"modal CI width={modal_width:.4f}")
+                            if 'modal_ci' in diag and isinstance(diag['modal_ci'], (list, tuple)):
+                                modal_lo, modal_hi = diag['modal_ci']
+                                metrics.append(f"modal CI=[{modal_lo:.2f}, {modal_hi:.2f}]")
+                            if 'entropy_median' in diag:
+                                entropy_median = diag['entropy_median']
+                                metrics.append(f"entropy={entropy_median:.4f}")
+                            if 'entropy_threshold' in diag:
+                                entropy_threshold = diag['entropy_threshold']
+                                metrics.append(f"entropy threshold={entropy_threshold:.2f}")
+                            if 'threshold' in diag and 'threshold' not in group_reason_info:
+                                threshold = diag['threshold']
+                                metrics.append(f"modal threshold={threshold}")
+
+                            # Pathway 2: entropy_stabilized
+                            if 'entropy_width' in diag:
+                                entropy_width = diag['entropy_width']
+                                metrics.append(f"entropy CI width={entropy_width:.4f}")
+                            if 'relative_change' in diag:
+                                relative_change = diag['relative_change']
+                                metrics.append(f"relative change={relative_change:.4f}")
+                            if 'stabilization_threshold' in diag:
+                                stab_threshold = diag['stabilization_threshold']
+                                metrics.append(f"stab threshold={stab_threshold:.4f}")
+
+                            # Legacy checks for backwards compatibility
+                            if 'entropy' in diag and 'entropy_median' not in diag:
                                 metrics.append(f"entropy={diag['entropy']:.4f}")
                             if 'modal_prob' in diag:
                                 metrics.append(f"modal prob={diag['modal_prob']:.4f}")
-                            if 'ci_width' in diag and 'ci_width' not in group_reason_info:
-                                # Add from diagnostics if not already in main metadata
+                            if 'ci_width' in diag and 'ci_width' not in group_reason_info and 'modal_width' not in diag:
                                 metrics.append(f"CI width={diag['ci_width']:.4f}")
 
-                    # Format log message
+                    # Add plain-English explanation for ordinal stopping
+                    explanation = None
+                    if reason in ['modal_ci_narrow_validated', 'entropy_stabilized'] and 'diagnostics' in group_reason_info:
+                        diag = group_reason_info['diagnostics']
+                        if reason == 'modal_ci_narrow_validated':
+                            modal_width = diag.get('modal_width')
+                            entropy_median = diag.get('entropy_median')
+                            threshold = diag.get('threshold')
+                            entropy_threshold = diag.get('entropy_threshold', 1.5)
+                            if isinstance(modal_width, (int, float)) and isinstance(entropy_median, (int, float)):
+                                explanation = (
+                                    f"Modal CI width ({modal_width:.4f}) < threshold ({threshold}), "
+                                    f"entropy ({entropy_median:.4f}) < {entropy_threshold:.2f} (peaked distribution)"
+                                )
+                        elif reason == 'entropy_stabilized':
+                            relative_change = diag.get('relative_change')
+                            stab_threshold = diag.get('stabilization_threshold')
+                            if isinstance(relative_change, (int, float)) and isinstance(stab_threshold, (int, float)):
+                                explanation = (
+                                    f"Entropy stabilized: relative change ({relative_change:.4f}) < "
+                                    f"threshold ({stab_threshold:.4f})"
+                                )
+
+                    # Format log message with explanation
                     metrics_str = ", ".join(metrics) if metrics else "no metrics"
-                    logger.info(
-                        f"Stopped grouping '{grouping_name}' after {samples_used} samples: "
-                        f"{reason} ({metrics_str})"
-                    )
+                    log_msg = f"Stopped grouping '{grouping_name}' after {samples_used} samples: {reason} ({metrics_str})"
+                    if explanation:
+                        logger.info(log_msg)
+                        logger.info(f"  → {explanation}")
+                    else:
+                        logger.info(log_msg)
                 else:
                     logger.info(f"Marked entire grouping '{grouping_name}' for early stopping")
 
@@ -1306,11 +1360,40 @@ class OptimalStoppingManager(EarlyStopping):
                     'n_samples': v.get('n_samples_evaluated', 0),
                     'final_ci_width': v['ci_width_history'][-1] if v.get('ci_width_history') else None,
                     'final_slope': v['ci_slope_history'][-1] if v.get('ci_slope_history') else None,
-                    'n_group_checks': len(v.get('ci_width_history', []))
+                    'n_group_checks': len(v.get('ci_width_history', [])),
+                    # Ordinal-specific fields
+                    'final_modal_ci_width': v.get('final_modal_ci_width'),
+                    'final_modal_ci': v.get('final_modal_ci'),
+                    'final_entropy': v.get('final_entropy'),
+                    'final_entropy_threshold': v.get('final_entropy_threshold'),
+                    'final_entropy_ci_width': v.get('final_entropy_ci_width'),
+                    'final_relative_change': v.get('final_relative_change'),
+                    'final_stabilization_threshold': v.get('final_stabilization_threshold'),
+                    'ordinal_pathway': v.get('ordinal_pathway')
                 }
                 for k, v in self._stabilization_histories.items()
             }
         }
+
+        # Add glossary for ordinal stopping reasons
+        if self.ordinal_tasks:
+            metadata['ordinal_glossary'] = {
+                'modal_ci_narrow_validated': {
+                    'description': 'Bootstrap modal confidence interval was narrow and validated by low entropy',
+                    'interpretation': 'Distribution is peaked (most responses in same category) with high certainty',
+                    'metrics': 'modal_width < threshold AND entropy < entropy_threshold'
+                },
+                'entropy_stabilized': {
+                    'description': 'Distribution entropy converged, indicating stable ordinal estimates',
+                    'interpretation': 'Additional data provides diminishing returns (entropy not changing)',
+                    'metrics': 'relative_change < stabilization_threshold (default 0.002 = 0.2%)'
+                },
+                'continue_insufficient_history': {
+                    'description': 'Need more epochs to assess stabilization',
+                    'interpretation': 'Collecting more data to establish convergence pattern',
+                    'metrics': 'epochs_tracked < min_epochs_for_stabilization (default 3)'
+                }
+            }
 
         logger.info(
             f"Task complete. Ran {total_ran}/{total_planned} trials "

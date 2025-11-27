@@ -2715,6 +2715,27 @@ def optimal_stopping_live_single(
 
             stabilization_history['entropy_history'] = group_entropy_history
 
+            # Populate stabilization history metrics for ordinal pathways
+            # This enables users to see final stopping metrics in diagnostics
+            if ordinal_inference == 'hybrid' and stop_this_grouping:
+                if diagnostics_group:
+                    # Store pathway indicator
+                    stabilization_history['ordinal_pathway'] = diagnostics_group.get('pathway', 0)
+
+                    # Pathway 1: modal_ci_narrow_validated
+                    if 'modal_width' in diagnostics_group:
+                        stabilization_history['final_modal_ci_width'] = float(diagnostics_group['modal_width'])
+                        stabilization_history['final_entropy'] = float(diagnostics_group.get('entropy_median', 0))
+                        stabilization_history['final_entropy_threshold'] = float(diagnostics_group.get('entropy_threshold', 1.5))
+                        if 'modal_ci' in diagnostics_group:
+                            stabilization_history['final_modal_ci'] = [float(x) for x in diagnostics_group['modal_ci']]
+
+                    # Pathway 2: entropy_stabilized
+                    if 'entropy_width' in diagnostics_group:
+                        stabilization_history['final_entropy_ci_width'] = float(diagnostics_group['entropy_width'])
+                        stabilization_history['final_relative_change'] = float(diagnostics_group.get('relative_change', 0))
+                        stabilization_history['final_stabilization_threshold'] = float(diagnostics_group.get('stabilization_threshold', 0.002))
+
             # TIMING_TEST: Ordinal inference complete
             _ordinal_elapsed = time.perf_counter() - _ordinal_start
             logger.warning(f"🕐 TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")

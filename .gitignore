@@ -129,9 +129,9 @@ dmypy.json
 .pyre/
 
 # optstop specific
-*.log
+#*.log
 test_*.csv
-test_*.log
+#test_*.log
 
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE

@@ -69,7 +69,35 @@
         "n_samples": 10,
         "final_ci_width": null,
         "final_slope": null,
-        "n_group_checks": 0
+        "n_group_checks": 0,
+        "final_modal_ci_width": 0.0,
+        "final_modal_ci": [
+          0.9,
+          0.9
+        ],
+        "final_entropy": 1.3377128213934517,
+        "final_entropy_threshold": 1.5,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": 1
+      }
+    },
+    "ordinal_glossary": {
+      "modal_ci_narrow_validated": {
+        "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+        "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+        "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+      },
+      "entropy_stabilized": {
+        "description": "Distribution entropy converged, indicating stable ordinal estimates",
+        "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+        "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+      },
+      "continue_insufficient_history": {
+        "description": "Need more epochs to assess stabilization",
+        "interpretation": "Collecting more data to establish convergence pattern",
+        "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
       }
     }
   }

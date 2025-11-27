@@ -31,20 +31,20 @@
     ]
   },
   "execution": {
-    "init_time_sec": 5.936622619628906e-05,
-    "run_time_sec": 43360.548022031784,
-    "total_time_sec": 43360.59354805946,
-    "trial_count": 2772,
+    "init_time_sec": 7.176399230957031e-05,
+    "run_time_sec": 27211.758682727814,
+    "total_time_sec": 27211.789398431778,
+    "trial_count": 2435,
     "total_planned": 5000,
-    "stopped_samples": 248
+    "stopped_samples": 285
   },
   "diagnostics": {
     "manager": "optstop",
     "total_planned_trials": 5000,
-    "total_ran": 2272,
-    "total_skipped": 2728,
-    "efficiency_percent": 54.56,
-    "stopped_samples_count": 12,
+    "total_ran": 1935,
+    "total_skipped": 3065,
+    "efficiency_percent": 61.3,
+    "stopped_samples_count": 11,
     "stopped_samples": [
       {
         "id": "sample_0100",
@@ -60,7 +60,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.4116683599097084,
+            "entropy_median": 0.3923695869731766,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -82,7 +82,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.4132241159462243,
+            "entropy_median": 0.36536383618131263,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -104,7 +104,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.39876261004634994,
+            "entropy_median": 0.42053442352404236,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -126,7 +126,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.3746014856373208,
+            "entropy_median": 0.4091032270693635,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -148,7 +148,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.3965528974918946,
+            "entropy_median": 0.3960828667394376,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -170,7 +170,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.3828896766362161,
+            "entropy_median": 0.41419199746405555,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -192,7 +192,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.41149476956263453,
+            "entropy_median": 0.40247134565361997,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -214,7 +214,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.4006796777510363,
+            "entropy_median": 0.39268325084591993,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -236,7 +236,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.4068990526480464,
+            "entropy_median": 0.38861531586105946,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -258,7 +258,7 @@
               0.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 0.39412906627033883,
+            "entropy_median": 0.3992013337614916,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -280,29 +280,7 @@
               1.0
             ],
             "modal_width": 0.0,
-            "entropy_median": 1.4539928222700176,
-            "entropy_threshold": 1.5,
-            "threshold": 0.15,
-            "entropy_epochs": 0,
-            "validated": true
-          }
-        }
-      },
-      {
-        "id": "sample_0493",
-        "epoch": 9,
-        "reason": "modal_ci_narrow_validated",
-        "metadata": {
-          "reason": "modal_ci_narrow_validated",
-          "epochs_used": 9,
-          "diagnostics": {
-            "pathway": 1,
-            "modal_ci": [
-              1.0,
-              1.0
-            ],
-            "modal_width": 0.0,
-            "entropy_median": 1.3382744187564475,
+            "entropy_median": 1.4609050274752502,
             "entropy_threshold": 1.5,
             "threshold": 0.15,
             "entropy_epochs": 0,
@@ -322,15 +300,16 @@
       "gpt-3.5-math_hard": 10,
       "claude-3-opus-coding_medium": 0,
       "gemini-pro-reasoning": 0,
-      "llama-70b-creative_writing": 2
+      "llama-70b-creative_writing": 1
     },
     "stopped_groupings": [
-      "gpt-3.5-math_hard",
-      "gpt-4-turbo-math_easy",
+      "claude-3-opus-coding_medium",
       "gemini-pro-reasoning",
-      "claude-3-opus-coding_medium"
+      "gpt-3.5-math_hard",
+      "llama-70b-creative_writing",
+      "gpt-4-turbo-math_easy"
     ],
-    "stopped_groupings_count": 4,
+    "stopped_groupings_count": 5,
     "decision_counters": {
       "gpt-4-turbo-math_easy": {
         "completed_samples": 190,
@@ -343,19 +322,19 @@
         "next_inference_at": 200
       },
       "claude-3-opus-coding_medium": {
-        "completed_samples": 1000,
-        "inference_calls": 40,
-        "next_inference_at": 1025
+        "completed_samples": 505,
+        "inference_calls": 20,
+        "next_inference_at": 525
       },
       "gemini-pro-reasoning": {
-        "completed_samples": 392,
-        "inference_calls": 15,
-        "next_inference_at": 400
+        "completed_samples": 865,
+        "inference_calls": 34,
+        "next_inference_at": 875
       },
       "llama-70b-creative_writing": {
-        "completed_samples": 1000,
-        "inference_calls": 40,
-        "next_inference_at": 1025
+        "completed_samples": 685,
+        "inference_calls": 27,
+        "next_inference_at": 700
       }
     },
     "stabilization_histories": {
@@ -372,19 +351,19 @@
         "n_group_checks": 0
       },
       "claude-3-opus-coding_medium": {
-        "n_samples": 100,
+        "n_samples": 45,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0
       },
       "gemini-pro-reasoning": {
-        "n_samples": 33,
+        "n_samples": 85,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0
       },
       "llama-70b-creative_writing": {
-        "n_samples": 100,
+        "n_samples": 65,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0
@@ -402,12 +381,13 @@
     "pattern_count": 3
   },
   "group_level_stopping": {
-    "group_level_stopping_events": 4,
+    "group_level_stopping_events": 5,
     "stopped_groupings": [
       "Stopped grouping 'gpt-4-turbo-math_easy' after 10 samples: modal_ci_narrow_validated (no metrics)",
       "Stopped grouping 'gpt-3.5-math_hard' after 10 samples: modal_ci_narrow_validated (no metrics)",
-      "Stopped grouping 'claude-3-opus-coding_medium' after 100 samples: entropy_stabilized (no metrics)",
-      "Stopped grouping 'gemini-pro-reasoning' after 33 samples: entropy_stabilized (no metrics)"
+      "Stopped grouping 'claude-3-opus-coding_medium' after 45 samples: entropy_stabilized (no metrics)",
+      "Stopped grouping 'gemini-pro-reasoning' after 85 samples: entropy_stabilized (no metrics)",
+      "Stopped grouping 'llama-70b-creative_writing' after 65 samples: entropy_stabilized (no metrics)"
     ],
     "used_group_level_stopping": true
   }

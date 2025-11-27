@@ -31,20 +31,20 @@
     ]
   },
   "execution": {
-    "init_time_sec": 4.649162292480469e-05,
-    "run_time_sec": 447.91467809677124,
-    "total_time_sec": 447.9247019290924,
-    "trial_count": 2276,
+    "init_time_sec": 4.792213439941406e-05,
+    "run_time_sec": 477.5817096233368,
+    "total_time_sec": 477.59066939353943,
+    "trial_count": 2524,
     "total_planned": 5000,
-    "stopped_samples": 304
+    "stopped_samples": 276
   },
   "diagnostics": {
     "manager": "optstop",
     "total_planned_trials": 5000,
-    "total_ran": 1776,
-    "total_skipped": 3224,
-    "efficiency_percent": 64.48,
-    "stopped_samples_count": 28,
+    "total_ran": 2024,
+    "total_skipped": 2976,
+    "efficiency_percent": 59.52,
+    "stopped_samples_count": 27,
     "stopped_samples": [
       {
         "id": "sample_0000",
@@ -52,8 +52,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.8599098551309563,
-          "ci_width_normalized": 0.08599098551309563,
+          "ci_width": 0.8779974119352598,
+          "ci_width_normalized": 0.08779974119352599,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -68,8 +68,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.5795880845668702,
-          "ci_width_normalized": 0.057958808456687015,
+          "ci_width": 0.5788436700555977,
+          "ci_width_normalized": 0.05788436700555977,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -84,8 +84,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.158750899562495,
-          "ci_width_normalized": 0.11587508995624951,
+          "ci_width": 1.1432982833017142,
+          "ci_width_normalized": 0.11432982833017143,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -100,8 +100,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.3211499954813277,
-          "ci_width_normalized": 0.13211499954813277,
+          "ci_width": 1.3317340616112503,
+          "ci_width_normalized": 0.13317340616112502,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -116,8 +116,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.8610176204415954,
-          "ci_width_normalized": 0.08610176204415954,
+          "ci_width": 0.874856285299046,
+          "ci_width_normalized": 0.0874856285299046,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -132,8 +132,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.6879632225051164,
-          "ci_width_normalized": 0.06879632225051165,
+          "ci_width": 0.6816760057115765,
+          "ci_width_normalized": 0.06816760057115764,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -148,8 +148,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.7790495361938525,
-          "ci_width_normalized": 0.07790495361938525,
+          "ci_width": 0.7938868512073061,
+          "ci_width_normalized": 0.0793886851207306,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -164,8 +164,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.2765898687263988,
-          "ci_width_normalized": 0.12765898687263988,
+          "ci_width": 1.273451185455949,
+          "ci_width_normalized": 0.12734511854559488,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -180,8 +180,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.2980029937960236,
-          "ci_width_normalized": 0.12980029937960236,
+          "ci_width": 1.3173504871474595,
+          "ci_width_normalized": 0.13173504871474595,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -196,8 +196,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.131839214478859,
-          "ci_width_normalized": 0.11318392144788589,
+          "ci_width": 1.1340699278976523,
+          "ci_width_normalized": 0.11340699278976522,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -420,8 +420,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.4546685366142347,
-          "ci_width_normalized": 0.14546685366142348,
+          "ci_width": 1.4137935785638325,
+          "ci_width_normalized": 0.14137935785638325,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -436,8 +436,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.4518531122930955,
-          "ci_width_normalized": 0.14518531122930955,
+          "ci_width": 1.4502793056863101,
+          "ci_width_normalized": 0.145027930568631,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -452,8 +452,8 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 0.9253494330366108,
-          "ci_width_normalized": 0.09253494330366108,
+          "ci_width": 0.9155581235365666,
+          "ci_width_normalized": 0.09155581235365666,
           "threshold": 0.15,
           "epochs_used": 9,
           "bounds": {
@@ -468,26 +468,10 @@
         "reason": "continuous_bounded_ci_width",
         "metadata": {
           "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.0660283094329088,
-          "ci_width_normalized": 0.10660283094329089,
+          "ci_width": 1.0739893181292688,
+          "ci_width_normalized": 0.10739893181292688,
           "threshold": 0.15,
           "epochs_used": 4,
-          "bounds": {
-            "lower": 0.0,
-            "upper": 10
-          }
-        }
-      },
-      {
-        "id": "sample_0214",
-        "epoch": 9,
-        "reason": "continuous_bounded_ci_width",
-        "metadata": {
-          "reason": "continuous_bounded_ci_width",
-          "ci_width": 1.4906073452607345,
-          "ci_width_normalized": 0.14906073452607344,
-          "threshold": 0.15,
-          "epochs_used": 9,
           "bounds": {
             "lower": 0.0,
             "upper": 10
@@ -504,14 +488,14 @@
     "stopped_samples_per_grouping": {
       "gpt-4-turbo-math_easy": 10,
       "gpt-3.5-math_hard": 13,
-      "claude-3-opus-coding_medium": 5,
+      "claude-3-opus-coding_medium": 4,
       "gemini-pro-reasoning": 0,
       "llama-70b-creative_writing": 0
     },
     "stopped_groupings": [
-      "gpt-3.5-math_hard",
+      "llama-70b-creative_writing",
       "gpt-4-turbo-math_easy",
-      "gemini-pro-reasoning",
+      "gpt-3.5-math_hard",
       "claude-3-opus-coding_medium"
     ],
     "stopped_groupings_count": 4,
@@ -532,74 +516,71 @@
         "next_inference_at": 275
       },
       "gemini-pro-reasoning": {
-        "completed_samples": 617,
-        "inference_calls": 24,
-        "next_inference_at": 625
-      },
-      "llama-70b-creative_writing": {
         "completed_samples": 1000,
         "inference_calls": 40,
         "next_inference_at": 1025
+      },
+      "llama-70b-creative_writing": {
+        "completed_samples": 865,
+        "inference_calls": 34,
+        "next_inference_at": 875
       }
     },
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
         "n_samples": 10,
-        "final_ci_width": 0.07859057195896035,
+        "final_ci_width": 0.07289383816422124,
         "final_slope": null,
-        "n_group_checks": 4
+        "n_group_checks": 1
       },
       "gpt-3.5-math_hard": {
         "n_samples": 13,
-        "final_ci_width": 0.007698225578859038,
+        "final_ci_width": 0.0074620241476640314,
         "final_slope": null,
-        "n_group_checks": 5
+        "n_group_checks": 2
       },
       "claude-3-opus-coding_medium": {
         "n_samples": 18,
-        "final_ci_width": 0.09849729784048944,
+        "final_ci_width": 0.09777433679324332,
         "final_slope": null,
-        "n_group_checks": 7
+        "n_group_checks": 4
       },
       "gemini-pro-reasoning": {
-        "n_samples": 58,
-        "final_ci_width": 0.1495576391010287,
-        "final_slope": 0.0005001487166124718,
-        "n_group_checks": 21
+        "n_samples": 100,
+        "final_ci_width": 0.14083428687026917,
+        "final_slope": -0.0006510435902882403,
+        "n_group_checks": 37
       },
       "llama-70b-creative_writing": {
-        "n_samples": 100,
-        "final_ci_width": 0.24336190140422453,
-        "final_slope": 0.0011461600945401776,
-        "n_group_checks": 37
+        "n_samples": 85,
+        "final_ci_width": 0.24574940927790911,
+        "final_slope": -2.9189362001710676e-05,
+        "n_group_checks": 31
       }
     }
   },
   "routing_verification": {
     "expected_type": "CONTINUOUS",
-    "verified": false,
-    "found_patterns": [],
-    "pattern_count": 0
+    "verified": true,
+    "found_patterns": [
+      "CONTINUOUS_BOUNDED",
+      "Processing grouping",
+      "Continuous PyMC MCMC sampling",
+      "Continuous group inference"
+    ],
+    "pattern_count": 4
   },
   "group_level_stopping": {
-    "group_level_stopping_events": 16,
+    "group_level_stopping_events": 8,
     "stopped_groupings": [
-      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0758 < 0.1",
-      "Stopped grouping 'gpt-4-turbo-math_easy' after 10 samples: continuous_hierarchical_ci_width (CI width=0.7583, effective width=0.0758, threshold=0.1)",
-      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0752 < 0.1",
-      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0712 < 0.1",
-      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0786 < 0.1",
-      "Stopping grouping 'gpt-3.5-math_hard': Hierarchical CI effective_width 0.0735 < 0.1",
-      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: continuous_hierarchical_ci_width (CI width=0.0735, effective width=0.0735, threshold=0.1)",
-      "Stopping grouping 'gpt-3.5-math_hard': Hierarchical CI effective_width 0.0766 < 0.1",
+      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0729 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 10 samples: continuous_hierarchical_ci_width (CI width=0.7289, effective width=0.0729, threshold=0.1)",
       "Stopping grouping 'gpt-3.5-math_hard': Hierarchical CI effective_width 0.0746 < 0.1",
-      "Stopping grouping 'gpt-3.5-math_hard': Hierarchical CI effective_width 0.0770 < 0.1",
-      "Stopping grouping 'claude-3-opus-coding_medium': Hierarchical CI effective_width 0.0992 < 0.1",
-      "Stopped grouping 'claude-3-opus-coding_medium' after 18 samples: continuous_hierarchical_ci_width (CI width=0.9918, effective width=0.0992, threshold=0.1)",
-      "Stopping grouping 'claude-3-opus-coding_medium': Hierarchical CI effective_width 0.0982 < 0.1",
-      "Stopping grouping 'claude-3-opus-coding_medium': Hierarchical CI effective_width 0.0985 < 0.1",
-      "Stopping grouping 'gemini-pro-reasoning' via hierarchical continuous stabilization: slope -0.000017",
-      "Stopped grouping 'gemini-pro-reasoning' after 58 samples: continuous_hierarchical_stabilization (slope=-0.000017, slope threshold=0.000050)"
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: continuous_hierarchical_ci_width (CI width=0.0746, effective width=0.0746, threshold=0.1)",
+      "Stopping grouping 'claude-3-opus-coding_medium': Hierarchical CI effective_width 0.0978 < 0.1",
+      "Stopped grouping 'claude-3-opus-coding_medium' after 18 samples: continuous_hierarchical_ci_width (CI width=0.9777, effective width=0.0978, threshold=0.1)",
+      "Stopping grouping 'llama-70b-creative_writing' via hierarchical continuous stabilization: slope -0.000029",
+      "Stopped grouping 'llama-70b-creative_writing' after 85 samples: continuous_hierarchical_stabilization (slope=-0.000029, slope threshold=0.000050)"
     ],
     "used_group_level_stopping": true
   }
