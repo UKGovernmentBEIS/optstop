@@ -205,6 +205,16 @@ class OptimalStoppingManager(EarlyStopping):
         # Stabilization histories per grouping
         self._stabilization_histories: dict[str, dict[str, list[float]]] = {}
 
+        # PyMC model caches per grouping (OPTIMIZATION #2)
+        # Persists PyMC model compilation across inference calls to avoid recompilation
+        # Separate caches for item-level and group-level models
+        self._binary_item_model_caches: dict[str, dict[str, Any]] = {}
+        self._binary_group_model_caches: dict[str, dict[str, Any]] = {}
+        self._ordinal_item_model_caches: dict[str, dict[str, Any]] = {}
+        self._ordinal_group_model_caches: dict[str, dict[str, Any]] = {}
+        self._continuous_item_model_caches: dict[str, dict[str, Any]] = {}
+        self._continuous_group_model_caches: dict[str, dict[str, Any]] = {}
+
         # Initialize dedicated executor for inference operations
         # Uses max_workers=1 to ensure sequential inference per manager
         # (PyMC creates its own multiprocessing pool internally with 4 chains)
@@ -670,6 +680,14 @@ class OptimalStoppingManager(EarlyStopping):
         self._stopped_groupings = set()
         self._schedule_cache = {}
 
+        # Reset all PyMC model caches (OPTIMIZATION #2)
+        self._binary_item_model_caches = {}
+        self._binary_group_model_caches = {}
+        self._ordinal_item_model_caches = {}
+        self._ordinal_group_model_caches = {}
+        self._continuous_item_model_caches = {}
+        self._continuous_group_model_caches = {}
+
         logger.info(
             f"Initialized optimal stopping dataset with {len(self.compiled_dataset)} "
             f"planned trials ({len(samples)} samples × {epochs} epochs)"
@@ -890,11 +908,18 @@ class OptimalStoppingManager(EarlyStopping):
             f"Grouping '{grouping_name}' counter: {self._decision_counters[grouping_name]}"
         )
 
-        # Step 7: Check if we should run inference for this grouping
+        # Step 7: Check if grouping has already stopped (OPTIMIZATION #1)
+        if grouping_name in self._stopped_groupings:
+            logger.debug(
+                f"Skipping inference for '{grouping_name}' - grouping already stopped"
+            )
+            return
+
+        # Step 8: Check if we should run inference for this grouping
         if self._decision_counters[grouping_name] % self.reanalysis_interval != 0:
             return
 
-        # Step 8: Run optimal stopping inference for this grouping
+        # Step 9: Run optimal stopping inference for this grouping
         await self._run_stopping_inference(grouping_values)
 
     async def _run_stopping_inference(
@@ -956,6 +981,30 @@ class OptimalStoppingManager(EarlyStopping):
 
         stabilization_history = self._stabilization_histories.get(grouping_name, None)
 
+        # Get or initialize all PyMC model caches for this grouping (OPTIMIZATION #2)
+        # Separate caches for item-level and group-level models across all pathways
+        if not hasattr(self, '_binary_item_model_caches'):
+            self._binary_item_model_caches = {}
+        if not hasattr(self, '_binary_group_model_caches'):
+            self._binary_group_model_caches = {}
+        if not hasattr(self, '_ordinal_item_model_caches'):
+            self._ordinal_item_model_caches = {}
+        if not hasattr(self, '_ordinal_group_model_caches'):
+            self._ordinal_group_model_caches = {}
+        if not hasattr(self, '_continuous_item_model_caches'):
+            self._continuous_item_model_caches = {}
+        if not hasattr(self, '_continuous_group_model_caches'):
+            self._continuous_group_model_caches = {}
+
+        # Retrieve caches for this grouping
+        model_caches = {
+            'binary_item': self._binary_item_model_caches.get(grouping_name, {}),
+            'binary_group': self._binary_group_model_caches.get(grouping_name, {}),
+            'ordinal_item': self._ordinal_item_model_caches.get(grouping_name, {}),
+            'ordinal_group': self._ordinal_group_model_caches.get(grouping_name, {}),
+            'continuous_item': self._continuous_item_model_caches.get(grouping_name, {}),
+            'continuous_group': self._continuous_group_model_caches.get(grouping_name, {})
+        }
 
         ## MAJOR FLAG: This is where I feed relevant GPU configuration into sampling_kwargs for optimal_stopping_live_single().
         ## We may want to fix this specifically based on inspect_ai runtime environment.
@@ -1004,7 +1053,8 @@ class OptimalStoppingManager(EarlyStopping):
                 ordinal_max_score=self.ordinal_max_score,
                 ordinal_inference=self.ordinal_inference,
                 entropy_threshold=1.5,  # Could be added as init parameter if needed
-                sampling_kwargs=sampling_kwargs
+                sampling_kwargs=sampling_kwargs,
+                model_caches=model_caches  # OPTIMIZATION #2: Persist all PyMC models
             )
 
             result = await loop.run_in_executor(
@@ -1041,6 +1091,16 @@ class OptimalStoppingManager(EarlyStopping):
 
         # Update stored stabilization history
         self._stabilization_histories[grouping_name] = result['stabilization_history']
+
+        # Update stored model caches (OPTIMIZATION #2)
+        if 'model_caches' in result:
+            returned_caches = result['model_caches']
+            self._binary_item_model_caches[grouping_name] = returned_caches.get('binary_item', {})
+            self._binary_group_model_caches[grouping_name] = returned_caches.get('binary_group', {})
+            self._ordinal_item_model_caches[grouping_name] = returned_caches.get('ordinal_item', {})
+            self._ordinal_group_model_caches[grouping_name] = returned_caches.get('ordinal_group', {})
+            self._continuous_item_model_caches[grouping_name] = returned_caches.get('continuous_item', {})
+            self._continuous_group_model_caches[grouping_name] = returned_caches.get('continuous_group', {})
 
         # Initialize stopped sample tracking for this grouping if needed
         if grouping_name not in self._stopped_sample_ids:

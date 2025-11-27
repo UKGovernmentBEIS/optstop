@@ -20,9 +20,9 @@
     "min_samples_per_grouping": 10
   },
   "execution": {
-    "init_time_sec": 4.9591064453125e-05,
-    "run_time_sec": 497.82956075668335,
-    "total_time_sec": 497.84161019325256,
+    "init_time_sec": 4.673004150390625e-05,
+    "run_time_sec": 515.061292886734,
+    "total_time_sec": 515.072695016861,
     "trial_count": 3604,
     "total_planned": 5000,
     "stopped_samples": 156
@@ -49,8 +49,8 @@
       "llama-70b-creative_writing": 0
     },
     "stopped_groupings": [
-      "gpt-4-turbo-math_easy",
-      "gpt-3.5-math_hard"
+      "gpt-3.5-math_hard",
+      "gpt-4-turbo-math_easy"
     ],
     "stopped_groupings_count": 2,
     "decision_counters": {
@@ -83,32 +83,32 @@
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
         "n_samples": 33,
-        "final_ci_width": 0.09752935568765342,
-        "final_slope": -0.0005221933281688961,
-        "n_group_checks": 10
+        "final_ci_width": 0.09614705395542,
+        "final_slope": -0.0023382259015397935,
+        "n_group_checks": 12
       },
       "gpt-3.5-math_hard": {
         "n_samples": 13,
-        "final_ci_width": 0.09042009368827064,
+        "final_ci_width": 0.09194667092999387,
         "final_slope": null,
-        "n_group_checks": 2
+        "n_group_checks": 5
       },
       "claude-3-opus-coding_medium": {
         "n_samples": 100,
-        "final_ci_width": 0.30792698765448456,
-        "final_slope": -0.0021745837398176398,
+        "final_ci_width": 0.2929148667248076,
+        "final_slope": -0.004255117295025309,
         "n_group_checks": 37
       },
       "gemini-pro-reasoning": {
         "n_samples": 100,
-        "final_ci_width": 0.40964163417954996,
-        "final_slope": -0.0009272747696927431,
+        "final_ci_width": 0.43593975164137955,
+        "final_slope": -0.0006143992733771002,
         "n_group_checks": 37
       },
       "llama-70b-creative_writing": {
         "n_samples": 100,
-        "final_ci_width": 0.4812720126669216,
-        "final_slope": -0.0008917647919579766,
+        "final_ci_width": 0.48130905793770384,
+        "final_slope": 0.0005516435587896912,
         "n_group_checks": 37
       }
     }
@@ -124,12 +124,16 @@
     "pattern_count": 3
   },
   "group_level_stopping": {
-    "group_level_stopping_events": 4,
+    "group_level_stopping_events": 8,
     "stopped_groupings": [
-      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0975 < 0.1",
-      "Stopped grouping 'gpt-4-turbo-math_easy' after 33 samples: ci_width (CI width=0.0975, effective width=0.0975, threshold=0.1)",
-      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0904 < 0.1",
-      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0904, effective width=0.0904, threshold=0.1)"
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0942 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 33 samples: ci_width (CI width=0.0942, effective width=0.0942, threshold=0.1)",
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0961 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0929 < 0.1",
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0929, effective width=0.0929, threshold=0.1)",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0970 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0968 < 0.1",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0919 < 0.1"
     ],
     "used_group_level_stopping": true
   }

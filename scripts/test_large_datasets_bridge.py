@@ -139,9 +139,10 @@ def verify_routing(log_path: Path, expected_type: str) -> Dict[str, Any]:
             "Ordinal group inference took"
         ],
         'CONTINUOUS': [
-            "hierarchical Beta model",
-            "continuous bounded",
-            "Beta inference"
+            "CONTINUOUS_BOUNDED",
+            "Processing grouping",
+            "Continuous PyMC MCMC sampling",
+            "Continuous group inference"
         ]
     }
 

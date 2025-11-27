@@ -1,0 +1,27 @@
+# MANIFEST.in - Controls which files are included in source distributions
+
+# Include essential package files
+include README.md
+include CHANGELOG.md
+include CONTRIBUTING.md
+include LICENSE
+
+# Exclude development and testing artifacts
+exclude *.log
+exclude .coverage
+exclude .pytest_cache
+
+# Exclude development documentation folder
+prune Q4_Development_Files
+
+# Exclude test outputs and data (if not needed in distribution)
+prune test_outputs
+prune test_data
+
+# Exclude virtual environment
+prune venv
+
+# Exclude development scripts in root
+global-exclude test_*.py
+global-exclude *_test.py
+global-exclude *_debug.py

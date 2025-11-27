@@ -1099,7 +1099,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 entropy_threshold=entropy_threshold,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
-                                model_cache=ordinal_model_cache,
+                                model_cache=ordinal_item_cache,
                                 compute_kwargs=sampling_kwargs
                             )
                             # Use modal width for CI record tracking
@@ -1634,7 +1634,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             cred_level=cred_level,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
-                            model_cache=ordinal_model_cache,
+                            model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
                         if width < delta_item:
@@ -1653,7 +1653,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             entropy_threshold=entropy_threshold,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
-                            model_cache=ordinal_model_cache,
+                            model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
                         if should_stop:
@@ -1765,7 +1765,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             cred_level=cred_level,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
-                            model_cache=ordinal_model_cache,
+                            model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
                         if width < delta_cap:
@@ -1784,7 +1784,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             entropy_threshold=entropy_threshold,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
-                            model_cache=ordinal_model_cache,
+                            model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
                         if should_stop_group:
@@ -2073,7 +2073,8 @@ def optimal_stopping_live_single(
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
     entropy_threshold: float = 1.5,
-    sampling_kwargs: Optional[Dict[str, Any]] = None
+    sampling_kwargs: Optional[Dict[str, Any]] = None,
+    model_caches: Optional[Dict[str, Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     # TIMING_TEST: Start overall function timing
     import time
@@ -2105,6 +2106,10 @@ def optimal_stopping_live_single(
         entropy_threshold: Entropy threshold for hybrid mode validation
         sampling_kwargs: Pre-configured PyMC sampling kwargs (chains, draws, etc.)
             If None, will be auto-configured based on available resources.
+        model_caches: Dict of caches for PyMC model reuse across all pathways (OPTIMIZATION #2)
+            Keys: 'binary_item', 'binary_group', 'ordinal_item', 'ordinal_group',
+                  'continuous_item', 'continuous_group'
+            Persists model compilation across inference calls. If None, creates new caches.
 
     Returns:
         Dict with:
@@ -2112,6 +2117,7 @@ def optimal_stopping_live_single(
             - 'stop_sample_ids': List of "grouping_sample_id" strings to stop
             - 'stop_this_grouping': List containing grouping name if should stop (else empty)
             - 'stabilization_history': Updated history dict with new values appended
+            - 'model_caches': Updated cache dict (pass to next call for persistence)
             - 'metadata': Dict with stopping reasons, basis values, and diagnostics
 
     Example:
@@ -2197,8 +2203,25 @@ def optimal_stopping_live_single(
 
     item_ids = sorted(df_work['sample_id_num'].unique())
 
-    # Initialize ordinal-specific variables
-    ordinal_model_cache = {}
+    # Initialize model caches (OPTIMIZATION #2: Extract from passed-in dict)
+    if model_caches is None:
+        model_caches = {
+            'binary_item': {},
+            'binary_group': {},
+            'ordinal_item': {},
+            'ordinal_group': {},
+            'continuous_item': {},
+            'continuous_group': {}
+        }
+
+    # Extract individual caches for easier access
+    binary_item_cache = model_caches.get('binary_item', {})
+    binary_group_cache = model_caches.get('binary_group', {})
+    ordinal_item_cache = model_caches.get('ordinal_item', {})
+    ordinal_group_cache = model_caches.get('ordinal_group', {})
+    continuous_item_cache = model_caches.get('continuous_item', {})
+    continuous_group_cache = model_caches.get('continuous_group', {})
+
     entropy_history_per_item = {}
 
     # PyMC models for group-level hierarchical inference
@@ -2207,17 +2230,37 @@ def optimal_stopping_live_single(
     if score_type == 'binary':
         # === BINARY HIERARCHICAL MODEL ===
         # Binomial likelihood with logit-scale hierarchical structure
-        with pm.Model() as model:
-            mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
-            sigma_group = pm.Exponential("sigma_group", lam=1.0)
-            successes_data = pm.Data("successes", np.array([0]))
-            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-            trials_data = pm.Data("trials", np.array([1]))
-            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-            mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-            mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-            Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-            obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+        # OPTIMIZATION #2: Cache model to avoid recompilation
+        # PyMC shapes are fixed at creation, so validate n_items hasn't changed
+        current_n_items = len(item_ids)
+
+        if 'model' in binary_group_cache:
+            cached_n_items = binary_group_cache.get('n_items_last', 0)
+            if cached_n_items == current_n_items:
+                # Safe to reuse - n_items unchanged
+                model = binary_group_cache['model']
+                logger.info(f"✓ CACHE HIT: Reusing binary group model for '{grouping_name}' (n_items={current_n_items})")
+            else:
+                # Must recreate - n_items changed (PyMC shapes are immutable)
+                logger.info(f"✗ CACHE INVALIDATED: Binary model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")
+                binary_group_cache.clear()  # Clear invalid cache
+
+        if 'model' not in binary_group_cache:
+            # Create new model
+            with pm.Model() as model:
+                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)
+                successes_data = pm.Data("successes", np.array([0]))
+                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                trials_data = pm.Data("trials", np.array([1]))
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+            binary_group_cache['model'] = model
+            binary_group_cache['n_items_last'] = current_n_items  # Track for validation
+            logger.info(f"✗ CACHE MISS: Created new binary group model for '{grouping_name}' (n_items={current_n_items})")
 
     elif score_type in ['continuous_01', 'continuous_bounded']:
         # === CONTINUOUS HIERARCHICAL MODEL (AGGREGATED) ===
@@ -2243,74 +2286,93 @@ def optimal_stopping_live_single(
         # This is analogous to how Binary uses aggregated Binomial (successes/trials)
         # rather than individual 0/1 observations.
         #
-        with pm.Model() as continuous_model:
-            # Group-level parameters (logit scale for mean)
-            # mu_group: centered at 0 → logit^-1(0) = 0.5 on probability scale
-            # Note: For high-performing scenarios (typical p > 0.7), consider mu=1.5
-            # which corresponds to logit^-1(1.5) ≈ 0.82
-            mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+        # OPTIMIZATION #2: Cache model to avoid recompilation
+        # PyMC shapes are fixed at creation, so validate n_items hasn't changed
+        current_n_items = len(item_ids)
 
-            # sigma_group: between-item variability (logit scale)
-            # lam=1.0 → mean=1.0 (moderate between-item variation)
-            # For similar items, consider lam=2.0 → mean=0.5 (tighter)
-            sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
+        if 'model' in continuous_group_cache:
+            cached_n_items = continuous_group_cache.get('n_items_last', 0)
+            if cached_n_items == current_n_items:
+                # Safe to reuse - n_items unchanged
+                continuous_model = continuous_group_cache['model']
+                logger.info(f"✓ CACHE HIT: Reusing continuous group model for '{grouping_name}' (n_items={current_n_items})")
+            else:
+                # Must recreate - n_items changed (PyMC shapes are immutable)
+                logger.info(f"✗ CACHE INVALIDATED: Continuous model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")
+                continuous_group_cache.clear()  # Clear invalid cache
 
-            # Group-level precision (concentration parameter for Beta distributions)
-            # Controls typical within-item variance: higher phi = less variance
-            # FIXED: Changed from beta=0.1 (mean=20, too tight for aggregated data)
-            # to beta=1.0 (mean=2, more appropriate for aggregated sample means)
-            #
-            # For Beta(mu, phi):
-            #   SD = sqrt(mu*(1-mu)/(phi+1))
-            #   phi=2: SD ≈ 0.29 for mu=0.8 (reasonable for aggregated scores)
-            #   phi=20: SD ≈ 0.087 for mu=0.8 (too tight!)
-            phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
+        if 'model' not in continuous_group_cache:
+            with pm.Model() as continuous_model:
+                # Group-level parameters (logit scale for mean)
+                # mu_group: centered at 0 → logit^-1(0) = 0.5 on probability scale
+                # Note: For high-performing scenarios (typical p > 0.7), consider mu=1.5
+                # which corresponds to logit^-1(1.5) ≈ 0.82
+                mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
 
-            # Mutable data containers (updated during group-level inference)
-            n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                # sigma_group: between-item variability (logit scale)
+                # lam=1.0 → mean=1.0 (moderate between-item variation)
+                # For similar items, consider lam=2.0 → mean=0.5 (tighter)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
 
-            # Item-level means (hierarchical, logit scale)
-            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)  # Item deviations from group
-            mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
-            mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                       pm.math.clip(mu_item_logit, -6.0, 6.0))
-            mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))  # [0,1]
+                # Group-level precision (concentration parameter for Beta distributions)
+                # Controls typical within-item variance: higher phi = less variance
+                # FIXED: Changed from beta=0.1 (mean=20, too tight for aggregated data)
+                # to beta=1.0 (mean=2, more appropriate for aggregated sample means)
+                #
+                # For Beta(mu, phi):
+                #   SD = sqrt(mu*(1-mu)/(phi+1))
+                #   phi=2: SD ≈ 0.29 for mu=0.8 (reasonable for aggregated scores)
+                #   phi=20: SD ≈ 0.087 for mu=0.8 (too tight!)
+                phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
 
-            # Item-level precision (allows heterogeneity in within-item variance)
-            # z_phi allows items to have different precisions around group mean
-            z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items)
-            log_phi_item = pm.Deterministic("log_phi_item",
-                                            pm.math.log(phi_group) + z_phi * 0.5)
-            phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+                # Mutable data containers (updated during group-level inference)
+                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
 
-            # === AGGREGATED OBSERVATION STRUCTURE ===
-            # Instead of individual observations, use item-level aggregated statistics
-            # Data format:
-            #   item_means: [mean1, mean2, ..., mean50]  (observed sample means per item)
-            #   item_ns:    [n1, n2, ..., n50]           (sample sizes per item)
-            #
-            # Variance structure (data-dependent):
-            #   For Beta(mu, phi) distributed observations, sample mean has variance:
-            #   Var(mean) = mu*(1-mu) / (phi * n)
-            #
-            item_means = pm.Data("item_means", np.array([0.5]))  # Placeholder
-            item_ns = pm.Data("item_ns", np.array([10]))  # Placeholder
+                # Item-level means (hierarchical, logit scale)
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)  # Item deviations from group
+                mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                           pm.math.clip(mu_item_logit, -6.0, 6.0))
+                mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))  # [0,1]
 
-            # Compute observation SD for each item based on theoretical variance
-            # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
-            # Clip mu away from boundaries to avoid sqrt(0)
-            mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
-            obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
-                                 (phi_item * item_ns))
+                # Item-level precision (allows heterogeneity in within-item variance)
+                # z_phi allows items to have different precisions around group mean
+                z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items)
+                log_phi_item = pm.Deterministic("log_phi_item",
+                                                pm.math.log(phi_group) + z_phi * 0.5)
+                phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
 
-            # Normal likelihood on aggregated means
-            # Each item's observed mean ~ Normal(mu_item, obs_sd)
-            # This is analogous to Binary using Binomial(successes | n, p)
-            # rather than Bernoulli for each trial
-            obs = pm.Normal("obs",
-                           mu=mu_item,
-                           sigma=obs_sd,
-                           observed=item_means)
+                # === AGGREGATED OBSERVATION STRUCTURE ===
+                # Instead of individual observations, use item-level aggregated statistics
+                # Data format:
+                #   item_means: [mean1, mean2, ..., mean50]  (observed sample means per item)
+                #   item_ns:    [n1, n2, ..., n50]           (sample sizes per item)
+                #
+                # Variance structure (data-dependent):
+                #   For Beta(mu, phi) distributed observations, sample mean has variance:
+                #   Var(mean) = mu*(1-mu) / (phi * n)
+                #
+                item_means = pm.Data("item_means", np.array([0.5]))  # Placeholder
+                item_ns = pm.Data("item_ns", np.array([10]))  # Placeholder
+
+                # Compute observation SD for each item based on theoretical variance
+                # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
+                # Clip mu away from boundaries to avoid sqrt(0)
+                mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                     (phi_item * item_ns))
+
+                # Normal likelihood on aggregated means
+                # Each item's observed mean ~ Normal(mu_item, obs_sd)
+                # This is analogous to Binary using Binomial(successes | n, p)
+                # rather than Bernoulli for each trial
+                obs = pm.Normal("obs",
+                               mu=mu_item,
+                               sigma=obs_sd,
+                               observed=item_means)
+            continuous_group_cache['model'] = continuous_model
+            continuous_group_cache['n_items_last'] = current_n_items  # Track for validation
+            logger.info(f"✗ CACHE MISS: Created new continuous group model for '{grouping_name}' (n_items={current_n_items})")
 
     # Process each sample for sample-level stopping
     item_summaries = []
@@ -2381,7 +2443,7 @@ def optimal_stopping_live_single(
                     cred_level=cred_level,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    model_cache=ordinal_model_cache,
+                    model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
                 if width < delta_item:
@@ -2405,7 +2467,7 @@ def optimal_stopping_live_single(
                     entropy_threshold=entropy_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    model_cache=ordinal_model_cache,
+                    model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
                 if should_stop:
@@ -2615,7 +2677,7 @@ def optimal_stopping_live_single(
                     cred_level=cred_level,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    model_cache=ordinal_model_cache,
+                    model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
                 if width < delta_cap:
@@ -2639,7 +2701,7 @@ def optimal_stopping_live_single(
                     entropy_threshold=entropy_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    model_cache=ordinal_model_cache,
+                    model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
                 if should_stop_group:
@@ -2826,11 +2888,22 @@ def optimal_stopping_live_single(
     _function_elapsed = time.perf_counter() - _function_start_time
     logger.warning(f"🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
 
+    # Rebuild model_caches dict for return (OPTIMIZATION #2)
+    model_caches_out = {
+        'binary_item': binary_item_cache,
+        'binary_group': binary_group_cache,
+        'ordinal_item': ordinal_item_cache,
+        'ordinal_group': ordinal_group_cache,
+        'continuous_item': continuous_item_cache,
+        'continuous_group': continuous_group_cache
+    }
+
     return {
         'grouping': grouping_name,
         'stop_sample_ids': stop_sample_ids,
         'stop_this_grouping': stop_this_grouping,
         'stabilization_history': stabilization_history,
+        'model_caches': model_caches_out,  # OPTIMIZATION #2: Return all caches for persistence
         'metadata': metadata
     }
 
