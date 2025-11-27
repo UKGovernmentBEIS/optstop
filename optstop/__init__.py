@@ -1,4 +1,4 @@
-from .rule import optimal_stopping_posthoc, optimal_stopping_live, configure_optstop_logging
+from .rule import optimal_stopping_posthoc, optimal_stopping_live, optimal_stopping_live_single, configure_optstop_logging
 from .convergence import convergence_posthoc
 from . import gpu_utils
 from . import cleanup_utils
