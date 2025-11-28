@@ -1,5 +1,4 @@
 {
-  "test_date": "2025-11-28T17:47:31.691038",
   "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_1_binary_discrete.csv",
   "score_columns": [
     "score"
@@ -21,19 +20,20 @@
     "min_samples_per_grouping": 10
   },
   "execution": {
-    "init_time_sec": 6.413459777832031e-05,
-    "run_time_sec": 1281.8641936779022,
-    "total_time_sec": 1281.8745069503784,
-    "trial_count": 3604,
+    "init_time_sec": 5.173683166503906e-05,
+    "run_time_sec": 413.1502335071564,
+    "run_time_min": 6.885837225119273,
+    "total_time_sec": 413.1625452041626,
+    "trial_count": 3087,
     "total_planned": 5000,
-    "stopped_samples": 156
+    "stopped_samples": 213
   },
   "diagnostics": {
     "manager": "optstop",
     "total_planned_trials": 5000,
-    "total_ran": 3104,
-    "total_skipped": 1896,
-    "efficiency_percent": 37.92,
+    "total_ran": 2587,
+    "total_skipped": 2413,
+    "efficiency_percent": 48.26,
     "stopped_samples_count": 0,
     "stopped_samples": [],
     "grouping_columns": [
@@ -51,14 +51,15 @@
     },
     "stopped_groupings": [
       "gpt-4-turbo-math_easy",
+      "llama-70b-creative_writing",
       "gpt-3.5-math_hard"
     ],
-    "stopped_groupings_count": 2,
+    "stopped_groupings_count": 3,
     "decision_counters": {
       "gpt-4-turbo-math_easy": {
-        "completed_samples": 392,
-        "inference_calls": 15,
-        "next_inference_at": 400
+        "completed_samples": 415,
+        "inference_calls": 16,
+        "next_inference_at": 425
       },
       "gpt-3.5-math_hard": {
         "completed_samples": 212,
@@ -76,17 +77,17 @@
         "next_inference_at": 1025
       },
       "llama-70b-creative_writing": {
-        "completed_samples": 1000,
-        "inference_calls": 40,
-        "next_inference_at": 1025
+        "completed_samples": 460,
+        "inference_calls": 18,
+        "next_inference_at": 475
       }
     },
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
-        "n_samples": 33,
-        "final_ci_width": 0.09499634979666871,
-        "final_slope": -0.0003022599790208773,
-        "n_group_checks": 10,
+        "n_samples": 35,
+        "final_ci_width": 0.09442516249287902,
+        "final_slope": -0.001371613891617932,
+        "n_group_checks": 11,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
         "final_entropy": null,
@@ -98,7 +99,7 @@
       },
       "gpt-3.5-math_hard": {
         "n_samples": 13,
-        "final_ci_width": 0.09468807647165987,
+        "final_ci_width": 0.0931869505319582,
         "final_slope": null,
         "n_group_checks": 2,
         "final_modal_ci_width": null,
@@ -112,8 +113,8 @@
       },
       "claude-3-opus-coding_medium": {
         "n_samples": 100,
-        "final_ci_width": 0.31017955392143703,
-        "final_slope": -0.002547453749235187,
+        "final_ci_width": 0.3056230087270707,
+        "final_slope": -0.0034361659412828318,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -126,8 +127,8 @@
       },
       "gemini-pro-reasoning": {
         "n_samples": 100,
-        "final_ci_width": 0.4383482922092366,
-        "final_slope": 0.0008182410443196926,
+        "final_ci_width": 0.43906110043700125,
+        "final_slope": -0.0003443603202451926,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -139,10 +140,10 @@
         "ordinal_pathway": null
       },
       "llama-70b-creative_writing": {
-        "n_samples": 100,
-        "final_ci_width": 0.4703326580582743,
-        "final_slope": 0.0007498382339964807,
-        "n_group_checks": 37,
+        "n_samples": 40,
+        "final_ci_width": 0.4826430713276413,
+        "final_slope": 4.1151720861084406e-05,
+        "n_group_checks": 13,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
         "final_entropy": null,
@@ -164,60 +165,16 @@
     ],
     "pattern_count": 3
   },
-  "nutpie_environment": {
-    "nutpie_available": true,
-    "nutpie_version": "0.16.4",
-    "detection_time": "2025-11-28T17:26:09.607841"
-  },
-  "sampler_selection": {
-    "nutpie_used": true,
-    "pymc_used": false,
-    "numpyro_used": false,
-    "nutpie_version": "0.16.4",
-    "sampler": "nutpie"
-  },
-  "inference_timing": {
-    "binary": {
-      "count": 123,
-      "total_sec": 1243.738,
-      "mean_sec": 10.11169105691057,
-      "min_sec": 7.764,
-      "max_sec": 14.746,
-      "times": [
-        12.398,
-        7.903,
-        7.799,
-        8.14,
-        7.951,
-        8.061,
-        8.072,
-        8.149,
-        8.486,
-        8.175
-      ]
-    }
-  },
-  "comparison": {
-    "comparison_available": true,
-    "baseline_date": "2025-11-28T16:08:46.371041",
-    "current_date": "2025-11-28T17:47:31.691038",
-    "runtime_comparison": {
-      "baseline_sec": 1286.9136235713959,
-      "current_sec": 1281.8641936779022,
-      "speedup": 1.0039391301499778,
-      "time_saved_sec": 5.049429893493652,
-      "percent_change": 0.3923674286297987
-    },
-    "efficiency_comparison": {
-      "baseline_trials_ran": 3604,
-      "current_trials_ran": 3604,
-      "trial_difference": 0
-    },
-    "nutpie_comparison": {
-      "baseline_nutpie": true,
-      "current_nutpie": true,
-      "baseline_sampler": "nutpie",
-      "current_sampler": "nutpie"
-    }
+  "group_level_stopping": {
+    "group_level_stopping_events": 6,
+    "stopped_groupings": [
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0944 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 35 samples: ci_width (CI width=0.0944, effective width=0.0944, threshold=0.1)",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0932 < 0.1",
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0932, effective width=0.0932, threshold=0.1)",
+      "Stopping grouping 'llama-70b-creative_writing' via stabilization: slope 0.000041",
+      "Stopped grouping 'llama-70b-creative_writing' after 40 samples: ci_stabilization (slope=0.000041, slope threshold=0.000050)"
+    ],
+    "used_group_level_stopping": true
   }
 }

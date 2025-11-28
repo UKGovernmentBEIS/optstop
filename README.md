@@ -531,10 +531,30 @@ optstop-live --csv current_data.csv \
 pip install .
 ```
 
+**Note**: Basic installation includes all core functionality. Ordinal inference will work but use slower PyMC default sampling (~2-3× slower than with performance extras).
+
+### Recommended: Performance Extras
+For optimal performance, especially with **ordinal scoring**, install with performance extras:
+```bash
+pip install .[performance]
+```
+
+This installs:
+- **JAX** (CPU backend): Enables fast ordinal inference (2-3× speedup)
+- **numpyro** (JAX-based sampler): Handles OrderedLogistic models efficiently
+
+**Performance impact:**
+- **Binary inference**: No difference (uses PyMC default for speed)
+- **Continuous inference**: No difference (uses PyMC default for speed)
+- **Ordinal inference**: ~2-3× faster with numpyro compared to PyMC default
+
 ### Installation with inspect_ai Integration
 For using optstop with inspect_ai evaluations:
 ```bash
 pip install .[inspect]
+
+# Or with performance extras (recommended for ordinal tasks):
+pip install .[inspect,performance]
 ```
 
 ### Installation with GPU Support
@@ -543,20 +563,27 @@ For GPU acceleration (requires NVIDIA GPU with CUDA support):
 pip install .[gpu]
 ```
 
-Or install JAX manually:
+Or install JAX with GPU support manually:
 ```bash
 pip install .
 pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 ```
 
+**GPU behavior:**
+- All inference types (binary, continuous, ordinal) use numpyro on GPU
+- Provides 2-4× speedup for typical workloads
+
 ### Combined Installation
 Install multiple extras at once:
 ```bash
-# inspect_ai + GPU support
-pip install .[inspect,gpu]
+# Recommended: performance + inspect_ai
+pip install .[inspect,performance]
+
+# Full GPU setup
+pip install .[gpu]
 
 # All features including development tools
-pip install .[inspect,gpu,dev]
+pip install .[inspect,performance,dev]
 ```
 
 ### Development Installation
@@ -566,6 +593,14 @@ pip install .[dev]
 ```
 
 This includes testing tools (pytest, pytest-asyncio), code formatting (black), linting (flake8), and type checking (mypy).
+
+### Installation Summary
+
+| Installation | Binary | Continuous | Ordinal | Use Case |
+|-------------|--------|------------|---------|----------|
+| `pip install .` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ⚠ Slower (PyMC default) | Basic usage, no ordinal tasks |
+| `pip install .[performance]` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ✓ Fast (numpyro, 2-3× faster) | **Recommended for ordinal tasks** |
+| `pip install .[gpu]` | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | GPU hardware available |
 
 ## Logging
 
