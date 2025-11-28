@@ -2185,7 +2185,8 @@ def optimal_stopping_live_single(
             gpu_available=gpu_available,
             gpu_backend=gpu_backend,
             num_parallel_tasks=1,
-            auto_decide=True
+            auto_decide=True,
+            score_type=score_type  # Pass score_type to disable nutpie for binary/continuous
         )
 
     # Initialize result structure

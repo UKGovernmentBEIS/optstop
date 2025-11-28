@@ -1,5 +1,5 @@
 {
-  "test_date": "2025-11-28T17:47:31.691038",
+  "test_date": "2025-11-28T16:08:46.371041",
   "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_1_binary_discrete.csv",
   "score_columns": [
     "score"
@@ -21,9 +21,9 @@
     "min_samples_per_grouping": 10
   },
   "execution": {
-    "init_time_sec": 6.413459777832031e-05,
-    "run_time_sec": 1281.8641936779022,
-    "total_time_sec": 1281.8745069503784,
+    "init_time_sec": 4.8160552978515625e-05,
+    "run_time_sec": 1286.9136235713959,
+    "total_time_sec": 1286.9276914596558,
     "trial_count": 3604,
     "total_planned": 5000,
     "stopped_samples": 156
@@ -84,8 +84,8 @@
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
         "n_samples": 33,
-        "final_ci_width": 0.09499634979666871,
-        "final_slope": -0.0003022599790208773,
+        "final_ci_width": 0.09762734374276649,
+        "final_slope": -0.0006363956427626984,
         "n_group_checks": 10,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -98,7 +98,7 @@
       },
       "gpt-3.5-math_hard": {
         "n_samples": 13,
-        "final_ci_width": 0.09468807647165987,
+        "final_ci_width": 0.09283029849883961,
         "final_slope": null,
         "n_group_checks": 2,
         "final_modal_ci_width": null,
@@ -112,8 +112,8 @@
       },
       "claude-3-opus-coding_medium": {
         "n_samples": 100,
-        "final_ci_width": 0.31017955392143703,
-        "final_slope": -0.002547453749235187,
+        "final_ci_width": 0.3033030437135913,
+        "final_slope": -0.002311102885912417,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -126,8 +126,8 @@
       },
       "gemini-pro-reasoning": {
         "n_samples": 100,
-        "final_ci_width": 0.4383482922092366,
-        "final_slope": 0.0008182410443196926,
+        "final_ci_width": 0.42640917627611524,
+        "final_slope": -0.0014757776811381781,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -140,8 +140,8 @@
       },
       "llama-70b-creative_writing": {
         "n_samples": 100,
-        "final_ci_width": 0.4703326580582743,
-        "final_slope": 0.0007498382339964807,
+        "final_ci_width": 0.44845244369501347,
+        "final_slope": -0.002924214854797792,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -167,7 +167,7 @@
   "nutpie_environment": {
     "nutpie_available": true,
     "nutpie_version": "0.16.4",
-    "detection_time": "2025-11-28T17:26:09.607841"
+    "detection_time": "2025-11-28T15:47:19.235685"
   },
   "sampler_selection": {
     "nutpie_used": true,
@@ -179,44 +179,44 @@
   "inference_timing": {
     "binary": {
       "count": 123,
-      "total_sec": 1243.738,
-      "mean_sec": 10.11169105691057,
-      "min_sec": 7.764,
-      "max_sec": 14.746,
+      "total_sec": 1248.313,
+      "mean_sec": 10.148886178861789,
+      "min_sec": 7.595,
+      "max_sec": 14.844,
       "times": [
-        12.398,
-        7.903,
-        7.799,
-        8.14,
-        7.951,
-        8.061,
-        8.072,
-        8.149,
-        8.486,
-        8.175
+        13.632,
+        7.595,
+        7.936,
+        7.834,
+        7.94,
+        8.285,
+        7.971,
+        8.131,
+        8.07,
+        8.125
       ]
     }
   },
   "comparison": {
     "comparison_available": true,
-    "baseline_date": "2025-11-28T16:08:46.371041",
-    "current_date": "2025-11-28T17:47:31.691038",
+    "baseline_date": "2025-11-28T14:44:56.744056",
+    "current_date": "2025-11-28T16:08:46.371041",
     "runtime_comparison": {
-      "baseline_sec": 1286.9136235713959,
-      "current_sec": 1281.8641936779022,
-      "speedup": 1.0039391301499778,
-      "time_saved_sec": 5.049429893493652,
-      "percent_change": 0.3923674286297987
+      "baseline_sec": 93.34264993667603,
+      "current_sec": 1286.9136235713959,
+      "speedup": 0.07253217949285119,
+      "time_saved_sec": -1193.5709736347198,
+      "percent_change": -1278.6984025463628
     },
     "efficiency_comparison": {
-      "baseline_trials_ran": 3604,
+      "baseline_trials_ran": 5000,
       "current_trials_ran": 3604,
-      "trial_difference": 0
+      "trial_difference": 1396
     },
     "nutpie_comparison": {
       "baseline_nutpie": true,
       "current_nutpie": true,
-      "baseline_sampler": "nutpie",
+      "baseline_sampler": "pymc",
       "current_sampler": "nutpie"
     }
   }

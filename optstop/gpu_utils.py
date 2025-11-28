@@ -675,7 +675,7 @@ def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool,
 
 
 def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend: str = 'cpu',
-                       num_parallel_tasks: int = 1, auto_decide: bool = True) -> Dict[str, Any]:
+                       num_parallel_tasks: int = 1, auto_decide: bool = True, score_type: Optional[str] = None) -> Dict[str, Any]:
     """
     Get sampling keyword arguments optimized for the available hardware and backend.
     Now includes intelligent GPU vs CPU decision-making based on workload.
@@ -686,6 +686,8 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         gpu_backend: GPU backend type ('jax-gpu', 'pytensor-gpu', 'cpu')
         num_parallel_tasks: Number of parallel tasks running (default: 1)
         auto_decide: If True, automatically decide whether to use GPU based on workload (default: True)
+        score_type: Type of inference ('binary', 'continuous_01', 'continuous_bounded', 'ordinal')
+                   Used to disable nutpie for binary/continuous due to compilation overhead
 
     Returns:
         Dict with sampling kwargs for pm.sample()
@@ -746,10 +748,28 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
             sampling_kwargs['nuts_sampler'] = sampler
             logger.info(f"GPU detected but backend unknown - falling back to CPU: {sampler} ({sampler_desc})")
     else:
-        # CPU sampling - use optimal NUTS sampler (nutpie if available)
-        sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
-        sampling_kwargs['nuts_sampler'] = sampler
-        logger.info(f"Configured sampling for CPU: {sampler} ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+        # CPU sampling strategy:
+        # - Binary/Continuous: Use PyMC default (compilation overhead makes faster samplers slower)
+        # - Ordinal: Use numpyro/JAX (required for OrderedLogistic compatibility)
+        # - Other/None: Use numpyro if available (best CPU performance without compilation issues)
+
+        if score_type in ('binary', 'continuous_01', 'continuous_bounded'):
+            # Binary/continuous: Skip fancy samplers due to adaptive collection overhead
+            sampler_desc = 'PyMC default (fastest for adaptive binary/continuous)'
+            logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+            # No nuts_sampler set = PyMC default
+        else:
+            # Ordinal or unknown: Try numpyro (JAX CPU backend)
+            try:
+                import numpyro
+                sampling_kwargs['nuts_sampler'] = 'numpyro'
+                sampler_desc = 'JAX/numpyro CPU backend (2-3× faster than PyMC default)'
+                logger.info(f"Configured sampling for CPU: numpyro ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+            except ImportError:
+                # numpyro not available, fall back to PyMC default
+                sampler_desc = 'PyMC default (numpyro not installed)'
+                logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+                # No nuts_sampler set = PyMC default
 
     return sampling_kwargs
 

@@ -39,7 +39,8 @@ setup(
             'jax[cuda12]>=0.4.0',
         ],
         'performance': [
-            'nutpie>=0.13.0',  # Rust-based NUTS sampler for 2-5× CPU speedup
+            'jax>=0.4.0',  # JAX CPU backend for ordinal models
+            'numpyro>=0.13.0',  # NumPyro sampler for ordinal inference (2-3× CPU speedup)
         ],
         'dev': [
             'pytest>=7.0',

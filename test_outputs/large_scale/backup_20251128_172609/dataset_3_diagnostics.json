@@ -1,0 +1,150 @@
+{
+  "test_date": "2025-11-28T14:48:30.236473",
+  "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_3_ordinal_with_agg.csv",
+  "score_columns": [
+    "scorer_1",
+    "scorer_2",
+    "scorer_3"
+  ],
+  "configuration": {
+    "optstop_params": {
+      "delta_item": 0.15,
+      "delta_cap": 0.1,
+      "cred_level": 0.95,
+      "conservatism": 10,
+      "draws": 500,
+      "tune": 500
+    },
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "score_agg": "mean",
+    "ordinal_max_score": 10,
+    "ordinal_tasks": [
+      "math_easy",
+      "math_hard",
+      "coding_medium",
+      "creative_writing",
+      "reasoning"
+    ]
+  },
+  "execution": {
+    "init_time_sec": 3.24249267578125e-05,
+    "run_time_sec": 115.55506920814514,
+    "total_time_sec": 115.60600757598877,
+    "trial_count": 5000,
+    "total_planned": 5000,
+    "stopped_samples": 0
+  },
+  "diagnostics": {
+    "manager": "optstop",
+    "total_planned_trials": 5000,
+    "total_ran": 4500,
+    "total_skipped": 500,
+    "efficiency_percent": 10.0,
+    "stopped_samples_count": 0,
+    "stopped_samples": [],
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "stopped_samples_per_grouping": {},
+    "stopped_groupings": [],
+    "stopped_groupings_count": 0,
+    "decision_counters": {
+      "gpt-4-turbo-math_easy": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "gpt-3.5-math_hard": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "claude-3-opus-coding_medium": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "gemini-pro-reasoning": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "llama-70b-creative_writing": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      }
+    },
+    "stabilization_histories": {},
+    "ordinal_glossary": {
+      "modal_ci_narrow_validated": {
+        "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+        "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+        "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+      },
+      "entropy_stabilized": {
+        "description": "Distribution entropy converged, indicating stable ordinal estimates",
+        "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+        "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+      },
+      "continue_insufficient_history": {
+        "description": "Need more epochs to assess stabilization",
+        "interpretation": "Collecting more data to establish convergence pattern",
+        "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+      }
+    }
+  },
+  "routing_verification": {
+    "expected_type": "CONTINUOUS",
+    "verified": true,
+    "found_patterns": [
+      "CONTINUOUS_BOUNDED",
+      "Processing grouping"
+    ],
+    "pattern_count": 2
+  },
+  "nutpie_environment": {
+    "nutpie_available": true,
+    "nutpie_version": "0.16.4",
+    "detection_time": "2025-11-28T14:46:34.407067"
+  },
+  "sampler_selection": {
+    "nutpie_used": false,
+    "pymc_used": false,
+    "numpyro_used": false,
+    "nutpie_version": null,
+    "sampler": "pymc"
+  },
+  "inference_timing": {},
+  "comparison": {
+    "comparison_available": true,
+    "baseline_date": "unknown",
+    "current_date": "2025-11-28T14:48:30.236473",
+    "runtime_comparison": {
+      "baseline_sec": 430.351904630661,
+      "current_sec": 115.55506920814514,
+      "speedup": 3.724214849073248,
+      "time_saved_sec": 314.79683542251587,
+      "percent_change": 73.14870273263517
+    },
+    "efficiency_comparison": {
+      "baseline_trials_ran": 2411,
+      "current_trials_ran": 5000,
+      "trial_difference": -2589
+    },
+    "nutpie_comparison": {
+      "baseline_nutpie": false,
+      "current_nutpie": true,
+      "baseline_sampler": "unknown",
+      "current_sampler": "pymc"
+    }
+  }
+}

@@ -1,8 +1,25 @@
 # Logging and Print Statement Audit
 
-**Date**: 2025-11-27
+**Date**: 2025-11-28 (Updated)
 **Scope**: early_stopping.py bridge + optstop core functions
 **Purpose**: Assess criticality of all logging/print statements for user visibility
+
+---
+
+## Current State Summary
+
+### By File:
+- **early_stopping.py**: 70 statements (37 PRINT, 12 INFO, 8 WARNING, 7 ERROR, 6 DEBUG)
+- **rule.py**: 125 statements (95 INFO, 13 WARNING, 11 ERROR, 4 PRINT, 2 DEBUG)
+- **ordinal_model.py**: 18 statements (6 WARNING, 6 DEBUG, 2 INFO, 3 PRINT, 1 ERROR)
+- **gpu_utils.py**: 56 statements (45 INFO, 8 WARNING, 3 PRINT)
+
+### By Level Across All Files:
+- **PRINT**: 43 statements (uncontrolled, always visible)
+- **INFO**: 154 statements
+- **WARNING**: 35 statements
+- **ERROR**: 19 statements
+- **DEBUG**: 14 statements
 
 ---
 
@@ -29,15 +46,15 @@
 
 ### HIGH - Configuration & Major Events
 
-| Line | Type | Statement | Purpose | Criticality |
-|------|------|-----------|---------|-------------|
-| 338-417 | PRINT | Configuration summary (entire block) | Shows user all configuration at start_task() | **HIGH** |
-| 691 | INFO | `Initialized optimal stopping dataset` | Confirms task started successfully | **HIGH** |
-| 970 | INFO | `Running optimal stopping inference on X trials...` | User knows inference is happening | **HIGH** |
-| 1161-1170 | INFO | `Sample X stopped at epoch Y` / `Marked sample for early stopping` | User sees which samples stopped | **HIGH** |
-| 1232-1237 | INFO | `Stopped grouping 'X' after Y samples` / `Marked entire grouping for early stopping` | User sees grouping-level stops | **HIGH** |
-| 1258-1260 | INFO | Inference executor shutdown | Clean shutdown confirmation | **HIGH** |
-| 1315 | INFO | `Task complete. Ran X/Y trials (Z% efficiency gain)` | Final summary of efficiency | **HIGH** |
+| Line | Type | Statement | Purpose | Criticality | Issue |
+|------|------|-----------|---------|-------------|-------|
+| 338-417 | PRINT | Configuration summary (entire block, 37 lines) | Shows user all configuration at start_task() | **HIGH** | **Uses print() instead of logger** |
+| 691 | INFO | `Initialized optimal stopping dataset` | Confirms task started successfully | **HIGH** | ✓ OK |
+| 970 | INFO | `Running optimal stopping inference on X trials...` | User knows inference is happening | **HIGH** | ✓ OK |
+| 1161-1170 | INFO | `Sample X stopped at epoch Y` / `Marked sample for early stopping` | User sees which samples stopped | **HIGH** | ✓ OK |
+| 1232-1237 | INFO | `Stopped grouping 'X' after Y samples` / `Marked entire grouping for early stopping` | User sees grouping-level stops | **HIGH** | ✓ OK |
+| 1258-1260 | INFO | Inference executor shutdown | Clean shutdown confirmation | **HIGH** | ✓ OK |
+| 1315 | INFO | `Task complete. Ran X/Y trials (Z% efficiency gain)` | Final summary of efficiency | **HIGH** | ✓ OK |
 
 ### MEDIUM - Helpful Monitoring
 
@@ -101,7 +118,6 @@
 | 2057-2060 | INFO | `Post-hoc complete` + print log path | Completion message | **HIGH** |
 | 2408-2522 | INFO | All optimal_stopping_live_single item stops | Live single item stops | **HIGH** |
 | 2539-2889 | INFO | All group-level stopping in live_single | Live single group stops | **HIGH** |
-| 2981-3113 | INFO | Live optimal stopping flow messages | Live function flow | **HIGH** |
 
 ### MEDIUM - Configuration & Status
 
@@ -118,61 +134,62 @@
 | 1940 | INFO | `Validated ordinal scores for grouping` | Ordinal validation | **MEDIUM** |
 | 1956-1958 | INFO | Worker and GPU assignment summary | Parallelization info | **MEDIUM** |
 | 2174 | INFO | `Processing grouping 'X' as Y` | Score type in live_single | **MEDIUM** |
-| 2995-3019 | INFO | Ordinal task identification logging | Ordinal routing | **MEDIUM** |
-| 3053-3055 | INFO | Worker/GPU summary for live | Parallelization info | **MEDIUM** |
 
-### MEDIUM - Cache Performance (NEW - Our Optimizations)
+### MEDIUM - Cache Performance
 
-| Line | Type | Statement | Purpose | Criticality |
-|------|------|-----------|---------|-------------|
-| 2242 | INFO | `✓ CACHE HIT: Reusing binary group model (n_items=X)` | Binary cache hit | **MEDIUM** |
-| 2245 | INFO | `✗ CACHE INVALIDATED: Binary model n_items X → Y` | Binary cache invalidation | **MEDIUM** |
-| 2263 | INFO | `✗ CACHE MISS: Created new binary group model (n_items=X)` | Binary cache miss | **MEDIUM** |
-| 2298 | INFO | `✓ CACHE HIT: Reusing continuous group model (n_items=X)` | Continuous cache hit | **MEDIUM** |
-| 2301 | INFO | `✗ CACHE INVALIDATED: Continuous model n_items X → Y` | Continuous cache invalidation | **MEDIUM** |
-| 2375 | INFO | `✗ CACHE MISS: Created new continuous group model (n_items=X)` | Continuous cache miss | **MEDIUM** |
+| Line | Type | Statement | Purpose | Criticality | Issue |
+|------|------|-----------|---------|-------------|-------|
+| 2242 | INFO | `✓ CACHE HIT: Reusing binary group model (n_items=X)` | Binary cache hit | **MEDIUM** | Consider moving to DEBUG |
+| 2245 | INFO | `✗ CACHE INVALIDATED: Binary model n_items X → Y` | Binary cache invalidation | **MEDIUM** | Consider moving to DEBUG |
+| 2263 | INFO | `✗ CACHE MISS: Created new binary group model (n_items=X)` | Binary cache miss | **MEDIUM** | Consider moving to DEBUG |
+| 2298 | INFO | `✓ CACHE HIT: Reusing continuous group model (n_items=X)` | Continuous cache hit | **MEDIUM** | Consider moving to DEBUG |
+| 2301 | INFO | `✗ CACHE INVALIDATED: Continuous model n_items X → Y` | Continuous cache invalidation | **MEDIUM** | Consider moving to DEBUG |
+| 2375 | INFO | `✗ CACHE MISS: Created new continuous group model (n_items=X)` | Continuous cache miss | **MEDIUM** | Consider moving to DEBUG |
 
 ### LOW - Timing Tests & Debug
 
-| Line | Type | Statement | Purpose | Criticality |
-|------|------|-----------|---------|-------------|
-| 158-160 | DEBUG | PyMC stdout/stderr capture | Debugging PyMC output | **LOW** |
-| 307-569 | INFO | Diagnostic plot generation messages | Posthoc diagnostics | **LOW** |
-| 426-435 | INFO | Accuracy metrics (posthoc diagnostics) | Posthoc analysis | **LOW** |
-| 966-988 | INFO/WARNING | Worker JAX GPU setup details | GPU debugging | **LOW** |
-| 1109 | INFO | Detailed stop message variant | Alternative format | **LOW** |
-| 1460-1482 | INFO/WARNING | Live worker JAX GPU setup | GPU debugging | **LOW** |
-| 2053-2055 | WARNING/ERROR | Diagnostic plot failures | Posthoc diagnostic errors | **LOW** |
-| 2638 | WARNING | `🕐 TIMING_TEST: Binary group inference took Xs` | **Performance profiling** | **LOW** |
-| 2720 | WARNING | `🕐 TIMING_TEST: Ordinal group inference took Xs` | **Performance profiling** | **LOW** |
-| 2765 | WARNING | `🕐 TIMING_TEST: Continuous aggregation took Xs` | **Performance profiling** | **LOW** |
-| 2820 | WARNING | `🕐 TIMING_TEST: Continuous MCMC took Xs` | **Performance profiling** | **LOW** |
-| 2882 | WARNING | `🕐 TIMING_TEST: Continuous TOTAL took Xs` | **Performance profiling** | **LOW** |
-| 2889 | WARNING | `🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took Xs` | **Performance profiling** | **LOW** |
+| Line | Type | Statement | Purpose | Criticality | Issue |
+|------|------|-----------|---------|-------------|-------|
+| 158-160 | DEBUG | PyMC stdout/stderr capture | Debugging PyMC output | **LOW** | ✓ OK |
+| 307-569 | INFO | Diagnostic plot generation messages | Posthoc diagnostics | **LOW** | Should be DEBUG? |
+| 426-435 | INFO | Accuracy metrics (posthoc diagnostics) | Posthoc analysis | **LOW** | Should be DEBUG? |
+| 2638 | WARNING | `🕐 TIMING_TEST: Binary group inference took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
+| 2741 | WARNING | `🕐 TIMING_TEST: Ordinal group inference took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
+| 2786 | WARNING | `🕐 TIMING_TEST: Continuous data aggregation took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
+| 2841 | WARNING | `🕐 TIMING_TEST: Continuous MCMC took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
+| 2903 | WARNING | `🕐 TIMING_TEST: Continuous TOTAL took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
+| 2910 | WARNING | `🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took Xs` | **Performance profiling** | **LOW** | **Should be DEBUG** |
 
 ---
 
 ## 3. ordinal_model.py (Ordinal Inference)
 
-### MEDIUM - Cache Performance
+### HIGH - Stopping Decisions
+
+| Line | Type | Statement | Purpose | Criticality |
+|------|------|-----------|---------|-------------|
+| 581 | INFO | `Stopping via Pathway 1 (Modal CI narrow + validated)` | Ordinal stopping decision | **HIGH** |
+| 628 | INFO | `Ordinal stopping via stabilization` | Stabilization stop | **HIGH** |
+
+### MEDIUM - Cache & Errors
 
 | Line | Type | Statement | Purpose | Criticality |
 |------|------|-----------|---------|-------------|
 | 336 | DEBUG | `Reusing OrderedLogistic model (updated X → Y items)` | Ordinal cache hit | **MEDIUM** |
 | 348 | DEBUG | `Created new OrderedLogistic model for X items` | Ordinal cache miss | **MEDIUM** |
+| 376 | ERROR | `OrderedLogistic sampling failed` | Sampling error | **MEDIUM** |
 
 ### LOW - Debug & Profiling
 
-| Line | Type | Statement | Purpose | Criticality |
-|------|------|-----------|---------|-------------|
-| 354-370 | WARNING | `🔍 _ordinal_entropy_ci_adaptive called: n_samples=X...` | **Detailed parameter trace** | **LOW** |
-| 376 | ERROR | `OrderedLogistic sampling failed` | Sampling error | **MEDIUM-LOW** |
-| 413 | DEBUG | Entropy computation details | Technical trace | **LOW** |
-| 564 | DEBUG | Ordinal decision details | Decision logic trace | **LOW** |
-| 581 | INFO | Ordinal stopping decision | Stop via modal/entropy | **HIGH** |
-| 603 | DEBUG | Continue: insufficient history | Not enough data | **LOW** |
-| 628 | INFO | Ordinal stopping via stabilization | Stabilization stop | **HIGH** |
-| 645 | DEBUG | Detailed stabilization logic | Technical trace | **LOW** |
+| Line | Type | Statement | Purpose | Criticality | Issue |
+|------|------|-----------|---------|-------------|-------|
+| 308-310 | PRINT | Docstring examples (3 lines) | Documentation only | **LOW** | ✓ OK (docstring) |
+| 354-357 | WARNING | `🔍 _ordinal_entropy_ci_adaptive called...` | **Detailed parameter trace** | **LOW** | **Should be DEBUG** |
+| 369-370 | WARNING | `Final draws/tune (after update)` | **Parameter trace** | **LOW** | **Should be DEBUG** |
+| 413 | DEBUG | Entropy computation details | Technical trace | **LOW** | ✓ OK |
+| 564-567 | DEBUG | `False peak detected...` | Decision logic trace | **MEDIUM-LOW** | ✓ OK |
+| 603 | DEBUG | Continue: insufficient history | Not enough data | **LOW** | ✓ OK |
+| 645 | DEBUG | Detailed stabilization logic | Technical trace | **LOW** | ✓ OK |
 
 ---
 
@@ -180,115 +197,163 @@
 
 ### MEDIUM - Configuration & Warnings
 
-| Line | Type | Statement | Purpose | Criticality |
-|------|------|-----------|---------|-------------|
-| 230 | INFO | `JAX GPU acceleration available: X GPUs` | GPU detection | **MEDIUM** |
-| 232 | WARNING | `JAX GPU detected but test failed` | GPU issue | **MEDIUM** |
-| 234 | INFO | JAX backend and device info | GPU status | **MEDIUM** |
-| 237 | INFO | `JAX not available - checking other backends` | Fallback info | **MEDIUM** |
-| 239 | WARNING | JAX GPU detection error | Detection failure | **MEDIUM** |
-| 253 | INFO | PyTensor GPU backend available | GPU detection | **MEDIUM** |
-| 264 | INFO | `GPU acceleration enabled via X` | GPU confirmed | **MEDIUM** |
-| 267 | WARNING | `System GPUs detected but no PyMC GPU backend available` | GPU not usable | **MEDIUM** |
-| 269 | INFO | `No GPU acceleration - using CPU` | CPU fallback | **MEDIUM** |
-| 298 | INFO | GPU recommendation | Setup advice | **MEDIUM** |
-| 322-332 | INFO/WARNING | JAX GPU configuration messages | GPU setup status | **MEDIUM** |
-| 560-676 | INFO | GPU decision and sampling configuration | Hardware setup | **MEDIUM** |
-| 692-736 | INFO | Enhanced GPU status report (full block) | Detailed GPU report | **MEDIUM** |
-| 820-848 | INFO/WARNING | GPU validation and worker assignment | GPU orchestration | **MEDIUM** |
+| Line | Type | Statement | Purpose | Criticality | Issue |
+|------|------|-----------|---------|-------------|-------|
+| 30-32 | PRINT | Nutpie availability (docstring) | Documentation only | **LOW** | ✓ OK (docstring) |
+| 62 | PRINT | Sampler example (docstring) | Documentation only | **LOW** | ✓ OK (docstring) |
+| 296 | INFO | `JAX GPU acceleration available: X GPUs` | GPU detection | **MEDIUM** | OK but verbose |
+| 298 | WARNING | `JAX GPU detected but test failed` | GPU issue | **MEDIUM** | ✓ OK |
+| 300 | INFO | JAX backend and device info | GPU status | **MEDIUM** | OK but verbose |
+| 303 | INFO | `JAX not available - checking other backends` | Fallback info | **MEDIUM** | OK but verbose |
+| 305 | WARNING | JAX GPU detection error | Detection failure | **MEDIUM** | ✓ OK |
+| 319 | INFO | PyTensor GPU backend available | GPU detection | **MEDIUM** | OK but verbose |
+| 330 | INFO | `GPU acceleration enabled via X` | GPU confirmed | **MEDIUM** | ✓ OK (important) |
+| 333 | WARNING | `System GPUs detected but no PyMC GPU backend available` | GPU not usable | **MEDIUM** | ✓ OK |
+| 335 | INFO | `No GPU acceleration - using CPU` | CPU fallback | **MEDIUM** | ✓ OK (important) |
+| 364 | INFO | GPU recommendation | Setup advice | **MEDIUM** | OK but verbose |
+| 388-398 | INFO/WARNING | JAX GPU configuration messages | GPU setup status | **MEDIUM** | OK but verbose |
+| 626-752 | INFO | GPU decision and sampling configuration (many lines) | Hardware setup | **MEDIUM** | OK but verbose |
+| 768-794 | INFO | Enhanced GPU status report (full block, ~25 lines) | Detailed GPU report | **MEDIUM** | **Very verbose** |
 
 ---
 
-## Summary Statistics
+## Summary of Issues Found
 
-### By File:
-- **early_stopping.py**: 43 statements (5 CRITICAL, 11 HIGH, 20 MEDIUM, 7 LOW)
-- **rule.py**: 127 statements (5 CRITICAL, 75 HIGH, 25 MEDIUM, 22 LOW)
-- **ordinal_model.py**: 11 statements (0 CRITICAL, 2 HIGH, 2 MEDIUM, 7 LOW)
-- **gpu_utils.py**: 41 statements (0 CRITICAL, 0 HIGH, 41 MEDIUM, 0 LOW)
+### High Priority Issues (Must Fix):
 
-### By Criticality:
-- **CRITICAL**: 10 statements (must always be visible)
-- **HIGH**: 88 statements (should be visible by default)
-- **MEDIUM**: 88 statements (helpful for monitoring/debugging)
-- **LOW**: 36 statements (development/profiling only)
+1. **TIMING_TEST messages logged as WARNING (6 statements)**
+   - Lines 2638, 2741, 2786, 2841, 2903, 2910 in rule.py
+   - Should be: `logger.debug()`
+   - Impact: Users see performance profiling at INFO level
+
+2. **Ordinal parameter dump logged as WARNING (6 statements)**
+   - Lines 354-357, 369-370 in ordinal_model.py
+   - Should be: `logger.debug()`
+   - Impact: Users see verbose parameter dumps every ordinal call
+
+3. **Configuration summary uses print() (37 statements)**
+   - Lines 338-417 in early_stopping.py
+   - Should be: `logger.info()` with optional verbosity control
+   - Impact: Can't be controlled by logging level, always visible
+
+### Medium Priority Issues (Should Consider):
+
+4. **Cache hit/miss messages at INFO level (6 statements)**
+   - Lines 2242, 2245, 2263, 2298, 2301, 2375 in rule.py
+   - Consider: Move to `logger.debug()` after validation period
+   - Impact: Adds noise at INFO level during normal operation
+
+5. **GPU configuration very verbose (45+ INFO statements)**
+   - Throughout gpu_utils.py
+   - Consider: Consolidate to single summary message
+   - Impact: Lots of INFO-level noise about hardware detection
+
+6. **Diagnostic plot generation at INFO level (~20 statements)**
+   - Lines 307-569 in rule.py
+   - Consider: Move to `logger.debug()`
+   - Impact: Verbose during posthoc analysis
+
+### Low Priority Issues:
+
+7. **False peak detection at DEBUG (correct but consider)**
+   - Line 564 in ordinal_model.py
+   - Current: `logger.debug()` ✓ Correct level
+   - Consider: Users might want to see this for understanding hybrid behavior
+   - Recommendation: Keep as DEBUG for now
 
 ---
 
 ## Recommendations
 
-### 1. Logging Level Configuration
+### Phase 1: Critical Fixes (Quick Wins)
 
-**Suggested default for inspect_ai users:**
-```python
-logging.basicConfig(level=logging.INFO)
-```
+1. **Change TIMING_TEST to DEBUG** (6 lines in rule.py)
+   ```python
+   # Change from:
+   logger.warning(f"🕐 TIMING_TEST: ...")
+   # To:
+   logger.debug(f"🕐 TIMING_TEST: ...")
+   ```
 
-This shows:
-- ✅ All CRITICAL errors
-- ✅ All HIGH stopping decisions and progress
-- ✅ All MEDIUM warnings and status
-- ❌ LOW debug traces hidden
+2. **Change ordinal parameter dump to DEBUG** (6 lines in ordinal_model.py)
+   ```python
+   # Change from:
+   logger.warning(f"🔍 _ordinal_entropy_ci_adaptive called:")
+   # To:
+   logger.debug(f"🔍 _ordinal_entropy_ci_adaptive called:")
+   ```
 
-### 2. Problematic Statements to Review
+### Phase 2: Major Refactor
 
-#### LOW priority logged as WARNING (should be DEBUG):
-- **Lines 354-370 (ordinal_model.py)**: Parameter dump - should be DEBUG
-- **Lines 2638, 2720, 2765, 2820, 2882, 2889 (rule.py)**: TIMING_TEST - should be DEBUG
+3. **Convert print() to logger.info()** (37 lines in early_stopping.py)
+   - Replace all print() in start_task() with logger.info()
+   - Consider adding verbosity parameter to control configuration summary
+   - Keep important messages (errors, stopping decisions) at INFO
+   - Move detailed config to DEBUG
 
-**Recommendation**: Change these from `logger.warning()` to `logger.debug()`
+### Phase 3: Cleanup (After Validation)
 
-#### PRINT statements in production code:
-- **Lines 338-417 (early_stopping.py)**: Configuration summary
-  - **Issue**: Uses `print()` instead of `logger.info()`
-  - **Impact**: Can't be suppressed or redirected
-  - **Recommendation**: Convert to `logger.info()` with optional `verbose` parameter
+4. **Move cache messages to DEBUG** (6 lines in rule.py)
+   - After caching is validated and working well
+   - Reduces INFO-level noise
 
-- **Line 2060 (rule.py)**: `print(f"Run complete. See log file...")`
-  - **Recommendation**: Convert to `logger.info()`
-
-### 3. Missing Logging
-
-**Optimization #1 (skip stopped groupings)**:
-- Line 958: Currently DEBUG level
-- **Recommendation**: Keep as DEBUG (would be too verbose otherwise)
-
-**Cache invalidation**:
-- Currently INFO level (lines 2242, 2245, 2263, 2298, 2301, 2375)
-- **Recommendation**: Keep as INFO for now, consider moving to DEBUG after validation
-
-### 4. User Experience
-
-**For typical inspect_ai user:**
-1. Set `logging.basicConfig(level=logging.INFO)` in their script
-2. See configuration summary at start
-3. See progress messages every reanalysis_interval
-4. See stopping decisions as they happen
-5. See final efficiency summary
-6. NOT see: Debug traces, cache hits, timing tests
-
-**For power user debugging:**
-1. Set `logging.basicConfig(level=logging.DEBUG)`
-2. See everything including cache behavior and internal traces
-
-**For performance profiling:**
-1. Enable DEBUG level
-2. Grep for "TIMING_TEST" in logs
-3. Analyze where time is spent
+5. **Consolidate GPU logging** (gpu_utils.py)
+   - Create single summary message for GPU status
+   - Move detailed detection steps to DEBUG
+   - Keep only critical messages (enabled/disabled, errors) at INFO
 
 ---
 
-## Proposed Changes
+## Expected Impact of Changes
 
-### High Priority:
-1. Convert TIMING_TEST warnings (lines 2638, 2720, 2765, 2820, 2882, 2889) to DEBUG
-2. Convert ordinal parameter dump (lines 354-370) to DEBUG
-3. Convert print() statements to logger.info() with optional verbosity control
+### After Phase 1 (TIMING_TEST + ordinal params):
+- **Before**: ~12 WARNING messages per inference call
+- **After**: ~0 WARNING messages per inference call (moved to DEBUG)
+- **User experience**: Cleaner logs, no performance profiling noise
 
-### Medium Priority:
-4. Consider moving cache hit/miss from INFO to DEBUG after validation period
-5. Add structured logging option (JSON format) for programmatic parsing
+### After Phase 2 (print to logger):
+- **Before**: 37 uncontrolled print() statements
+- **After**: 37 logger.info() statements (can be controlled)
+- **User experience**: Can set log level to suppress configuration details
 
-### Low Priority:
-6. Add log rotation configuration guidance
-7. Document recommended logging levels in user guide
+### After Phase 3 (cache + GPU):
+- **Before**: ~50 INFO messages during setup/execution
+- **After**: ~10 INFO messages (critical only)
+- **User experience**: Much cleaner INFO-level logs
+
+---
+
+## Recommended Logging Levels for Users
+
+### Default for inspect_ai users:
+```python
+logging.basicConfig(level=logging.INFO)
+```
+**Shows:**
+- ✅ Configuration summary
+- ✅ Stopping decisions
+- ✅ Progress updates
+- ✅ Warnings and errors
+- ❌ Debug traces, timing tests, cache hits
+
+### For debugging:
+```python
+logging.basicConfig(level=logging.DEBUG)
+```
+**Shows:**
+- ✅ Everything above, plus:
+- ✅ Cache behavior
+- ✅ Performance timing
+- ✅ Internal decision logic
+
+### For performance profiling:
+```python
+logging.basicConfig(level=logging.DEBUG)
+# Then grep logs for: "TIMING_TEST"
+```
+
+---
+
+**Last Updated:** 2025-11-28
+**Total Issues Identified:** 7 (3 high priority, 4 medium/low priority)
+**Total Statements Reviewed:** 269 across 4 files

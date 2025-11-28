@@ -31,7 +31,8 @@ gpu = [
     "blackjax"
 ]
 performance = [
-    "nutpie>=0.13.0"
+    "jax>=0.4.0",
+    "numpyro>=0.13.0"
 ]
 
 [project.scripts]

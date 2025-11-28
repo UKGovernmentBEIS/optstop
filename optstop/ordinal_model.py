@@ -369,6 +369,10 @@ def _ordinal_entropy_ci_adaptive(
     logger.warning(f"   Final draws (after update): {default_kwargs['draws']}")
     logger.warning(f"   Final tune (after update): {default_kwargs['tune']}")
 
+    # NOTE: Ordinal inference uses numpyro (JAX backend) for CPU sampling
+    # This is configured in gpu_utils.py and avoids numba cumsum compatibility issues
+    # that affected nutpie. numpyro handles OrderedLogistic correctly on both CPU and GPU.
+
     try:
         with model:
             trace = pm.sample(**default_kwargs)
