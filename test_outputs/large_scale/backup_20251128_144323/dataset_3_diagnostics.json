@@ -1,0 +1,660 @@
+{
+  "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_3_ordinal_with_agg.csv",
+  "score_columns": [
+    "scorer_1",
+    "scorer_2",
+    "scorer_3"
+  ],
+  "configuration": {
+    "optstop_params": {
+      "delta_item": 0.15,
+      "delta_cap": 0.1,
+      "cred_level": 0.95,
+      "conservatism": 10,
+      "draws": 500,
+      "tune": 500
+    },
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "score_agg": "mean",
+    "ordinal_max_score": 10,
+    "ordinal_tasks": [
+      "math_easy",
+      "math_hard",
+      "coding_medium",
+      "creative_writing",
+      "reasoning"
+    ]
+  },
+  "execution": {
+    "init_time_sec": 4.744529724121094e-05,
+    "run_time_sec": 430.351904630661,
+    "total_time_sec": 430.3602228164673,
+    "trial_count": 2411,
+    "total_planned": 5000,
+    "stopped_samples": 289
+  },
+  "diagnostics": {
+    "manager": "optstop",
+    "total_planned_trials": 5000,
+    "total_ran": 1911,
+    "total_skipped": 3089,
+    "efficiency_percent": 61.78,
+    "stopped_samples_count": 28,
+    "stopped_samples": [
+      {
+        "id": "sample_0000",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.8681798416689706,
+          "ci_width_normalized": 0.08681798416689705,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0001",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5846451800328527,
+          "ci_width_normalized": 0.05846451800328527,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0002",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.181656375017221,
+          "ci_width_normalized": 0.11816563750172211,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0003",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.3079253369635833,
+          "ci_width_normalized": 0.13079253369635832,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0004",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.8626075971152378,
+          "ci_width_normalized": 0.08626075971152378,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0005",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.6796325114125494,
+          "ci_width_normalized": 0.06796325114125494,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0006",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.791697614643363,
+          "ci_width_normalized": 0.0791697614643363,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0007",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.2814955853390266,
+          "ci_width_normalized": 0.12814955853390267,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0008",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.297178524255429,
+          "ci_width_normalized": 0.1297178524255429,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0009",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.1379357053446029,
+          "ci_width_normalized": 0.11379357053446029,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0100",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0101",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0102",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0103",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0104",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0105",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0106",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0107",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0108",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0109",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0110",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0111",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0112",
+        "epoch": 4,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.5,
+          "ci_width_normalized": 0.05,
+          "threshold": 0.15,
+          "epochs_used": 4,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0200",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.464024602299883,
+          "ci_width_normalized": 0.14640246022998832,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0207",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.4607506816820521,
+          "ci_width_normalized": 0.1460750681682052,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0210",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 0.9271169665992005,
+          "ci_width_normalized": 0.09271169665992005,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0212",
+        "epoch": 4,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.0611191813056662,
+          "ci_width_normalized": 0.10611191813056661,
+          "threshold": 0.15,
+          "epochs_used": 4,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      },
+      {
+        "id": "sample_0214",
+        "epoch": 9,
+        "reason": "continuous_bounded_ci_width",
+        "metadata": {
+          "reason": "continuous_bounded_ci_width",
+          "ci_width": 1.4825905719372798,
+          "ci_width_normalized": 0.14825905719372798,
+          "threshold": 0.15,
+          "epochs_used": 9,
+          "bounds": {
+            "lower": 0.0,
+            "upper": 10
+          }
+        }
+      }
+    ],
+    "grouping_columns": [
+      "model",
+      "task"
+    ],
+    "reanalysis_interval": 25,
+    "min_samples_per_grouping": 10,
+    "stopped_samples_per_grouping": {
+      "gpt-4-turbo-math_easy": 10,
+      "gpt-3.5-math_hard": 13,
+      "claude-3-opus-coding_medium": 5,
+      "gemini-pro-reasoning": 0,
+      "llama-70b-creative_writing": 0
+    },
+    "stopped_groupings": [
+      "gpt-3.5-math_hard",
+      "llama-70b-creative_writing",
+      "claude-3-opus-coding_medium",
+      "gpt-4-turbo-math_easy"
+    ],
+    "stopped_groupings_count": 4,
+    "decision_counters": {
+      "gpt-4-turbo-math_easy": {
+        "completed_samples": 190,
+        "inference_calls": 7,
+        "next_inference_at": 200
+      },
+      "gpt-3.5-math_hard": {
+        "completed_samples": 212,
+        "inference_calls": 8,
+        "next_inference_at": 225
+      },
+      "claude-3-opus-coding_medium": {
+        "completed_samples": 279,
+        "inference_calls": 11,
+        "next_inference_at": 300
+      },
+      "gemini-pro-reasoning": {
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
+      },
+      "llama-70b-creative_writing": {
+        "completed_samples": 730,
+        "inference_calls": 29,
+        "next_inference_at": 750
+      }
+    },
+    "stabilization_histories": {
+      "gpt-4-turbo-math_easy": {
+        "n_samples": 10,
+        "final_ci_width": 0.07219095999112035,
+        "final_slope": null,
+        "n_group_checks": 1,
+        "final_modal_ci_width": null,
+        "final_modal_ci": null,
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
+      },
+      "gpt-3.5-math_hard": {
+        "n_samples": 13,
+        "final_ci_width": 0.007709932390808891,
+        "final_slope": null,
+        "n_group_checks": 2,
+        "final_modal_ci_width": null,
+        "final_modal_ci": null,
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
+      },
+      "claude-3-opus-coding_medium": {
+        "n_samples": 21,
+        "final_ci_width": 0.09201236095675869,
+        "final_slope": null,
+        "n_group_checks": 5,
+        "final_modal_ci_width": null,
+        "final_modal_ci": null,
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
+      },
+      "gemini-pro-reasoning": {
+        "n_samples": 100,
+        "final_ci_width": 0.1358526130359336,
+        "final_slope": -0.0006189405802248459,
+        "n_group_checks": 37,
+        "final_modal_ci_width": null,
+        "final_modal_ci": null,
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
+      },
+      "llama-70b-creative_writing": {
+        "n_samples": 70,
+        "final_ci_width": 0.23642334327776698,
+        "final_slope": -1.6409620929740095e-05,
+        "n_group_checks": 25,
+        "final_modal_ci_width": null,
+        "final_modal_ci": null,
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
+      }
+    },
+    "ordinal_glossary": {
+      "modal_ci_narrow_validated": {
+        "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+        "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+        "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+      },
+      "entropy_stabilized": {
+        "description": "Distribution entropy converged, indicating stable ordinal estimates",
+        "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+        "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+      },
+      "continue_insufficient_history": {
+        "description": "Need more epochs to assess stabilization",
+        "interpretation": "Collecting more data to establish convergence pattern",
+        "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+      }
+    }
+  },
+  "routing_verification": {
+    "expected_type": "CONTINUOUS",
+    "verified": true,
+    "found_patterns": [
+      "CONTINUOUS_BOUNDED",
+      "Processing grouping",
+      "Continuous PyMC MCMC sampling",
+      "Continuous group inference"
+    ],
+    "pattern_count": 4
+  },
+  "group_level_stopping": {
+    "group_level_stopping_events": 8,
+    "stopped_groupings": [
+      "Stopping grouping 'gpt-4-turbo-math_easy': Hierarchical CI effective_width 0.0722 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 10 samples: continuous_hierarchical_ci_width (CI width=0.7219, effective width=0.0722, threshold=0.1)",
+      "Stopping grouping 'gpt-3.5-math_hard': Hierarchical CI effective_width 0.0771 < 0.1",
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: continuous_hierarchical_ci_width (CI width=0.0771, effective width=0.0771, threshold=0.1)",
+      "Stopping grouping 'claude-3-opus-coding_medium': Hierarchical CI effective_width 0.0920 < 0.1",
+      "Stopped grouping 'claude-3-opus-coding_medium' after 21 samples: continuous_hierarchical_ci_width (CI width=0.9201, effective width=0.0920, threshold=0.1)",
+      "Stopping grouping 'llama-70b-creative_writing' via hierarchical continuous stabilization: slope -0.000016",
+      "Stopped grouping 'llama-70b-creative_writing' after 70 samples: continuous_hierarchical_stabilization (slope=-0.000016, slope threshold=0.000050)"
+    ],
+    "used_group_level_stopping": true
+  }
+}

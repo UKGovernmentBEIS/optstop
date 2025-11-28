@@ -12,6 +12,72 @@ import subprocess
 import sys
 from typing import Dict, Any, Optional, Tuple, List
 
+def check_nutpie_available() -> Tuple[bool, Optional[str]]:
+    """
+    Check if nutpie (Rust-based NUTS sampler) is available.
+
+    Nutpie is a drop-in replacement for PyMC's default Python-based NUTS sampler,
+    providing 2-5× speedup for CPU sampling by using compiled Rust code.
+
+    Returns:
+        Tuple of (available: bool, version: Optional[str])
+        - available: True if nutpie can be imported
+        - version: Version string if available, None otherwise
+
+    Examples:
+        >>> available, version = check_nutpie_available()
+        >>> if available:
+        ...     print(f"nutpie {version} available")
+        ... else:
+        ...     print("nutpie not available, using default PyMC sampler")
+    """
+    try:
+        import nutpie
+        version = getattr(nutpie, '__version__', 'unknown')
+        return True, version
+    except ImportError:
+        return False, None
+
+
+def get_optimal_nuts_sampler(gpu_available: bool, gpu_backend: str = 'cpu') -> Tuple[str, str]:
+    """
+    Select the optimal NUTS sampler based on available hardware and software.
+
+    Sampler priority:
+    1. GPU available → 'numpyro' (JAX/GPU backend, fastest)
+    2. nutpie available → 'nutpie' (Rust-based CPU, 2-5× faster than PyMC)
+    3. Fallback → 'pymc' (Python-based CPU, default)
+
+    Args:
+        gpu_available: Whether GPU acceleration is available
+        gpu_backend: GPU backend type ('jax-gpu', 'pytensor-gpu', 'cpu')
+
+    Returns:
+        Tuple of (sampler_name: str, description: str)
+        - sampler_name: 'numpyro', 'nutpie', or 'pymc'
+        - description: Human-readable description for logging
+
+    Examples:
+        >>> sampler, desc = get_optimal_nuts_sampler(gpu_available=False)
+        >>> print(f"Using {sampler}: {desc}")
+        Using nutpie: Rust-based v0.13.2 (2-5× faster than PyMC)
+    """
+    logger = logging.getLogger('optstop.gpu_utils')
+
+    # Priority 1: Use GPU if available
+    if gpu_available and gpu_backend == 'jax-gpu':
+        return 'numpyro', 'JAX/GPU backend (fastest)'
+
+    # Priority 2: Use nutpie for fast CPU sampling if available
+    nutpie_available, nutpie_version = check_nutpie_available()
+    if nutpie_available:
+        version_str = f"v{nutpie_version}" if nutpie_version != 'unknown' else ""
+        return 'nutpie', f'Rust-based {version_str} (2-5× faster than PyMC default)'
+
+    # Priority 3: Fallback to default PyMC sampler
+    return 'pymc', 'Python-based (default)'
+
+
 def _detect_system_gpus() -> Dict[str, Any]:
     """
     Detect GPUs at system level using nvidia-smi or other system tools.
@@ -588,7 +654,13 @@ def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool,
         # CPU-optimized parameters
         logger.info("Configuring CPU-optimized sampling parameters")
         optimized_params['use_gpu'] = False
-        optimized_params['nuts_sampler'] = 'pymc'  # Default PyMC sampler
+
+        # Select optimal NUTS sampler (nutpie if available, else PyMC default)
+        # Note: This value is informational here; get_sampling_kwargs() will
+        # set nuts_sampler explicitly in its return dict
+        sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
+        optimized_params['nuts_sampler'] = sampler
+        logger.info(f"Selected NUTS sampler: {sampler} ({sampler_desc})")
 
         # Adaptive CPU configuration based on available cores
         cpu_count = system_specs.get('cpu_count', 1)
@@ -669,11 +741,15 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
             logger.info("Configured sampling for GPU acceleration with PyTensor CUDA backend")
 
         else:
-            # Fallback to CPU
-            logger.info("GPU detected but backend unknown - using CPU sampling")
+            # Fallback to CPU (unknown GPU backend)
+            sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
+            sampling_kwargs['nuts_sampler'] = sampler
+            logger.info(f"GPU detected but backend unknown - falling back to CPU: {sampler} ({sampler_desc})")
     else:
-        # Standard PyMC sampling on CPU
-        logger.info(f"Configured sampling for CPU (chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']})")
+        # CPU sampling - use optimal NUTS sampler (nutpie if available)
+        sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
+        sampling_kwargs['nuts_sampler'] = sampler
+        logger.info(f"Configured sampling for CPU: {sampler} ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
 
     return sampling_kwargs
 

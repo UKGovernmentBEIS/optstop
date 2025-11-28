@@ -19,7 +19,8 @@ dependencies = [
     "scipy",
     "statsmodels",
     "matplotlib",
-    "tqdm"
+    "tqdm",
+    "numba"
 ]
 
 [project.optional-dependencies]
@@ -28,6 +29,9 @@ gpu = [
     "jax[metal] ; sys_platform == 'darwin'",
     "numpyro",
     "blackjax"
+]
+performance = [
+    "nutpie>=0.13.0"
 ]
 
 [project.scripts]

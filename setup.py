@@ -28,6 +28,7 @@ setup(
         'statsmodels',
         'matplotlib',
         'tqdm',
+        'numba',  # Required by PyTensor for OrderedLogistic (ordinal inference)
         'pydantic>=2.0',  # Required for inspect_ai bridge
     ],
     extras_require={
@@ -36,6 +37,9 @@ setup(
         ],
         'gpu': [
             'jax[cuda12]>=0.4.0',
+        ],
+        'performance': [
+            'nutpie>=0.13.0',  # Rust-based NUTS sampler for 2-5× CPU speedup
         ],
         'dev': [
             'pytest>=7.0',

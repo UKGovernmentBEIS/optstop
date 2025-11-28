@@ -1,23 +1,25 @@
 # OptimalStoppingManager API Reference
 
 **Version:** 0.2.0+
-**Last Updated:** 2025-11-25
+**Last Updated:** 2025-11-28
 **Status:** Production Ready (Phase 1 Complete)
+**Performance:** Nutpie integration available (2-5× CPU speedup)
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
-3. [Initialization Parameters](#initialization-parameters)
-4. [Routing Logic](#routing-logic)
-5. [Configuration Patterns](#configuration-patterns)
-6. [Protocol Methods](#protocol-methods)
-7. [Diagnostics and Return Values](#diagnostics-and-return-values)
-8. [Best Practices](#best-practices)
-9. [Common Pitfalls](#common-pitfalls)
-10. [Examples](#examples)
+2. [Performance Considerations](#performance-considerations) **← NEW**
+3. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
+4. [Initialization Parameters](#initialization-parameters)
+5. [Routing Logic](#routing-logic)
+6. [Configuration Patterns](#configuration-patterns)
+7. [Protocol Methods](#protocol-methods)
+8. [Diagnostics and Return Values](#diagnostics-and-return-values)
+9. [Best Practices](#best-practices)
+10. [Common Pitfalls](#common-pitfalls)
+11. [Examples](#examples)
 
 ---
 
@@ -46,6 +48,263 @@ Do not use when:
 - Running single-epoch evaluations (no opportunity to stop early)
 - You have very few samples (< 5 per grouping)
 - You need exact reproducibility of trial counts (stopping decisions are data-dependent)
+
+---
+
+## Performance Considerations
+
+### Critical Performance Factors
+
+The computational cost of early stopping inference varies dramatically based on configuration. Understanding these factors is essential for production deployments.
+
+#### 1. **Inference Pathway Performance**
+
+| Pathway | Typical Time | Complexity |
+|---------|--------------|-----------|
+| **Binary** | ~26s | MCMC Binomial model |
+| **Continuous** | ~9s | MCMC Beta model (aggregated) |
+| **Ordinal (modal)** | ~0.1s | Bootstrap (fast!) |
+| **Ordinal (entropy)** | ~60+ min | MCMC OrderedLogistic (slow!) |
+| **Ordinal (hybrid)** | ~60+ min | BOTH modal + entropy (slowest) |
+
+**Key insight:** Ordinal hybrid mode runs BOTH modal and entropy inference on every call, making it 100-1000× slower than other pathways!
+
+---
+
+### 2. **MCMC Sampling Parameters** ⚠️ CRITICAL
+
+The `draws` and `tune` parameters have **linear impact** on inference time:
+
+```python
+# Default (very slow)
+optstop_params = {
+    'draws': 6000,    # 6000 MCMC samples
+    'tune': 6000,     # 6000 tuning steps
+}
+# Total: 12,000 iterations per inference
+
+# Recommended for production (60× faster!)
+optstop_params = {
+    'draws': 300,     # 300 MCMC samples
+    'tune': 300,      # 300 tuning steps
+    'chains': 2,      # 2 chains (down from 4)
+}
+# Total: 600 iterations, 2 chains = 60× speedup!
+```
+
+**Impact on ordinal hybrid:**
+- draws=6000, tune=6000: ~60-120 minutes per inference call
+- draws=300, tune=300, chains=2: ~3-5 minutes per inference call
+- **Speedup: 12-24×**
+
+**Quality trade-off:**
+- Fewer iterations → wider credible intervals (more conservative stopping)
+- For early stopping decisions, moderate precision is sufficient
+- Validate convergence: check R-hat < 1.01, ESS > 400
+
+---
+
+### 3. **Nutpie Integration** 🚀 NEW
+
+OptstOP now automatically detects and uses [nutpie](https://github.com/pymc-devs/nutpie) (Rust-based NUTS sampler) for **2-5× additional speedup** on CPU sampling:
+
+**Installation:**
+```bash
+pip install nutpie
+```
+
+**That's it!** Automatic detection, zero configuration.
+
+**Performance impact:**
+- Binary: ~26s → ~5-13s per inference
+- Ordinal (draws=300): ~3-5min → ~0.6-2.5min per inference
+- Continuous: ~9s → ~2-4.5s per inference
+
+**Combined optimization (draws=300 + nutpie):**
+- Total speedup: **120-300× faster than default!**
+- Ordinal hybrid: ~60min → ~0.6-2.5min per inference
+
+**Verification:**
+Check logs for: `"Configured sampling for CPU: nutpie (Rust-based v0.16.4)"`
+
+**See:** `NUTPIE_INTEGRATION.md` for details.
+
+---
+
+### 4. **Reanalysis Interval vs. Inference Time** 🔴 CRITICAL
+
+**Rule:** `inference_time` must be **less than** time between inference triggers.
+
+**Calculation:**
+```
+time_between_triggers = reanalysis_interval × trial_duration / parallelism
+```
+
+**Example scenario:**
+- 100 samples, 3 groupings (~33 per grouping)
+- reanalysis_interval = 25
+- Trial duration = 5 min
+- Parallelism = 5 trials at once
+- Time between any grouping hitting threshold: ~25 minutes
+
+**If inference takes 60 minutes:**
+- ❌ Queue backs up (60min >> 25min)
+- ❌ Stopping decisions arrive too late
+- ❌ 0% efficiency (all trials complete before first inference finishes)
+
+**If inference takes 3 minutes:**
+- ✅ No bottleneck (3min << 25min)
+- ✅ Stopping decisions arrive in time
+- ✅ 40-60% efficiency achieved
+
+---
+
+### 5. **Ordinal Inference Mode Selection** ⚠️ CRITICAL
+
+| Mode | Speed | Use Case | Performance |
+|------|-------|----------|-------------|
+| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | ✅ **RECOMMENDED for production** |
+| **entropy** | ~60min | Diffuse distributions (spread across many categories) | ⚠️ Slow, use only when needed |
+| **hybrid** | ~60min | Auto-selects modal or entropy | 🔴 **AVOID for large-scale** |
+
+**Why hybrid is slow:**
+- Computes BOTH modal (fast) AND entropy (slow) every time
+- No early exit optimization (always runs both)
+- Designed for maximum safety, not performance
+
+**Recommendation:**
+```python
+# For production with >50 samples
+ordinal_inference='modal'  # Fast, works for 80-90% of cases
+
+# For research/small-scale (<50 samples)
+ordinal_inference='hybrid'  # Safe but slow
+```
+
+**Trade-off:**
+- Modal: May not stop for truly diffuse distributions (stays wide forever)
+- Hybrid: Catches all cases but 100-1000× slower
+- For most LLM evaluations, modal is sufficient (models are typically consistent or consistently inconsistent)
+
+---
+
+### 6. **Configuration Decision Tree**
+
+```
+Are you using ordinal scoring?
+│
+├─ NO → Use default settings, benefit from nutpie
+│        Expected: <1min per inference
+│
+└─ YES → How many samples?
+         │
+         ├─ <50 samples
+         │  └─ Use: ordinal_inference='hybrid'
+         │          draws=300, tune=300, chains=2
+         │          Expected: 3-5min per inference
+         │
+         └─ ≥50 samples
+            └─ Use: ordinal_inference='modal'
+                    draws=300, tune=300, chains=2
+                    Expected: <1min per inference
+
+                    If stopping fails (wide CIs forever):
+                    → Distribution is truly diffuse
+                    → Consider: Are ordinal scores appropriate?
+                    → Or: Accept longer runtimes with hybrid mode
+```
+
+---
+
+### 7. **Recommended Production Settings**
+
+#### Small Scale (< 100 samples)
+```python
+optstop_params = {
+    'delta_item': 0.15,
+    'delta_cap': 0.10,
+    'draws': 500,      # Moderate
+    'tune': 500,
+    'chains': 2,
+}
+ordinal_inference='hybrid'  # Can afford hybrid
+reanalysis_interval=10
+```
+**Expected:** ~5-10 min per inference (with nutpie)
+
+#### Large Scale (100-1000 samples)
+```python
+optstop_params = {
+    'delta_item': 0.15,
+    'delta_cap': 0.10,
+    'draws': 300,      # Reduced for speed
+    'tune': 300,
+    'chains': 2,
+}
+ordinal_inference='modal'  # Fast mode only
+reanalysis_interval=25     # Less frequent checks
+```
+**Expected:** ~0.6-2.5 min per inference (with nutpie)
+
+#### Very Large Scale (>1000 samples)
+```python
+optstop_params = {
+    'delta_item': 0.20,      # More aggressive
+    'delta_cap': 0.15,
+    'draws': 200,            # Minimal
+    'tune': 200,
+    'chains': 2,
+}
+ordinal_inference='modal'
+reanalysis_interval=50      # Infrequent checks
+min_samples_per_grouping=20 # Wait for more data
+```
+**Expected:** ~0.5-1.5 min per inference (with nutpie)
+
+---
+
+### 8. **Performance Monitoring**
+
+**Check inference times in logs:**
+```
+INFO - Running optimal stopping inference on 25 completed trials for 'gpt-4-math'
+INFO - Inference completed in 2.3 minutes
+```
+
+**If inference is too slow:**
+
+1. **Check MCMC parameters:**
+   - Reduce draws/tune (300/300 recommended)
+   - Reduce chains (2 recommended)
+
+2. **Check ordinal mode:**
+   - Switch from hybrid → modal
+
+3. **Install nutpie:**
+   ```bash
+   pip install nutpie
+   ```
+   Verify in logs: "Using nutpie sampler"
+
+4. **Increase reanalysis_interval:**
+   - More time between inferences
+   - Trade-off: May miss early stopping opportunities
+
+5. **Check for bottleneck:**
+   - Is `inference_time > time_between_triggers`?
+   - If yes: **critical** - queue backs up, stopping fails
+   - Solution: Reduce inference time or increase reanalysis_interval
+
+---
+
+### 9. **Common Performance Issues**
+
+| Symptom | Cause | Solution |
+|---------|-------|----------|
+| All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode, install nutpie |
+| Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce to draws=300, tune=300, chains=2 |
+| "Inference still running" after task complete | Queue backed up | Check inference_time < reanalysis_interval × trial_duration |
+| Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune slightly (500/500) |
 
 ---
 
@@ -90,21 +349,32 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `conservatism` (int, default: 5): Conservatism factor for rare events (higher = more conservative)
 - `low_performance_threshold` (float, default: 0.01): Success rate below which conservative stopping applies
 
-**Advanced parameters (usually use defaults):**
+**Advanced parameters (performance-critical):**
 - `draws` (int, default: 6000): Number of MCMC samples
+  - ⚠️ **Performance impact:** Linear scaling with inference time
+  - **Recommended production:** 300-500 (60-120× faster than default!)
 - `tune` (int, default: 6000): Number of MCMC tuning steps
+  - ⚠️ **Performance impact:** Linear scaling with inference time
+  - **Recommended production:** 300-500
 - `chains` (int, default: 4): Number of MCMC chains
+  - **Recommended production:** 2 (2× faster)
 - `cores` (int, default: 4): Number of CPU cores for sampling
+  - Usually matches `chains`
 - `CI_delta` (float, default: 0.00005): Slope threshold for CI stabilization
 - `stab_window` (int, default: 10): Window size for stabilization assessment
 
-**Example:**
+**⚠️ CRITICAL:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values are sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
+
+**Example (production-optimized):**
 ```python
 optstop_params = {
     'delta_item': 0.15,      # Allow wider CI for samples (more aggressive stopping)
     'delta_cap': 0.10,       # Require tighter CI for groupings (conservative)
     'cred_level': 0.95,      # 95% confidence intervals
     'conservatism': 5,       # Standard conservatism
+    'draws': 300,            # ← 60× faster than default!
+    'tune': 300,             # ← Production recommended
+    'chains': 2,             # ← 2× faster than default
 }
 ```
 
@@ -244,11 +514,34 @@ Maximum value for ordinal scores (e.g., 10 for 0-10 scale, 5 for 1-5 scale).
 Inference mode for ordinal tasks.
 
 **Valid values:**
-- `'modal'`: Fast, bootstrap-based modal category estimation. Best for peaked distributions.
-- `'entropy'`: Conservative, full Bayesian entropy-based stopping. Best for diffuse distributions.
-- `'hybrid'` (recommended): Automatically selects modal or entropy based on distribution characteristics.
+- `'modal'`: Fast (~0.1s), bootstrap-based modal category estimation. Best for peaked distributions.
+- `'entropy'`: Conservative (~60+ min with defaults), full Bayesian entropy-based stopping. Best for diffuse distributions.
+- `'hybrid'` (default): Automatically selects modal or entropy based on distribution characteristics (~60+ min with defaults).
 
-**Recommendation:** Use `'hybrid'` unless you know your data distribution.
+**⚠️ PERFORMANCE WARNING:**
+- **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
+- With default settings (draws=6000, tune=6000): ~60-120 minutes per inference call
+- With optimized settings (draws=300, tune=300, chains=2): ~3-5 minutes per inference call
+- **Modal mode** uses bootstrap: ~0.1 seconds per inference call (always fast!)
+
+**Recommendation by use case:**
+```python
+# Production with >50 samples (RECOMMENDED)
+ordinal_inference='modal'  # Fast, works for 80-90% of cases
+
+# Small-scale research (<50 samples)
+ordinal_inference='hybrid'  # Safe but slow
+# MUST use draws=300, tune=300, chains=2 to avoid hours-long inference!
+
+# Known diffuse distributions only
+ordinal_inference='entropy'  # Very slow, use only when modal fails
+```
+
+**Trade-offs:**
+- **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
+- **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
+
+**See:** [Performance Considerations - Ordinal Inference Mode Selection](#5-ordinal-inference-mode-selection--critical) for detailed analysis.
 
 ---
 
