@@ -119,7 +119,8 @@ class OptimalStoppingManager(EarlyStopping):
         manager_name: str = "optstop",
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
-        score_agg: Optional[str] = None
+        score_agg: Optional[str] = None,
+        random_seed: Optional[int] = None
     ):
         """Initialize optimal stopping manager.
 
@@ -148,6 +149,8 @@ class OptimalStoppingManager(EarlyStopping):
                 If None, uses first score in dict. Mutually exclusive with score_agg.
             score_agg: Aggregation method for multiple scores ('mean', 'median', 'mode', 'max').
                 If None, uses single score. Mutually exclusive with score_choice.
+            random_seed: Random seed for MCMC sampling reproducibility.
+                If None, a seed is auto-generated and logged for reproducibility tracking.
 
         Raises:
             ValueError: If both score_choice and score_agg are specified (mutually exclusive).
@@ -165,7 +168,7 @@ class OptimalStoppingManager(EarlyStopping):
             )
 
         # Configuration
-        self.optstop_params = optstop_params
+        self.optstop_params = optstop_params.copy()  # Copy to avoid modifying original
         self.grouping_columns = grouping_columns
         self.score_column = score_column
         self.sample_id_column = sample_id_column
@@ -176,6 +179,21 @@ class OptimalStoppingManager(EarlyStopping):
         self.shadow_mode = shadow_mode
         self.score_choice = score_choice
         self.score_agg = score_agg
+
+        # Random seed handling: generate if not provided, always store for reproducibility
+        if random_seed is not None:
+            self.random_seed = int(random_seed)  # Ensure Python int for JSON serialization
+            self._seed_source = "user_specified"
+        else:
+            # Generate a random seed using system entropy
+            self.random_seed = int(np.random.default_rng().integers(0, 2**31 - 1))
+            self._seed_source = "auto_generated"
+
+        # Add seed to optstop_params so it propagates to MCMC sampling
+        self.optstop_params['random_seed'] = self.random_seed
+
+        # Log seed immediately for reproducibility tracking
+        logger.info(f"🎲 Random seed: {self.random_seed} ({self._seed_source})")
 
         # Ordinal configuration
         self.ordinal_tasks = ordinal_tasks
@@ -270,6 +288,11 @@ class OptimalStoppingManager(EarlyStopping):
         if rep_batch_size is not None and rep_batch_size <= 0:
             raise ValueError(f"rep_batch_size must be > 0, got {rep_batch_size}")
 
+        # Entropy stabilization threshold for ordinal hybrid stopping
+        entropy_stab = self.optstop_params.get('entropy_stabilization_threshold')  # default: 0.002
+        if entropy_stab is not None and entropy_stab <= 0:
+            raise ValueError(f"entropy_stabilization_threshold must be > 0, got {entropy_stab}")
+
         # PyMC sampling parameters (passed to sampling_kwargs)
         tune = self.optstop_params.get('tune')  # default: auto-configured by gpu_utils
         if tune is not None and tune < 0:
@@ -360,6 +383,7 @@ class OptimalStoppingManager(EarlyStopping):
             'CI_delta': ('CI stabilization slope threshold', 0.00005),
             'stab_window': ('Stabilization window', 10),
             'rep_batch_size': ('Repetition batch size', 1),
+            'entropy_stabilization_threshold': ('Entropy stabilization threshold', 0.002),
             'draws': ('MCMC draws', 6000),
             'tune': ('MCMC tune steps', 6000),
             'chains': ('MCMC chains', 4),
@@ -413,6 +437,11 @@ class OptimalStoppingManager(EarlyStopping):
         else:
             print("  • GPU: Disabled (CPU-only mode)")
             print(f"  • Max workers: {self.max_workers if self.max_workers else 'auto'}")
+
+        # Reproducibility Configuration
+        print("\n🎲 Reproducibility:")
+        print(f"  • Random seed: {self.random_seed}")
+        print(f"  • Seed source: {self._seed_source}")
 
         print("\n" + "="*80 + "\n")
 
@@ -1324,6 +1353,8 @@ class OptimalStoppingManager(EarlyStopping):
         # Build metadata with comprehensive diagnostics
         metadata = {
             "manager": self.manager_name,
+            "random_seed": self.random_seed,
+            "seed_source": self._seed_source,
             "total_planned_trials": total_planned,
             "total_ran": total_ran,
             "total_skipped": total_skipped,

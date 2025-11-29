@@ -1009,8 +1009,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             else:
                 logger.info(f"Worker processing grouping {pid} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
 
-            if 'random_seed' in params:
-                np.random.seed(params['random_seed'])
+            # Note: random_seed is now passed directly to PyMC via sampling_kwargs['random_seed']
+            # (configured in gpu_utils.get_sampling_kwargs)
+
             item_summaries = []
             used_reps_dfs = []
             theta_lo, theta_hi, theta_width = None, None, None
@@ -2162,6 +2163,9 @@ def optimal_stopping_live_single(
     low_perf_threshold = params.get('low_performance_threshold', 0.01)
     rep_batch_size = params.get('rep_batch_size', 1)
     stab_window = params.get('stab_window', 10)
+    # Entropy stabilization threshold for ordinal hybrid stopping
+    # Default 0.002 = 0.2% relative change threshold
+    entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
 
     # Determine score type for this grouping
     is_aggregated = params.get('is_aggregated', False)
@@ -2468,6 +2472,7 @@ def optimal_stopping_live_single(
                     entropy_threshold=entropy_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
+                    stabilization_threshold=entropy_stabilization_threshold,
                     model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
@@ -2702,6 +2707,7 @@ def optimal_stopping_live_single(
                     entropy_threshold=entropy_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
+                    stabilization_threshold=entropy_stabilization_threshold,
                     model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )

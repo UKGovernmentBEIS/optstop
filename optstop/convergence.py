@@ -327,9 +327,9 @@ def _process_grouping(args):
         else:
             logger.info(f"Worker processing grouping {pid} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
 
-        # Set random seed if provided
-        if 'random_seed' in params:
-            np.random.seed(params['random_seed'])
+        # Note: random_seed is now passed directly to PyMC via sampling_kwargs['random_seed']
+        # (configured in gpu_utils.get_sampling_kwargs)
+
         logger.info(f"Processing grouping {pid}")
 
         # OPTIMIZATION: Create shared ordinal model cache for this entire grouping

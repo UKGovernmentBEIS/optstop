@@ -1,25 +1,26 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.2.0+
-**Last Updated:** 2025-11-28
-**Status:** Production Ready (Phase 1 Complete)
-**Performance:** Nutpie integration available (2-5× CPU speedup)
+**Version:** 0.2.1+
+**Last Updated:** 2025-11-29
+**Status:** Production Ready (Phase 1 & 2 Complete)
+**Performance:** Numpyro/JAX integration available (2× CPU speedup)
 
 ---
 
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Performance Considerations](#performance-considerations) **← NEW**
+2. [Performance Considerations](#performance-considerations)
 3. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
 4. [Initialization Parameters](#initialization-parameters)
-5. [Routing Logic](#routing-logic)
-6. [Configuration Patterns](#configuration-patterns)
-7. [Protocol Methods](#protocol-methods)
-8. [Diagnostics and Return Values](#diagnostics-and-return-values)
-9. [Best Practices](#best-practices)
-10. [Common Pitfalls](#common-pitfalls)
-11. [Examples](#examples)
+5. [Reproducibility](#reproducibility)
+6. [Routing Logic](#routing-logic)
+7. [Configuration Patterns](#configuration-patterns)
+8. [Protocol Methods](#protocol-methods)
+9. [Diagnostics and Return Values](#diagnostics-and-return-values)
+10. [Best Practices](#best-practices)
+11. [Common Pitfalls](#common-pitfalls)
+12. [Examples](#examples)
 
 ---
 
@@ -104,30 +105,27 @@ optstop_params = {
 
 ---
 
-### 3. **Nutpie Integration** 🚀 NEW
+### 3. **Numpyro/JAX CPU Backend** 🚀
 
-OptstOP now automatically detects and uses [nutpie](https://github.com/pymc-devs/nutpie) (Rust-based NUTS sampler) for **2-5× additional speedup** on CPU sampling:
+For **ordinal inference**, optstop automatically uses [numpyro](https://num.pyro.ai/) (JAX-based) for **~2× speedup** on CPU sampling:
 
 **Installation:**
 ```bash
-pip install nutpie
+pip install numpyro jax jaxlib
 ```
 
-**That's it!** Automatic detection, zero configuration.
+**Automatic detection**, zero configuration required.
 
-**Performance impact:**
-- Binary: ~26s → ~5-13s per inference
-- Ordinal (draws=300): ~3-5min → ~0.6-2.5min per inference
-- Continuous: ~9s → ~2-4.5s per inference
+**Current sampling strategy:**
+- **Binary/Continuous**: PyMC default (fastest for adaptive collection)
+- **Ordinal**: Numpyro/JAX CPU backend (~2× faster than PyMC default)
 
-**Combined optimization (draws=300 + nutpie):**
-- Total speedup: **120-300× faster than default!**
-- Ordinal hybrid: ~60min → ~0.6-2.5min per inference
+**Performance impact (ordinal):**
+- PyMC default: ~1.15 min per MCMC call
+- Numpyro/JAX: ~0.61 min per MCMC call (~1.9× faster)
 
 **Verification:**
-Check logs for: `"Configured sampling for CPU: nutpie (Rust-based v0.16.4)"`
-
-**See:** `NUTPIE_INTEGRATION.md` for details.
+Check logs for: `"Configured sampling for CPU: numpyro (JAX/numpyro CPU backend)"`
 
 ---
 
@@ -193,7 +191,7 @@ ordinal_inference='hybrid'  # Safe but slow
 ```
 Are you using ordinal scoring?
 │
-├─ NO → Use default settings, benefit from nutpie
+├─ NO → Use default settings (PyMC default)
 │        Expected: <1min per inference
 │
 └─ YES → How many samples?
@@ -230,7 +228,7 @@ optstop_params = {
 ordinal_inference='hybrid'  # Can afford hybrid
 reanalysis_interval=10
 ```
-**Expected:** ~5-10 min per inference (with nutpie)
+**Expected:** ~5-10 min per inference
 
 #### Large Scale (100-1000 samples)
 ```python
@@ -244,7 +242,7 @@ optstop_params = {
 ordinal_inference='modal'  # Fast mode only
 reanalysis_interval=25     # Less frequent checks
 ```
-**Expected:** ~0.6-2.5 min per inference (with nutpie)
+**Expected:** ~0.6-2.5 min per inference (numpyro for ordinal)
 
 #### Very Large Scale (>1000 samples)
 ```python
@@ -259,7 +257,7 @@ ordinal_inference='modal'
 reanalysis_interval=50      # Infrequent checks
 min_samples_per_grouping=20 # Wait for more data
 ```
-**Expected:** ~0.5-1.5 min per inference (with nutpie)
+**Expected:** ~0.5-1.5 min per inference (numpyro for ordinal)
 
 ---
 
@@ -280,11 +278,11 @@ INFO - Inference completed in 2.3 minutes
 2. **Check ordinal mode:**
    - Switch from hybrid → modal
 
-3. **Install nutpie:**
+3. **Install numpyro (for ordinal):**
    ```bash
-   pip install nutpie
+   pip install numpyro jax jaxlib
    ```
-   Verify in logs: "Using nutpie sampler"
+   Verify in logs: `"Configured sampling for CPU: numpyro"`
 
 4. **Increase reanalysis_interval:**
    - More time between inferences
@@ -301,7 +299,7 @@ INFO - Inference completed in 2.3 minutes
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode, install nutpie |
+| All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode |
 | Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce to draws=300, tune=300, chains=2 |
 | "Inference still running" after task complete | Queue backed up | Check inference_time < reanalysis_interval × trial_duration |
 | Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune slightly (500/500) |
@@ -329,7 +327,8 @@ manager = OptimalStoppingManager(
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
-    score_agg: Optional[str] = None
+    score_agg: Optional[str] = None,
+    random_seed: Optional[int] = None
 )
 ```
 
@@ -362,6 +361,11 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - Usually matches `chains`
 - `CI_delta` (float, default: 0.00005): Slope threshold for CI stabilization
 - `stab_window` (int, default: 10): Window size for stabilization assessment
+- `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
+  - 0.002 = 0.2% relative change required to declare convergence
+  - **Lower values** = more conservative (require MORE stability before stopping)
+  - **Higher values** = more aggressive (stop with LESS stability)
+  - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
 
 **⚠️ CRITICAL:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values are sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
 
@@ -591,6 +595,133 @@ If True, run all trials without actually stopping, but track what would have sto
 - `schedule_sample()` always returns `None` (run all trials)
 - Inference still runs and stopping decisions are tracked
 - `complete_task()` diagnostics show what would have stopped
+
+---
+
+### Reproducibility Parameter
+
+#### `random_seed: Optional[int] = None`
+Random seed for MCMC sampling reproducibility.
+
+**Behavior:**
+- If **specified** (e.g., `random_seed=42`): Uses the provided seed for all MCMC inference
+- If **not specified** (default): Auto-generates a random seed using system entropy
+
+**Key features:**
+- Seed is **always logged** at manager initialization:
+  ```
+  INFO:optstop.early_stopping:🎲 Random seed: 1614538249 (auto_generated)
+  INFO:optstop.early_stopping:🎲 Random seed: 42 (user_specified)
+  ```
+- Seed is **included in configuration summary** printed at task start
+- Seed is **included in diagnostics** returned by `complete_task()`:
+  ```python
+  diagnostics = {
+      "random_seed": 42,
+      "seed_source": "user_specified",  # or "auto_generated"
+      ...
+  }
+  ```
+- Seed is **passed directly to PyMC** via `sampling_kwargs['random_seed']`
+
+**Use cases:**
+- **Debugging:** Reproduce exact stopping decisions by using the same seed
+- **Testing:** Verify consistent behavior across runs
+- **Validation:** Compare results with controlled randomness
+
+**Example:**
+```python
+# For reproducible results
+manager = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    random_seed=42  # Same seed = same MCMC results
+)
+
+# For production (let system generate)
+manager = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    # random_seed not specified - auto-generated and logged
+)
+```
+
+**Important notes:**
+- Different MCMC backends (PyMC default vs numpyro) may produce different results even with the same seed
+- Seed ensures reproducibility **within the same configuration**, not across different backends
+
+---
+
+## Reproducibility
+
+### Overview
+
+As of v0.2.1, OptimalStoppingManager provides comprehensive reproducibility support:
+
+1. **Random seed control:** Specify `random_seed` parameter or let system auto-generate
+2. **Seed logging:** All seeds are logged immediately, even auto-generated ones
+3. **Diagnostics inclusion:** Seed appears in `complete_task()` output for tracking
+
+### Ensuring Reproducible Results
+
+```python
+# Step 1: Run with explicit seed
+manager = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    random_seed=42
+)
+
+log1 = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+
+# Step 2: Run again with same seed
+manager2 = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    random_seed=42  # Same seed
+)
+
+log2 = eval(task, model="gpt-4", epochs=10, early_stopping=manager2)
+
+# Results should be identical
+assert log1.early_stopping['efficiency_percent'] == log2.early_stopping['efficiency_percent']
+```
+
+### Tracking Seeds from Auto-Generated Runs
+
+```python
+# Run without specifying seed
+manager = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    # No random_seed - will auto-generate
+)
+
+log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+
+# Retrieve the seed that was used
+used_seed = log.early_stopping['random_seed']
+seed_source = log.early_stopping['seed_source']  # "auto_generated"
+
+print(f"Run used seed: {used_seed}")
+
+# To reproduce this exact run later:
+manager_replay = OptimalStoppingManager(
+    optstop_params={'draws': 500, 'tune': 500},
+    grouping_columns=['model', 'task'],
+    random_seed=used_seed  # Use the captured seed
+)
+```
+
+### Factors Affecting Reproducibility
+
+| Factor | Impact | Notes |
+|--------|--------|-------|
+| `random_seed` | ✅ Controlled | Same seed = same MCMC sequence |
+| `draws`, `tune` | ✅ Controlled | Part of configuration |
+| MCMC backend | ⚠️ Varies | PyMC vs numpyro produce different results |
+| Hardware | ⚠️ Varies | GPU vs CPU may differ slightly |
+| Library versions | ⚠️ Varies | PyMC/numpyro updates may affect results |
 
 ---
 
@@ -914,6 +1045,8 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
 ```python
 {
     "manager": str,                      # Manager name
+    "random_seed": int,                  # Random seed used for MCMC inference
+    "seed_source": str,                  # "user_specified" or "auto_generated"
     "total_planned_trials": int,         # Total trials planned (samples × epochs)
     "total_ran": int,                    # Trials actually executed
     "total_skipped": int,                # Trials skipped due to early stopping
@@ -1512,7 +1645,14 @@ gpu_ids=[0]
 
 ## Version History
 
-### v0.2.0 (Current)
+### v0.2.1 (Current)
+- ✅ `random_seed` parameter for MCMC reproducibility
+- ✅ `entropy_stabilization_threshold` parameter for ordinal tuning
+- ✅ Numpyro/JAX integration for ordinal inference (~2× CPU speedup)
+- ✅ Seed logging and diagnostics tracking
+- ✅ Removed redundant np.random.seed() calls (cleaner seed propagation)
+
+### v0.2.0
 - ✅ Complete Phase 1 testing (15/15 tests passing)
 - ✅ Binary discrete, ordinal discrete, continuous bounded validated
 - ✅ Multi-grouping independence confirmed
@@ -1547,6 +1687,6 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2025-11-25
-**Document Version:** 1.0
-**Phase:** Production Ready (Phase 1 Complete)
+**Last Updated:** 2025-11-29
+**Document Version:** 1.1
+**Phase:** Production Ready (Phase 1 & 2 Complete)

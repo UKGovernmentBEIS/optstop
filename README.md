@@ -19,7 +19,7 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - **Performance optimizations** for convergence analysis (~30% faster, see Performance Optimizations section)
 - **inspect_ai integration** for LLM evaluation workflows with adaptive early stopping
 
-## NEW: Using optstop with inspect_ai
+## Using optstop with inspect_ai
 
 `optstop` now provides seamless integration with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Safety Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, enabling **statistically-rigorous adaptive early stopping** for your LLM evaluations.
 
@@ -184,6 +184,12 @@ print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
 | `score_choice` | None | Extract specific score by key name |
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
+| `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
+
+**Additional `optstop_params` options:**
+| Key | Default | Description |
+|-----|---------|-------------|
+| `entropy_stabilization_threshold` | 0.002 | Relative change threshold for ordinal entropy stabilization |
 
 ### Diagnostics and Efficiency Metrics
 
@@ -218,7 +224,7 @@ for sample in diagnostics['stopped_samples']:
 
 ### Compatibility
 
-- **optstop version**: 0.2.0+
+- **optstop version**: 0.2.1+ (reproducibility features require 0.2.1+)
 - **inspect_ai version**: 0.3.0+
 - **Python version**: 3.10+
 

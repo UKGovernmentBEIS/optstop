@@ -1,5 +1,4 @@
 {
-  "test_date": "2025-11-28T16:53:04.895068",
   "dataset": "/home/ubuntu/optstop/test_data/large_scale/dataset_2_ordinal_with_choice.csv",
   "score_columns": [
     "accuracy",
@@ -33,21 +32,287 @@
     "ordinal_inference": "hybrid"
   },
   "execution": {
-    "init_time_sec": 4.482269287109375e-05,
-    "run_time_sec": 2658.28773188591,
-    "total_time_sec": 2658.298704147339,
-    "trial_count": 1175,
+    "init_time_sec": 5.841255187988281e-05,
+    "run_time_sec": 34525.23687791824,
+    "run_time_min": 575.4206146319707,
+    "total_time_sec": 34526.325020074844,
+    "trial_count": 2795,
     "total_planned": 5000,
-    "stopped_samples": 425
+    "stopped_samples": 245
   },
   "diagnostics": {
     "manager": "optstop",
     "total_planned_trials": 5000,
-    "total_ran": 675,
-    "total_skipped": 4325,
-    "efficiency_percent": 86.5,
-    "stopped_samples_count": 0,
-    "stopped_samples": [],
+    "total_ran": 2295,
+    "total_skipped": 2705,
+    "efficiency_percent": 54.1,
+    "stopped_samples_count": 12,
+    "stopped_samples": [
+      {
+        "id": "sample_0100",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.389154502136986,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0101",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.3795001248341917,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0102",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.3930599900113029,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0103",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.3730981210901659,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0104",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.39607345820935885,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0105",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.39989258400709216,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0106",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.4183469897176513,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0107",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.4197268512268907,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0108",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.40745511055689143,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0109",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              0.0,
+              0.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 0.4001828352183804,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0453",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              1.0,
+              1.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 1.4381448230833058,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      },
+      {
+        "id": "sample_0493",
+        "epoch": 9,
+        "reason": "modal_ci_narrow_validated",
+        "metadata": {
+          "reason": "modal_ci_narrow_validated",
+          "epochs_used": 9,
+          "diagnostics": {
+            "pathway": 1,
+            "modal_ci": [
+              1.0,
+              1.0
+            ],
+            "modal_width": 0.0,
+            "entropy_median": 1.334892222771269,
+            "entropy_threshold": 1.5,
+            "threshold": 0.15,
+            "entropy_epochs": 0,
+            "validated": true
+          }
+        }
+      }
+    ],
     "grouping_columns": [
       "model",
       "task"
@@ -56,116 +321,120 @@
     "min_samples_per_grouping": 10,
     "stopped_samples_per_grouping": {
       "gpt-4-turbo-math_easy": 0,
-      "gpt-3.5-math_hard": 0,
+      "gpt-3.5-math_hard": 10,
       "claude-3-opus-coding_medium": 0,
       "gemini-pro-reasoning": 0,
-      "llama-70b-creative_writing": 0
+      "llama-70b-creative_writing": 2
     },
     "stopped_groupings": [
-      "gpt-3.5-math_hard",
-      "gemini-pro-reasoning",
       "gpt-4-turbo-math_easy",
-      "claude-3-opus-coding_medium",
-      "llama-70b-creative_writing"
+      "gpt-3.5-math_hard",
+      "claude-3-opus-coding_medium"
     ],
-    "stopped_groupings_count": 5,
+    "stopped_groupings_count": 3,
     "decision_counters": {
       "gpt-4-turbo-math_easy": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 190,
+        "inference_calls": 7,
+        "next_inference_at": 200
       },
       "gpt-3.5-math_hard": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 190,
+        "inference_calls": 7,
+        "next_inference_at": 200
       },
       "claude-3-opus-coding_medium": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 415,
+        "inference_calls": 16,
+        "next_inference_at": 425
       },
       "gemini-pro-reasoning": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
       },
       "llama-70b-creative_writing": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
       }
     },
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
-        "n_samples": 15,
+        "n_samples": 10,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0,
         "final_modal_ci_width": 0.0,
-        "final_modal_ci": null,
-        "final_entropy": 1.7297158093186487,
+        "final_modal_ci": [
+          0.9,
+          0.9
+        ],
+        "final_entropy": 1.3361894675957973,
         "final_entropy_threshold": 1.5,
-        "final_entropy_ci_width": 3.4594316186372973,
-        "final_relative_change": 0.0,
-        "final_stabilization_threshold": 0.002,
-        "ordinal_pathway": 2
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": 1
       },
       "gpt-3.5-math_hard": {
-        "n_samples": 15,
+        "n_samples": 10,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0,
         "final_modal_ci_width": 0.0,
-        "final_modal_ci": null,
-        "final_entropy": 1.7297158093186487,
+        "final_modal_ci": [
+          0.0,
+          0.0
+        ],
+        "final_entropy": 0.04170116705761617,
         "final_entropy_threshold": 1.5,
-        "final_entropy_ci_width": 3.4594316186372973,
-        "final_relative_change": 0.0,
-        "final_stabilization_threshold": 0.002,
-        "ordinal_pathway": 2
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": 1
       },
       "claude-3-opus-coding_medium": {
-        "n_samples": 15,
+        "n_samples": 35,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0,
-        "final_modal_ci_width": 0.09999999999999998,
+        "final_modal_ci_width": 0.19999999999999996,
         "final_modal_ci": null,
-        "final_entropy": 1.7297158093186487,
+        "final_entropy": 2.5836853281879275,
         "final_entropy_threshold": 1.5,
-        "final_entropy_ci_width": 3.4594316186372973,
-        "final_relative_change": 0.0,
+        "final_entropy_ci_width": 0.20986730035629275,
+        "final_relative_change": 0.0004432462092611875,
         "final_stabilization_threshold": 0.002,
         "ordinal_pathway": 2
       },
       "gemini-pro-reasoning": {
-        "n_samples": 15,
+        "n_samples": 100,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0,
-        "final_modal_ci_width": 0.39999999999999997,
+        "final_modal_ci_width": null,
         "final_modal_ci": null,
-        "final_entropy": 1.7297158093186487,
-        "final_entropy_threshold": 1.5,
-        "final_entropy_ci_width": 3.4594316186372973,
-        "final_relative_change": 0.0,
-        "final_stabilization_threshold": 0.002,
-        "ordinal_pathway": 2
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
       },
       "llama-70b-creative_writing": {
-        "n_samples": 15,
+        "n_samples": 100,
         "final_ci_width": null,
         "final_slope": null,
         "n_group_checks": 0,
-        "final_modal_ci_width": 1.0,
+        "final_modal_ci_width": null,
         "final_modal_ci": null,
-        "final_entropy": 1.7297158093186487,
-        "final_entropy_threshold": 1.5,
-        "final_entropy_ci_width": 3.4594316186372973,
-        "final_relative_change": 0.0,
-        "final_stabilization_threshold": 0.002,
-        "ordinal_pathway": 2
+        "final_entropy": null,
+        "final_entropy_threshold": null,
+        "final_entropy_ci_width": null,
+        "final_relative_change": null,
+        "final_stabilization_threshold": null,
+        "ordinal_pathway": null
       }
     },
     "ordinal_glossary": {
@@ -196,60 +465,13 @@
     ],
     "pattern_count": 3
   },
-  "nutpie_environment": {
-    "nutpie_available": true,
-    "nutpie_version": "0.16.4",
-    "detection_time": "2025-11-28T16:08:46.374218"
-  },
-  "sampler_selection": {
-    "nutpie_used": true,
-    "pymc_used": false,
-    "numpyro_used": false,
-    "nutpie_version": "0.16.4",
-    "sampler": "nutpie"
-  },
-  "inference_timing": {
-    "ordinal": {
-      "count": 15,
-      "total_sec": 201.455,
-      "mean_sec": 13.430333333333333,
-      "min_sec": 10.155,
-      "max_sec": 18.62,
-      "times": [
-        10.155,
-        10.282,
-        10.617,
-        11.175,
-        11.104,
-        12.714,
-        12.299,
-        13.167,
-        18.473,
-        13.364
-      ]
-    }
-  },
-  "comparison": {
-    "comparison_available": true,
-    "baseline_date": "2025-11-28T14:46:34.403822",
-    "current_date": "2025-11-28T16:53:04.895068",
-    "runtime_comparison": {
-      "baseline_sec": 97.42659640312195,
-      "current_sec": 2658.28773188591,
-      "speedup": 0.036650132050981214,
-      "time_saved_sec": -2560.861135482788,
-      "percent_change": -2628.5031295630147
-    },
-    "efficiency_comparison": {
-      "baseline_trials_ran": 1175,
-      "current_trials_ran": 1175,
-      "trial_difference": 0
-    },
-    "nutpie_comparison": {
-      "baseline_nutpie": true,
-      "current_nutpie": true,
-      "baseline_sampler": "pymc",
-      "current_sampler": "nutpie"
-    }
+  "group_level_stopping": {
+    "group_level_stopping_events": 3,
+    "stopped_groupings": [
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 10 samples: modal_ci_narrow_validated (modal CI width=0.0000, modal CI=[0.90, 0.90], entropy=1.3362, entropy threshold=1.50, modal threshold=0.1)",
+      "Stopped grouping 'gpt-3.5-math_hard' after 10 samples: modal_ci_narrow_validated (modal CI width=0.0000, modal CI=[0.00, 0.00], entropy=0.0417, entropy threshold=1.50, modal threshold=0.1)",
+      "Stopped grouping 'claude-3-opus-coding_medium' after 35 samples: entropy_stabilized (modal CI width=0.2000, entropy=2.5837, entropy CI width=0.2099, relative change=0.0004, stab threshold=0.0020)"
+    ],
+    "used_group_level_stopping": true
   }
 }

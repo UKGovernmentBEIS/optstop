@@ -9,9 +9,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Planned
 - Full bridge usage guide (BRIDGE_USAGE_GUIDE.md)
-- API reference documentation (BRIDGE_API_REFERENCE.md)
 - Example evaluations in `examples/inspect_ai/`
 - Comprehensive integration tests for bridge
+
+---
+
+## [0.2.1] - 2025-11-29
+
+### Added
+
+#### Reproducibility Features
+- `random_seed` parameter for `OptimalStoppingManager`
+  - User can specify seed for reproducible MCMC inference
+  - If not specified, auto-generates seed using system entropy
+  - Seed is always logged immediately at manager initialization
+  - Seed included in `complete_task()` diagnostics output
+  - Seed passed directly to PyMC via `sampling_kwargs['random_seed']`
+
+#### Configurable Ordinal Stopping
+- `entropy_stabilization_threshold` parameter in `optstop_params`
+  - Controls ordinal hybrid Pathway 2 (entropy stabilization) sensitivity
+  - Default: 0.002 (0.2% relative change threshold)
+  - Lower values = more conservative (require more stability)
+  - Higher values = more aggressive (stop with less stability)
+
+#### Backend Improvements
+- **Numpyro/JAX integration** for ordinal inference (~2× CPU speedup vs PyMC default)
+  - Automatic detection and configuration
+  - Zero configuration required for users
+  - Stable operation (0 failures in large-scale testing)
+
+### Changed
+
+#### Internal Improvements
+- Removed redundant `np.random.seed()` calls in `rule.py` and `convergence.py`
+  - Seed now passed directly to PyMC via sampling_kwargs
+  - Cleaner, more reliable seed propagation
+  - No change in behavior for users
+
+#### Documentation
+- Updated `BRIDGE_API_REFERENCE.md` (v1.1)
+  - Added `random_seed` parameter documentation
+  - Added `entropy_stabilization_threshold` documentation
+  - New "Reproducibility" section with examples
+  - Updated diagnostics structure with new fields
+  - Updated version history
+
+### Performance
+
+#### Large-Scale Testing Results (500 samples × 3 datasets)
+| Dataset | Type | Runtime | Efficiency |
+|---------|------|---------|------------|
+| Binary | Discrete | 6.89 min | 48.26% |
+| Ordinal (numpyro) | Discrete | 575 min | 54.1% |
+| Continuous | Bounded | 8.73 min | 59.98% |
+
+- Ordinal inference with numpyro: ~1.9× faster per MCMC call vs baseline
+- Overall ordinal runtime: ~26% faster than PyMC default
+
+### Upgrade Notes
+- **No breaking changes** - all existing code continues to work
+- **New optional parameters**:
+  - `random_seed` on `OptimalStoppingManager` (optional, auto-generates if not specified)
+  - `entropy_stabilization_threshold` in `optstop_params` (optional, defaults to 0.002)
+- **Diagnostics structure updated**: Now includes `random_seed` and `seed_source` fields
 
 ---
 

@@ -727,6 +727,11 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         'target_accept': 0.97,
     }
 
+    # Include random_seed if provided for reproducibility
+    if 'random_seed' in params and params['random_seed'] is not None:
+        sampling_kwargs['random_seed'] = params['random_seed']
+        logger.info(f"MCMC random_seed: {params['random_seed']}")
+
     if gpu_available and params.get('use_gpu', True):
         if gpu_backend == 'jax-gpu':
             # Use numpyro (JAX) sampler for optimal GPU acceleration

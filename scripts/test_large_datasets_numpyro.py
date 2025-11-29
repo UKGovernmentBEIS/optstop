@@ -2,17 +2,21 @@
 Bridge protocol test script for three large-scale datasets - NUMPYRO VERSION.
 
 This script runs each of the three generated datasets through the OptimalStoppingManager
-to verify performance improvements after the nutpie removal and numpyro direct assignment.
+to verify performance with the numpyro/JAX CPU backend for ordinal inference.
 
-EXPECTED IMPROVEMENTS (vs baseline with nutpie):
-- Dataset 1 (binary): ~8.6 min (was 21.4 min with nutpie) = 2.5× FASTER
-- Dataset 2 (ordinal): ~3-4 hours with numpyro (was FAILING with nutpie)
-- Dataset 3 (continuous): ~7.1 min (was 25.0 min with nutpie) = 3.5× FASTER
+v0.2.1 UPDATES:
+- Added random_seed for reproducible MCMC sampling (seed=42)
+- Added entropy_stabilization_threshold=0.001 for stricter ordinal hybrid stopping
+- Using PyMC default for binary/continuous, numpyro for ordinal
 
-KEY CHANGES FROM NUTPIE VERSION:
-1. Binary/continuous: Now use PyMC default (no nutpie compilation overhead)
-2. Ordinal: Now use numpyro directly (no nutpie→numpyro conversion)
-3. No cache invalidation issues from adaptive n_items growth
+EXPECTED PERFORMANCE:
+- Dataset 1 (binary): ~6-8 min (PyMC default)
+- Dataset 2 (ordinal): ~8-10 hours with numpyro hybrid (stricter threshold)
+- Dataset 3 (continuous): ~8-9 min (PyMC default)
+
+INFERENCE PATHWAYS:
+1. Binary/continuous: PyMC default (fastest for adaptive collection)
+2. Ordinal: Numpyro/JAX CPU backend (~2× faster than PyMC default)
 
 Each dataset tests a different scoring type:
 - Dataset 1: Binary discrete (single binary score)
@@ -440,20 +444,23 @@ async def main():
     """Run bridge protocol tests for all three datasets."""
 
     print("\n" + "=" * 80)
-    print("LARGE-SCALE BRIDGE PROTOCOL TESTING - NUMPYRO VERSION")
+    print("LARGE-SCALE BRIDGE PROTOCOL TESTING - v0.2.1")
     print("=" * 80)
     print("\nThis script tests the OptimalStoppingManager bridge with:")
     print("  • 3 datasets × 500 samples × 10 epochs = 15,000 total trials")
     print("  • Binary discrete, ordinal discrete, and continuous bounded inference")
     print("  • 5 groupings per dataset with varying performance")
+    print("\nv0.2.1 NEW PARAMETERS:")
+    print("  • random_seed=42 for reproducible MCMC sampling")
+    print("  • entropy_stabilization_threshold=0.001 (stricter than default 0.002)")
     print("\nExpected routing:")
     print("  • Dataset 1 → Binary discrete inference (PyMC default)")
-    print("  • Dataset 2 → Ordinal discrete inference (numpyro)")
+    print("  • Dataset 2 → Ordinal discrete inference (numpyro/JAX)")
     print("  • Dataset 3 → Continuous bounded inference (PyMC default)")
-    print("\nEXPECTED PERFORMANCE IMPROVEMENTS:")
-    print("  • Dataset 1 (binary): ~8.6 min (was 21.4 min with nutpie) = 2.5× FASTER")
-    print("  • Dataset 2 (ordinal): ~3-4 hours with numpyro (was FAILING with nutpie)")
-    print("  • Dataset 3 (continuous): ~7.1 min (was 25.0 min with nutpie) = 3.5× FASTER")
+    print("\nEXPECTED PERFORMANCE:")
+    print("  • Dataset 1 (binary): ~6-8 min (PyMC default)")
+    print("  • Dataset 2 (ordinal): ~8-10 hours (numpyro with stricter threshold)")
+    print("  • Dataset 3 (continuous): ~8-9 min (PyMC default)")
 
     # Paths
     data_dir = Path('/home/ubuntu/optstop/test_data/large_scale')
@@ -465,6 +472,7 @@ async def main():
     # FIX Issue #4: MCMC 6000→500 (4x speedup from Section 1.1.2 findings)
 
     # Optstop inference parameters (nested dict)
+    # v0.2.1: Added random_seed for reproducibility and entropy_stabilization_threshold
     optstop_params = {
         'delta_item': 0.15,
         'delta_cap': 0.10,
@@ -472,7 +480,14 @@ async def main():
         'conservatism': 10,  # Default conservatism
         'draws': 500,  # Optimized (Section 1.1.2: 4x speedup)
         'tune': 500,
+        # NEW v0.2.1: Stricter entropy stabilization threshold for ordinal hybrid
+        # Default is 0.002 (0.2%), using 0.001 (0.1%) for more conservative stopping
+        'entropy_stabilization_threshold': 0.001,
     }
+
+    # NEW v0.2.1: Random seed for reproducibility
+    # Set to fixed value for reproducible results across runs
+    RANDOM_SEED = 42
 
     # Manager-level parameters
     base_config = {
@@ -480,12 +495,13 @@ async def main():
         'grouping_columns': ['model', 'task'],  # Correct parameter name
         'reanalysis_interval': 25,  # 5% ratio (25/500) for frequent group-level stopping checks
         'min_samples_per_grouping': 10,
+        'random_seed': RANDOM_SEED,  # v0.2.1: Reproducible MCMC sampling
     }
 
     # Dataset 1: Binary Discrete
     print("\n" + "=" * 80)
-    print("TEST 1/3: Binary Discrete (PyMC default, no nutpie)")
-    print("Expected: ~8.6 min (baseline), 2.5× faster than nutpie version (21.4 min)")
+    print("TEST 1/3: Binary Discrete (PyMC default)")
+    print("Expected: ~6-8 min (seed=42, reproducible)")
     print("=" * 80)
 
     dataset1_config = {
@@ -504,8 +520,8 @@ async def main():
 
     # Dataset 2: Ordinal Discrete with score_choice
     print("\n" + "=" * 80)
-    print("TEST 2/3: Ordinal Discrete (numpyro, no nutpie)")
-    print("Expected: ~3-4 hours, should NOT fail (nutpie version had 181 failures)")
+    print("TEST 2/3: Ordinal Discrete (numpyro/JAX)")
+    print("Expected: ~8-10 hours with stricter entropy threshold (0.001)")
     print("=" * 80)
 
     dataset2_config = {
@@ -528,8 +544,8 @@ async def main():
 
     # Dataset 3: Ordinal Discrete with score_agg='mean' → Continuous Bounded
     print("\n" + "=" * 80)
-    print("TEST 3/3: Continuous Bounded (PyMC default, no nutpie)")
-    print("Expected: ~7.1 min (baseline), 3.5× faster than nutpie version (25.0 min)")
+    print("TEST 3/3: Continuous Bounded (PyMC default)")
+    print("Expected: ~8-9 min (seed=42, reproducible)")
     print("=" * 80)
 
     dataset3_config = {
@@ -562,8 +578,7 @@ async def main():
     print(f"  Efficiency: {100*(results1['execution']['total_planned']-results1['execution']['trial_count'])/results1['execution']['total_planned']:.1f}%")
     print(f"  Group-level stopping: {'✓ Used' if results1['group_level_stopping']['used_group_level_stopping'] else 'Not used'}")
     print(f"  Runtime: {results1['execution']['run_time_min']:.2f} min")
-    print(f"  EXPECTED: ~8.6 min (baseline)")
-    print(f"  SPEEDUP vs nutpie: {21.4 / results1['execution']['run_time_min']:.1f}× (nutpie was 21.4 min)")
+    print(f"  Random seed: {results1['configuration'].get('random_seed', 'N/A')}")
 
     print(f"\nDataset 2 (Ordinal Discrete - numpyro):")
     print(f"  Inference type: {results2['diagnostics'].get('inference_type', 'N/A')}")
@@ -572,8 +587,8 @@ async def main():
     print(f"  Efficiency: {100*(results2['execution']['total_planned']-results2['execution']['trial_count'])/results2['execution']['total_planned']:.1f}%")
     print(f"  Group-level stopping: {'✓ Used' if results2['group_level_stopping']['used_group_level_stopping'] else 'Not used'}")
     print(f"  Runtime: {results2['execution']['run_time_min']:.2f} min ({results2['execution']['run_time_sec']/3600:.2f} hours)")
-    print(f"  EXPECTED: ~3-4 hours")
-    print(f"  SUCCESS: {'✓ NO FAILURES' if 'error' not in str(results2['diagnostics']) else '✗ HAD ERRORS'} (nutpie had 181 failures)")
+    print(f"  Entropy threshold: {results2['configuration']['optstop_params'].get('entropy_stabilization_threshold', 'N/A')}")
+    print(f"  Random seed: {results2['configuration'].get('random_seed', 'N/A')}")
 
     print(f"\nDataset 3 (Continuous Bounded - PyMC default):")
     print(f"  Inference type: {results3['diagnostics'].get('inference_type', 'N/A')}")
@@ -582,14 +597,13 @@ async def main():
     print(f"  Efficiency: {100*(results3['execution']['total_planned']-results3['execution']['trial_count'])/results3['execution']['total_planned']:.1f}%")
     print(f"  Group-level stopping: {'✓ Used' if results3['group_level_stopping']['used_group_level_stopping'] else 'Not used'}")
     print(f"  Runtime: {results3['execution']['run_time_min']:.2f} min")
-    print(f"  EXPECTED: ~7.1 min (baseline)")
-    print(f"  SPEEDUP vs nutpie: {25.0 / results3['execution']['run_time_min']:.1f}× (nutpie was 25.0 min)")
+    print(f"  Random seed: {results3['configuration'].get('random_seed', 'N/A')}")
 
     print(f"\n📁 All diagnostics saved to: {output_dir}")
-    print("\nKey findings:")
-    print("  1. Binary/continuous should be 2-3× faster (no nutpie compilation overhead)")
-    print("  2. Ordinal should complete successfully (no numba cumsum failures)")
-    print("  3. All pathways should route correctly (binary/continuous → PyMC, ordinal → numpyro)")
+    print("\nv0.2.1 Verification:")
+    print("  1. random_seed should be logged and included in diagnostics")
+    print("  2. entropy_stabilization_threshold=0.001 for stricter ordinal stopping")
+    print("  3. All pathways route correctly (binary/continuous → PyMC, ordinal → numpyro)")
 
 
 if __name__ == '__main__':
