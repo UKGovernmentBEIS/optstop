@@ -241,6 +241,10 @@ class OptimalStoppingManager(EarlyStopping):
             thread_name_prefix=f"optstop_inference_{manager_name}"
         )
 
+        # Initialize score value converter (cached from inspect_ai import)
+        # This avoids repeated import attempts in _extract_score_value()
+        self._value_converter = self._init_value_converter()
+
         # Validate configuration
         self._validate_configuration()
 
@@ -350,6 +354,33 @@ class OptimalStoppingManager(EarlyStopping):
             raise ValueError("sample_id_column cannot be empty")
         if not self.epoch_column:
             raise ValueError("epoch_column cannot be empty")
+
+    def _init_value_converter(self) -> Any:
+        """Initialize and cache the value_to_float converter from inspect_ai.
+
+        This method attempts to import inspect_ai's value_to_float function once
+        during initialization, avoiding repeated import attempts in _extract_score_value().
+
+        Returns:
+            The value_to_float converter callable if available, None otherwise.
+        """
+        try:
+            from inspect_ai.scorer._metric import value_to_float
+            converter = value_to_float()
+            logger.debug("Successfully imported value_to_float from inspect_ai")
+            return converter
+        except ImportError:
+            logger.info(
+                "Could not import value_to_float from inspect_ai. "
+                "Using basic float conversion for score extraction."
+            )
+            return None
+        except Exception as e:
+            logger.warning(
+                f"Error initializing value_to_float converter: {e}. "
+                "Using basic float conversion for score extraction."
+            )
+            return None
 
     def _print_configuration_summary(self, num_samples: int, num_epochs: int) -> None:
         """Print comprehensive configuration summary to console.
@@ -508,6 +539,7 @@ class OptimalStoppingManager(EarlyStopping):
         3. score_agg: Aggregate all scores using specified method
 
         Uses inspect_ai's value_to_float() for type conversion if needed.
+        The converter is cached at initialization to avoid repeated import attempts.
 
         Args:
             scores: Dictionary of scorer_name -> SampleScore
@@ -519,16 +551,8 @@ class OptimalStoppingManager(EarlyStopping):
             logger.warning("Empty scores dictionary provided")
             return None
 
-        # Import inspect_ai's conversion function
-        try:
-            from inspect_ai.scorer._metric import value_to_float
-            converter = value_to_float()
-        except ImportError:
-            logger.warning(
-                "Could not import value_to_float from inspect_ai. "
-                "Falling back to basic float conversion."
-            )
-            converter = None
+        # Use cached converter (initialized in __init__ via _init_value_converter)
+        converter = self._value_converter
 
         def convert_to_float(value: Any) -> float | None:
             """Convert a value to float, handling strings and other types."""

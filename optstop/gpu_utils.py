@@ -2,14 +2,20 @@
 GPU detection and optimization utilities for PyMC processes in optstop.
 
 This module provides functions to detect GPU availability across multiple backends,
-configure GPU usage, and optimize PyMC sampling performance using GPU acceleration
-when available through JAX/numpyro, PyTensor, or system-level detection.
+configure GPU usage, and optimize PyMC sampling performance.
+
+Sampler Selection Strategy (v0.2.1+):
+- GPU available (JAX backend) → numpyro for all score types (fastest)
+- CPU → PyMC default for all score types (optimal for CPU)
+
+Note: Benchmarks show numpyro/JAX is ~26% SLOWER than PyMC default on CPU due to
+compilation overhead. The previous strategy of using numpyro for ordinal inference
+on CPU has been deprecated. PyMC's native PyTensor backend is well-optimized for
+CPU execution across all inference pathways (binary, ordinal, continuous).
 """
 
 import logging
-import warnings
 import subprocess
-import sys
 from typing import Dict, Any, Optional, Tuple, List
 
 def check_nutpie_available() -> Tuple[bool, Optional[str]]:
@@ -41,12 +47,15 @@ def check_nutpie_available() -> Tuple[bool, Optional[str]]:
 
 def get_optimal_nuts_sampler(gpu_available: bool, gpu_backend: str = 'cpu') -> Tuple[str, str]:
     """
-    Select the optimal NUTS sampler based on available hardware and software.
+    Select the optimal NUTS sampler based on available hardware.
 
-    Sampler priority:
-    1. GPU available → 'numpyro' (JAX/GPU backend, fastest)
-    2. nutpie available → 'nutpie' (Rust-based CPU, 2-5× faster than PyMC)
-    3. Fallback → 'pymc' (Python-based CPU, default)
+    Sampler selection:
+    - GPU available (JAX backend) → 'numpyro' (JAX/GPU, fastest)
+    - CPU → 'pymc' (PyMC default, optimal for CPU)
+
+    Note: Benchmarks show that on CPU, PyMC's native PyTensor backend outperforms
+    both numpyro/JAX (~26% slower due to compilation overhead) and nutpie
+    (compilation overhead negates sampling speedups for adaptive collection).
 
     Args:
         gpu_available: Whether GPU acceleration is available
@@ -54,28 +63,24 @@ def get_optimal_nuts_sampler(gpu_available: bool, gpu_backend: str = 'cpu') -> T
 
     Returns:
         Tuple of (sampler_name: str, description: str)
-        - sampler_name: 'numpyro', 'nutpie', or 'pymc'
+        - sampler_name: 'numpyro' or 'pymc'
         - description: Human-readable description for logging
 
     Examples:
+        >>> sampler, desc = get_optimal_nuts_sampler(gpu_available=True, gpu_backend='jax-gpu')
+        >>> print(f"Using {sampler}: {desc}")
+        Using numpyro: JAX/GPU backend (fastest)
+
         >>> sampler, desc = get_optimal_nuts_sampler(gpu_available=False)
         >>> print(f"Using {sampler}: {desc}")
-        Using nutpie: Rust-based v0.13.2 (2-5× faster than PyMC)
+        Using pymc: PyMC default (optimal for CPU)
     """
-    logger = logging.getLogger('optstop.gpu_utils')
-
-    # Priority 1: Use GPU if available
+    # GPU with JAX backend: Use numpyro for GPU acceleration
     if gpu_available and gpu_backend == 'jax-gpu':
         return 'numpyro', 'JAX/GPU backend (fastest)'
 
-    # Priority 2: Use nutpie for fast CPU sampling if available
-    nutpie_available, nutpie_version = check_nutpie_available()
-    if nutpie_available:
-        version_str = f"v{nutpie_version}" if nutpie_version != 'unknown' else ""
-        return 'nutpie', f'Rust-based {version_str} (2-5× faster than PyMC default)'
-
-    # Priority 3: Fallback to default PyMC sampler
-    return 'pymc', 'Python-based (default)'
+    # CPU: Use PyMC default (optimal for CPU execution)
+    return 'pymc', 'PyMC default (optimal for CPU)'
 
 
 def _detect_system_gpus() -> Dict[str, Any]:
@@ -655,9 +660,7 @@ def get_optimal_sampling_params(params: Dict[str, Any], gpu_available: bool,
         logger.info("Configuring CPU-optimized sampling parameters")
         optimized_params['use_gpu'] = False
 
-        # Select optimal NUTS sampler (nutpie if available, else PyMC default)
-        # Note: This value is informational here; get_sampling_kwargs() will
-        # set nuts_sampler explicitly in its return dict
+        # Use PyMC default for CPU (optimal for all score types)
         sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
         optimized_params['nuts_sampler'] = sampler
         logger.info(f"Selected NUTS sampler: {sampler} ({sampler_desc})")
@@ -678,7 +681,11 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
                        num_parallel_tasks: int = 1, auto_decide: bool = True, score_type: Optional[str] = None) -> Dict[str, Any]:
     """
     Get sampling keyword arguments optimized for the available hardware and backend.
-    Now includes intelligent GPU vs CPU decision-making based on workload.
+    Includes intelligent GPU vs CPU decision-making based on workload.
+
+    Sampler selection:
+    - GPU available (JAX backend) → numpyro for all score types (fastest)
+    - CPU → PyMC default for all score types (optimal for CPU)
 
     Args:
         params: Parameter dictionary
@@ -686,12 +693,15 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         gpu_backend: GPU backend type ('jax-gpu', 'pytensor-gpu', 'cpu')
         num_parallel_tasks: Number of parallel tasks running (default: 1)
         auto_decide: If True, automatically decide whether to use GPU based on workload (default: True)
-        score_type: Type of inference ('binary', 'continuous_01', 'continuous_bounded', 'ordinal')
-                   Used to disable nutpie for binary/continuous due to compilation overhead
+        score_type: Deprecated. Previously used for sampler selection, now ignored.
+                   All score types use the same sampler (numpyro for GPU, PyMC for CPU).
 
     Returns:
         Dict with sampling kwargs for pm.sample()
     """
+    # Note: score_type parameter kept for backwards compatibility but is no longer used.
+    # All score types now use PyMC default on CPU and numpyro on GPU.
+    _ = score_type  # Suppress unused variable warning
     logger = logging.getLogger('optstop.gpu_utils')
 
     # Use intelligent GPU/CPU decision making if auto_decide is enabled
@@ -709,7 +719,7 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
 
         if not use_gpu_decision:
             # Smart logic decided CPU is better - override gpu_available
-            logger.info(f"Auto-decision: Using CPU instead of GPU (workload analysis)")
+            logger.info("Auto-decision: Using CPU instead of GPU (workload analysis)")
             gpu_available = False
             gpu_backend = 'cpu'
         else:
@@ -754,27 +764,13 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
             logger.info(f"GPU detected but backend unknown - falling back to CPU: {sampler} ({sampler_desc})")
     else:
         # CPU sampling strategy:
-        # - Binary/Continuous: Use PyMC default (compilation overhead makes faster samplers slower)
-        # - Ordinal: Use numpyro/JAX (required for OrderedLogistic compatibility)
-        # - Other/None: Use numpyro if available (best CPU performance without compilation issues)
-
-        if score_type in ('binary', 'continuous_01', 'continuous_bounded'):
-            # Binary/continuous: Skip fancy samplers due to adaptive collection overhead
-            sampler_desc = 'PyMC default (fastest for adaptive binary/continuous)'
-            logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
-            # No nuts_sampler set = PyMC default
-        else:
-            # Ordinal or unknown: Try numpyro (JAX CPU backend)
-            try:
-                import numpyro
-                sampling_kwargs['nuts_sampler'] = 'numpyro'
-                sampler_desc = 'JAX/numpyro CPU backend (2-3× faster than PyMC default)'
-                logger.info(f"Configured sampling for CPU: numpyro ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
-            except ImportError:
-                # numpyro not available, fall back to PyMC default
-                sampler_desc = 'PyMC default (numpyro not installed)'
-                logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
-                # No nuts_sampler set = PyMC default
+        # Use PyMC default for ALL score types on CPU.
+        # Benchmarks show numpyro/JAX is NOT faster than PyMC on CPU (~26% slower),
+        # as JAX's compilation overhead negates any sampling speedups without GPU.
+        # PyMC's native PyTensor backend is well-optimized for CPU execution.
+        sampler_desc = 'PyMC default (optimal for CPU)'
+        logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+        # No nuts_sampler set = PyMC default
 
     return sampling_kwargs
 
@@ -884,13 +880,15 @@ def create_worker_initargs(worker_base_dir: str, gpu_ids: Optional[List[int]],
     """Create initialization arguments for each worker with optional GPU assignment.
 
     Args:
-        worker_base_dir: Base directory for worker temp files (not used in new implementation)
+        worker_base_dir: Base directory for worker temp files (deprecated, not used)
         gpu_ids: List of GPU IDs to assign to workers, or None for CPU-only
         suppress_output: Whether to suppress worker output
 
     Returns:
         List of tuples containing (worker_base_dir, gpu_id, suppress_output) for each worker
     """
+    # Note: worker_base_dir kept in signature for backwards compatibility but is not used
+    _ = worker_base_dir  # Suppress unused variable warning
     if gpu_ids:
         # GPU-enabled workers with cyclical assignment
         # Note: worker_base_dir is ignored in new implementation for better isolation

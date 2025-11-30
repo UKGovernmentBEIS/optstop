@@ -1,22 +1,26 @@
 """
-Bridge protocol test script for three large-scale datasets - NUMPYRO VERSION.
+Bridge protocol test script for three large-scale datasets - PyMC DEFAULT VERSION.
 
 This script runs each of the three generated datasets through the OptimalStoppingManager
-to verify performance with the numpyro/JAX CPU backend for ordinal inference.
+to verify performance with PyMC default sampler for ALL score types on CPU.
+
+v0.2.2 UPDATES:
+- ALL score types now use PyMC default on CPU (including ordinal)
+- Benchmarks showed numpyro/JAX is ~26% SLOWER than PyMC on CPU
+- GPU path still uses numpyro for acceleration when available
 
 v0.2.1 UPDATES:
 - Added random_seed for reproducible MCMC sampling (seed=42)
 - Added entropy_stabilization_threshold=0.001 for stricter ordinal hybrid stopping
-- Using PyMC default for binary/continuous, numpyro for ordinal
 
-EXPECTED PERFORMANCE:
-- Dataset 1 (binary): ~6-8 min (PyMC default)
-- Dataset 2 (ordinal): ~8-10 hours with numpyro hybrid (stricter threshold)
-- Dataset 3 (continuous): ~8-9 min (PyMC default)
+EXPECTED PERFORMANCE (all PyMC default on CPU):
+- Dataset 1 (binary): ~6-8 min
+- Dataset 2 (ordinal): ~6-8 hours (faster than numpyro version!)
+- Dataset 3 (continuous): ~8-9 min
 
-INFERENCE PATHWAYS:
-1. Binary/continuous: PyMC default (fastest for adaptive collection)
-2. Ordinal: Numpyro/JAX CPU backend (~2× faster than PyMC default)
+SAMPLER SELECTION (v0.2.2+):
+- CPU: PyMC default for ALL score types (binary, ordinal, continuous)
+- GPU: numpyro for ALL score types (when GPU available)
 
 Each dataset tests a different scoring type:
 - Dataset 1: Binary discrete (single binary score)
@@ -259,7 +263,7 @@ async def simulate_bridge_protocol(
     optstop_logger.setLevel(logging.DEBUG)
 
     logger.info("=" * 80)
-    logger.info(f"BRIDGE PROTOCOL TEST (NUMPYRO VERSION): {dataset_path.name}")
+    logger.info(f"BRIDGE PROTOCOL TEST (v0.2.2 - PyMC default): {dataset_path.name}")
     logger.info("=" * 80)
 
     # Load dataset
@@ -278,7 +282,7 @@ async def simulate_bridge_protocol(
 
     # Calculate total planned trials
     num_samples = df['sample_id'].nunique()
-    num_epochs = df['epoch'].max() + 1  # epochs are 0-indexed
+    num_epochs = df['epoch'].max()  # epochs are 1-indexed (1 to max)
     total_planned = num_samples * num_epochs
 
     logger.info(f"\n📊 Dataset structure:")
@@ -334,7 +338,7 @@ async def simulate_bridge_protocol(
     stopped_samples = set()
 
     for sample_id in df['sample_id'].unique():
-        for epoch in range(num_epochs):
+        for epoch in range(1, num_epochs + 1):  # 1-indexed epochs (matching inspect_ai)
             # Check if this sample was stopped
             if sample_id in stopped_samples:
                 break
@@ -444,23 +448,27 @@ async def main():
     """Run bridge protocol tests for all three datasets."""
 
     print("\n" + "=" * 80)
-    print("LARGE-SCALE BRIDGE PROTOCOL TESTING - v0.2.1")
+    print("LARGE-SCALE BRIDGE PROTOCOL TESTING - v0.2.2")
     print("=" * 80)
     print("\nThis script tests the OptimalStoppingManager bridge with:")
     print("  • 3 datasets × 500 samples × 10 epochs = 15,000 total trials")
     print("  • Binary discrete, ordinal discrete, and continuous bounded inference")
     print("  • 5 groupings per dataset with varying performance")
-    print("\nv0.2.1 NEW PARAMETERS:")
+    print("\nv0.2.2 SAMPLER CHANGES:")
+    print("  • ALL score types now use PyMC default on CPU")
+    print("  • Benchmarks showed numpyro/JAX is ~26% SLOWER than PyMC on CPU")
+    print("  • GPU path still uses numpyro for acceleration when available")
+    print("\nv0.2.1 PARAMETERS (still active):")
     print("  • random_seed=42 for reproducible MCMC sampling")
     print("  • entropy_stabilization_threshold=0.001 (stricter than default 0.002)")
-    print("\nExpected routing:")
+    print("\nSAMPLER SELECTION:")
     print("  • Dataset 1 → Binary discrete inference (PyMC default)")
-    print("  • Dataset 2 → Ordinal discrete inference (numpyro/JAX)")
+    print("  • Dataset 2 → Ordinal discrete inference (PyMC default)")
     print("  • Dataset 3 → Continuous bounded inference (PyMC default)")
-    print("\nEXPECTED PERFORMANCE:")
-    print("  • Dataset 1 (binary): ~6-8 min (PyMC default)")
-    print("  • Dataset 2 (ordinal): ~8-10 hours (numpyro with stricter threshold)")
-    print("  • Dataset 3 (continuous): ~8-9 min (PyMC default)")
+    print("\nEXPECTED PERFORMANCE (PyMC default for all):")
+    print("  • Dataset 1 (binary): ~6-8 min")
+    print("  • Dataset 2 (ordinal): ~6-8 hours (faster than numpyro!)")
+    print("  • Dataset 3 (continuous): ~8-9 min")
 
     # Paths
     data_dir = Path('/home/ubuntu/optstop/test_data/large_scale')
@@ -501,7 +509,7 @@ async def main():
     # Dataset 1: Binary Discrete
     print("\n" + "=" * 80)
     print("TEST 1/3: Binary Discrete (PyMC default)")
-    print("Expected: ~6-8 min (seed=42, reproducible)")
+    print("Expected: ~6-8 min")
     print("=" * 80)
 
     dataset1_config = {
@@ -520,8 +528,8 @@ async def main():
 
     # Dataset 2: Ordinal Discrete with score_choice
     print("\n" + "=" * 80)
-    print("TEST 2/3: Ordinal Discrete (numpyro/JAX)")
-    print("Expected: ~8-10 hours with stricter entropy threshold (0.001)")
+    print("TEST 2/3: Ordinal Discrete (PyMC default)")
+    print("Expected: ~6-8 hours (faster than numpyro!)")
     print("=" * 80)
 
     dataset2_config = {
@@ -545,7 +553,7 @@ async def main():
     # Dataset 3: Ordinal Discrete with score_agg='mean' → Continuous Bounded
     print("\n" + "=" * 80)
     print("TEST 3/3: Continuous Bounded (PyMC default)")
-    print("Expected: ~8-9 min (seed=42, reproducible)")
+    print("Expected: ~8-9 min")
     print("=" * 80)
 
     dataset3_config = {
@@ -580,7 +588,7 @@ async def main():
     print(f"  Runtime: {results1['execution']['run_time_min']:.2f} min")
     print(f"  Random seed: {results1['configuration'].get('random_seed', 'N/A')}")
 
-    print(f"\nDataset 2 (Ordinal Discrete - numpyro):")
+    print(f"\nDataset 2 (Ordinal Discrete - PyMC default):")
     print(f"  Inference type: {results2['diagnostics'].get('inference_type', 'N/A')}")
     print(f"  Routing verification: {'✓ PASS' if results2['routing_verification']['verified'] else '✗ FAIL'}")
     print(f"  Trials ran: {results2['execution']['trial_count']}/{results2['execution']['total_planned']}")
@@ -600,10 +608,10 @@ async def main():
     print(f"  Random seed: {results3['configuration'].get('random_seed', 'N/A')}")
 
     print(f"\n📁 All diagnostics saved to: {output_dir}")
-    print("\nv0.2.1 Verification:")
+    print("\nv0.2.2 Verification:")
     print("  1. random_seed should be logged and included in diagnostics")
     print("  2. entropy_stabilization_threshold=0.001 for stricter ordinal stopping")
-    print("  3. All pathways route correctly (binary/continuous → PyMC, ordinal → numpyro)")
+    print("  3. ALL score types use PyMC default on CPU (binary, ordinal, continuous)")
 
 
 if __name__ == '__main__':

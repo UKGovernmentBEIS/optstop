@@ -164,7 +164,7 @@ def generate_dataset_1_binary_discrete(output_path: Path):
             sample_id = f"sample_{sample_id_counter:04d}"
             sample_seed = sample_id_counter * 12345  # Consistent seed per sample
 
-            for epoch in range(num_epochs):
+            for epoch in range(1, num_epochs + 1):  # 1-indexed epochs (1-10)
                 score = generate_binary_score(
                     params['base_prob'],
                     params['within_sample_std'],
@@ -233,7 +233,7 @@ def generate_dataset_2_ordinal_discrete_with_choice(output_path: Path):
             sample_id = f"sample_{sample_id_counter:04d}"
             sample_seed = sample_id_counter * 12345
 
-            for epoch in range(num_epochs):
+            for epoch in range(1, num_epochs + 1):  # 1-indexed epochs (1-10)
                 # Generate multiple ordinal scores (correlated but not identical)
                 accuracy = generate_ordinal_score(
                     params['base_prob'], params['within_sample_std'],
@@ -315,7 +315,7 @@ def generate_dataset_3_ordinal_continuous_with_agg(output_path: Path):
             sample_id = f"sample_{sample_id_counter:04d}"
             sample_seed = sample_id_counter * 12345
 
-            for epoch in range(num_epochs):
+            for epoch in range(1, num_epochs + 1):  # 1-indexed epochs (1-10)
                 # Generate 3 ordinal scores from different "scorers"
                 # These will be averaged by the bridge (score_agg='mean')
                 scorer_1 = generate_ordinal_score(
