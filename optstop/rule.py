@@ -149,15 +149,10 @@ def suppress_all_output():
             # Restore original stdout/stderr
             sys.stdout = old_stdout
             sys.stderr = old_stderr
-            # Log any captured output to file instead of console
-            stdout_content = stdout_buffer.getvalue()
-            stderr_content = stderr_buffer.getvalue()
-            if stdout_content.strip() or stderr_content.strip():
-                logger = logging.getLogger('optstop.sampling_output')
-                if stdout_content.strip():
-                    logger.debug(f"PyMC stdout: {stdout_content.strip()}")
-                if stderr_content.strip():
-                    logger.debug(f"PyMC stderr: {stderr_content.strip()}")
+            # Captured output discarded - not needed for production
+            # stdout_content = stdout_buffer.getvalue()
+            # stderr_content = stderr_buffer.getvalue()
+            pass
 
 # --- Diagnostic Functions ---
 def _beta_ci(successes: int, trials: int, cred_level: float = 0.95) -> Tuple[float, float]:
@@ -304,8 +299,8 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
                               out_prefix: str = "optstop_diagnostics", score_col: str = "score") -> None:
     """Generate diagnostic plots comparing full vs pruned datasets."""
     logger = logging.getLogger('optstop.diagnostics')
-    logger.info(f"Generating diagnostic plots with prefix: {out_prefix}")
-    
+    # logger.info(f"Generating diagnostic plots with prefix: {out_prefix}")  # Verbose
+
     try:
         # Create internal column structure for diagnostics
         full_df_internal = full_df.copy()
@@ -1388,7 +1383,8 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     # Debug logging
     logger = logging.getLogger('optstop.worker_live')
     if not suppress_output:
-        logger.info(f"Live worker {os.getpid()} using {device_type}, PyTensor compiledir: {unique_worker_dir}")
+        # logger.info(f"Live worker {os.getpid()} using {device_type}, PyTensor compiledir: {unique_worker_dir}")  # Verbose
+        pass
 
 def _process_live_grouping_with_init(task_args: Tuple[str, pd.DataFrame, Dict[str, Any], str, str, str, str], worker_args: Tuple[str, Optional[int], bool]) -> Dict[str, Any]:
     """Wrapper function that initializes worker and then processes live grouping."""
@@ -1413,7 +1409,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         grouping, df_grouping, params, sample_id_column, epoch_column, score_column, grouping_columns = args
 
         logger = logging.getLogger('optstop.live')
-        logger.info(f"Processing grouping: {grouping}")
+        # logger.info(f"Processing grouping: {grouping}")  # Verbose
 
         # Extract parameters
         delta_item = params.get('delta_item', 0.05)
@@ -1441,7 +1437,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
             is_aggregated=is_aggregated,
             upper_bound=ordinal_max_score
         )
-        logger.info(f"Grouping '{grouping}' identified as {score_type.upper()}")
+        # logger.info(f"Grouping '{grouping}' identified as {score_type.upper()}")  # Verbose
 
         # CRITICAL: Initialize JAX/PyMC backend BEFORE any model creation
         # Detect GPU availability based on worker's actual environment configuration
@@ -1497,12 +1493,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         )
 
         # Log GPU status for this worker
-        if gpu_available and sampling_kwargs.get('nuts_sampler') == 'numpyro':
-            logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend}, chains={sampling_kwargs.get('chains', 1)})")
-        elif gpu_available:
-            logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend})")
-        else:
-            logger.info(f"Worker processing grouping {grouping} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
+        # if gpu_available and sampling_kwargs.get('nuts_sampler') == 'numpyro':
+        #     logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend}, chains={sampling_kwargs.get('chains', 1)})")
+        # elif gpu_available:
+        #     logger.info(f"Worker processing grouping {grouping} with GPU acceleration ({gpu_backend})")
+        # else:
+        #     logger.info(f"Worker processing grouping {grouping} with CPU-only (chains={sampling_kwargs.get('chains', 4)})")
+        pass  # GPU/CPU status available from worker count logs
 
         # Initialize variables
         stop_sample_ids = []
@@ -1565,7 +1562,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     )
                     ci_record.append(width)
                     if width < delta_item:
-                        logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
+                        # logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")  # Results in output
                         # Get the original sample_id value for this numeric ID
                         original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                         stop_sample_ids.append(f"{grouping}_{original_sample_id}")
@@ -1580,12 +1577,12 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
                                 if df_item[score_column].mean() >= low_perf_threshold:
-                                    logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")
+                                    # logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")  # Results in output
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
                                 elif abs(slope) <= slope_threshold / 2:
-                                    logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")
+                                    # logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")  # Results in output
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
@@ -1623,7 +1620,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             low_perf_threshold=low_perf_threshold
                         )
                         if width < delta_item:
-                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Modal CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")
+                            # logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Modal CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")  # Results in output
                             original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                             stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                             break
@@ -1639,7 +1636,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             compute_kwargs=sampling_kwargs
                         )
                         if width < delta_item:
-                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Entropy CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")
+                            # logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping}: Entropy CI width {width:.4f} < delta_item {delta_item} | epochs used: {len(accumulated_scores)}")  # Results in output
                             original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                             stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                             break
@@ -1658,7 +1655,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             compute_kwargs=sampling_kwargs
                         )
                         if should_stop:
-                            logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping} via {reason} | epochs used: {len(accumulated_scores)}")
+                            # logger.info(f"Stopping ordinal sample_id {item_id} in grouping {grouping} via {reason} | epochs used: {len(accumulated_scores)}")  # Results in output
                             original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                             stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                             break
@@ -1708,7 +1705,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
                         if effective_width < delta_cap:
-                            logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            # logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
                         if len(CI_record) >= stab_window:
@@ -1721,11 +1718,11 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                 slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                                 if slope_slopes >= 0:
                                     if current_perf_estimate >= low_perf_threshold:
-                                        logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
+                                        # logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
                                         stop_this_grouping.append(grouping)
                                         break
                                     elif abs(slope) <= slope_threshold / 2:
-                                        logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                        # logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
                                         stop_this_grouping.append(grouping)
                                         break
 
@@ -1754,7 +1751,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             low_perf_threshold=low_perf_threshold
                         )
                         if width < delta_cap:
-                            logger.info(f"Stopping ordinal grouping {grouping}: Modal CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            # logger.info(f"Stopping ordinal grouping {grouping}: Modal CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
 
@@ -1770,7 +1767,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             compute_kwargs=sampling_kwargs
                         )
                         if width < delta_cap:
-                            logger.info(f"Stopping ordinal grouping {grouping}: Entropy CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            # logger.info(f"Stopping ordinal grouping {grouping}: Entropy CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
 
@@ -1789,7 +1786,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             compute_kwargs=sampling_kwargs
                         )
                         if should_stop_group:
-                            logger.info(f"Stopping ordinal grouping {grouping} via {reason_group} | sample_ids used: {len(item_summaries)}")
+                            # logger.info(f"Stopping ordinal grouping {grouping} via {reason_group} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
         
@@ -1799,9 +1796,9 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
             'stop_this_grouping': stop_this_grouping
         }
     except Exception as e:
-        logger.error(f"Error processing grouping {grouping}: {e}")
+        logger.info(f"Error processing grouping {grouping}: {e}")
         import traceback
-        logger.error(traceback.format_exc())
+        logger.info(traceback.format_exc())
         return {
             'grouping': grouping,
             'stop_sample_ids': [],
@@ -2175,7 +2172,7 @@ def optimal_stopping_live_single(
         is_aggregated=is_aggregated,
         upper_bound=ordinal_max_score
     )
-    logger.info(f"Processing grouping '{grouping_name}' as {score_type.upper()}")
+    # logger.info(f"Processing grouping '{grouping_name}' as {score_type.upper()}")  # Verbose
 
     # Extract bounds for continuous inference
     lower_bound = bounds['lower']
@@ -2244,10 +2241,10 @@ def optimal_stopping_live_single(
             if cached_n_items == current_n_items:
                 # Safe to reuse - n_items unchanged
                 model = binary_group_cache['model']
-                logger.info(f"✓ CACHE HIT: Reusing binary group model for '{grouping_name}' (n_items={current_n_items})")
+                # logger.info(f"✓ CACHE HIT: Reusing binary group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
             else:
                 # Must recreate - n_items changed (PyMC shapes are immutable)
-                logger.info(f"✗ CACHE INVALIDATED: Binary model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")
+                # logger.info(f"✗ CACHE INVALIDATED: Binary model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")  # Verbose cache logging
                 binary_group_cache.clear()  # Clear invalid cache
 
         if 'model' not in binary_group_cache:
@@ -2265,7 +2262,7 @@ def optimal_stopping_live_single(
                 obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             binary_group_cache['model'] = model
             binary_group_cache['n_items_last'] = current_n_items  # Track for validation
-            logger.info(f"✗ CACHE MISS: Created new binary group model for '{grouping_name}' (n_items={current_n_items})")
+            # logger.info(f"✗ CACHE MISS: Created new binary group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
 
     elif score_type in ['continuous_01', 'continuous_bounded']:
         # === CONTINUOUS HIERARCHICAL MODEL (AGGREGATED) ===
@@ -2300,10 +2297,10 @@ def optimal_stopping_live_single(
             if cached_n_items == current_n_items:
                 # Safe to reuse - n_items unchanged
                 continuous_model = continuous_group_cache['model']
-                logger.info(f"✓ CACHE HIT: Reusing continuous group model for '{grouping_name}' (n_items={current_n_items})")
+                # logger.info(f"✓ CACHE HIT: Reusing continuous group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
             else:
                 # Must recreate - n_items changed (PyMC shapes are immutable)
-                logger.info(f"✗ CACHE INVALIDATED: Continuous model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")
+                # logger.info(f"✗ CACHE INVALIDATED: Continuous model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")  # Verbose cache logging
                 continuous_group_cache.clear()  # Clear invalid cache
 
         if 'model' not in continuous_group_cache:
@@ -2377,7 +2374,7 @@ def optimal_stopping_live_single(
                                observed=item_means)
             continuous_group_cache['model'] = continuous_model
             continuous_group_cache['n_items_last'] = current_n_items  # Track for validation
-            logger.info(f"✗ CACHE MISS: Created new continuous group model for '{grouping_name}' (n_items={current_n_items})")
+            # logger.info(f"✗ CACHE MISS: Created new continuous group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
 
     # Process each sample for sample-level stopping
     item_summaries = []
@@ -2410,7 +2407,7 @@ def optimal_stopping_live_single(
                     'threshold': delta_item,
                     'epochs_used': trials
                 }
-                logger.info(f"Stopping sample {original_sample_id}: CI width {width:.4f} < {delta_item}")
+                # logger.info(f"Stopping sample {original_sample_id}: CI width {width:.4f} < {delta_item}")  # Results in output
 
             item_summaries.append({'successes': successes, 'trials': trials})
 
@@ -2439,7 +2436,7 @@ def optimal_stopping_live_single(
                         'threshold': delta_item,
                         'epochs_used': len(accumulated_scores)
                     }
-                    logger.info(f"Stopping ordinal sample {original_sample_id}: Modal CI {width:.4f} < {delta_item}")
+                    # logger.info(f"Stopping ordinal sample {original_sample_id}: Modal CI {width:.4f} < {delta_item}")  # Results in output
 
             elif ordinal_inference == 'entropy':
                 lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
@@ -2460,7 +2457,7 @@ def optimal_stopping_live_single(
                         'epochs_used': len(accumulated_scores),
                         'diagnostics': _sanitize_diagnostics(diagnostics)
                     }
-                    logger.info(f"Stopping ordinal sample {original_sample_id}: Entropy CI {width:.4f} < {delta_item}")
+                    # logger.info(f"Stopping ordinal sample {original_sample_id}: Entropy CI {width:.4f} < {delta_item}")  # Results in output
 
             elif ordinal_inference == 'hybrid':
                 should_stop, reason, diagnostics = _ordinal_hybrid_stopping_criterion(
@@ -2483,7 +2480,7 @@ def optimal_stopping_live_single(
                         'epochs_used': len(accumulated_scores),
                         'diagnostics': _sanitize_diagnostics(diagnostics)
                     }
-                    logger.info(f"Stopping ordinal sample {original_sample_id} via {reason}")
+                    # logger.info(f"Stopping ordinal sample {original_sample_id} via {reason}")  # Results in output
 
             entropy_history_per_item[item_id] = entropy_history
             item_summaries.append({
@@ -2525,7 +2522,7 @@ def optimal_stopping_live_single(
                     'epochs_used': len(accumulated_scores),
                     'bounds': {'lower': lower_bound, 'upper': upper_bound}
                 }
-                logger.info(f"Stopping continuous sample {original_sample_id}: CI width_norm {width_normalized:.4f} < {delta_item}")
+                # logger.info(f"Stopping continuous sample {original_sample_id}: CI width_norm {width_normalized:.4f} < {delta_item}")  # Results in output
 
             # Store normalized scores for hierarchical group-level inference
             # Normalization to [0,1] required for Beta likelihood in PyMC model
@@ -2542,7 +2539,7 @@ def optimal_stopping_live_single(
     if len(item_summaries) > 0:
         # TIMING_TEST: Start group-level inference timing
         _group_inference_start = time.perf_counter()
-        logger.info(f"Running group-level stopping check for '{grouping_name}'")
+        # logger.info(f"Running group-level stopping check for '{grouping_name}'")
 
         # Compute performance estimate based on score type
         if score_type in ['binary', 'ordinal']:
@@ -2605,7 +2602,7 @@ def optimal_stopping_live_single(
                         'threshold': delta_cap,
                         'samples_used': len(item_summaries)
                     }
-                    logger.info(f"Stopping grouping '{grouping_name}': CI {effective_width:.4f} < {delta_cap}")
+                    # logger.info(f"Stopping grouping '{grouping_name}': CI {effective_width:.4f} < {delta_cap}")  # Results in output
 
                 # Check stabilization criterion (if enough history)
                 if len(stabilization_history['ci_width_history']) >= stab_window:
@@ -2628,7 +2625,7 @@ def optimal_stopping_live_single(
                                     'slope_threshold': slope_threshold,
                                     'samples_used': len(item_summaries)
                                 }
-                                logger.info(f"Stopping grouping '{grouping_name}' via stabilization: slope {slope:.6f}")
+                                # logger.info(f"Stopping grouping '{grouping_name}' via stabilization: slope {slope:.6f}")  # Results in output
                             elif abs(slope) <= slope_threshold / 2:
                                 stop_this_grouping.append(grouping_name)
                                 metadata['group_stopping_reason'] = {
@@ -2637,11 +2634,11 @@ def optimal_stopping_live_single(
                                     'slope_threshold': slope_threshold,
                                     'samples_used': len(item_summaries)
                                 }
-                                logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong stabilization")
+                                # logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong stabilization")  # Results in output
 
             # TIMING_TEST: Binary inference complete
             _binary_elapsed = time.perf_counter() - _binary_start
-            logger.warning(f"🕐 TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
+            # logger.warning(f"🕐 TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
 
         elif score_type == 'ordinal':
             # === ORDINAL GROUP-LEVEL STOPPING ===
@@ -2674,7 +2671,7 @@ def optimal_stopping_live_single(
                         'threshold': delta_cap,
                         'samples_used': len(item_summaries)
                     }
-                    logger.info(f"Stopping ordinal grouping '{grouping_name}': Modal CI {width:.4f} < {delta_cap}")
+                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Modal CI {width:.4f} < {delta_cap}")  # Results in output
 
             elif ordinal_inference == 'entropy':
                 lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
@@ -2695,7 +2692,7 @@ def optimal_stopping_live_single(
                         'samples_used': len(item_summaries),
                         'diagnostics': diagnostics
                     }
-                    logger.info(f"Stopping ordinal grouping '{grouping_name}': Entropy CI {width:.4f} < {delta_cap}")
+                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Entropy CI {width:.4f} < {delta_cap}")  # Results in output
 
             elif ordinal_inference == 'hybrid':
                 should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
@@ -2718,7 +2715,7 @@ def optimal_stopping_live_single(
                         'samples_used': len(item_summaries),
                         'diagnostics': diagnostics_group
                     }
-                    logger.info(f"Stopping ordinal grouping '{grouping_name}' via {reason_group}")
+                    # logger.info(f"Stopping ordinal grouping '{grouping_name}' via {reason_group}")  # Results in output
 
             stabilization_history['entropy_history'] = group_entropy_history
 
@@ -2745,7 +2742,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Ordinal inference complete
             _ordinal_elapsed = time.perf_counter() - _ordinal_start
-            logger.warning(f"🕐 TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")
+            # logger.warning(f"🕐 TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")
 
         elif score_type in ['continuous_01', 'continuous_bounded']:
             # === CONTINUOUS GROUP-LEVEL STOPPING (HIERARCHICAL) ===
@@ -2790,7 +2787,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Data aggregation complete
             _aggregation_elapsed = time.perf_counter() - _aggregation_start
-            logger.warning(f"🕐 TIMING_TEST: Continuous data aggregation took {_aggregation_elapsed:.3f}s (aggregated {total_obs_count} obs → {n_items_actual} means)")
+            # logger.warning(f"🕐 TIMING_TEST: Continuous data aggregation took {_aggregation_elapsed:.3f}s (aggregated {total_obs_count} obs → {n_items_actual} means)")
 
             # Compute performance estimate for conservatism check
             # Use aggregated item means (already in [0,1] scale)
@@ -2845,7 +2842,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: PyMC MCMC sampling complete
             _mcmc_elapsed = time.perf_counter() - _mcmc_start
-            logger.warning(f"🕐 TIMING_TEST: Continuous PyMC MCMC sampling took {_mcmc_elapsed:.3f}s for {n_items_actual} items (aggregated {total_obs_count} obs)")
+            # logger.warning(f"🕐 TIMING_TEST: Continuous PyMC MCMC sampling took {_mcmc_elapsed:.3f}s for {n_items_actual} items (aggregated {total_obs_count} obs)")
 
             # Append normalized width to history for stabilization tracking
             stabilization_history['ci_width_history'].append(float(width_normalized))
@@ -2865,7 +2862,7 @@ def optimal_stopping_live_single(
                     'n_observations': total_obs_count,
                     'bounds': {'lower': lower_bound, 'upper': upper_bound}
                 }
-                logger.info(f"Stopping grouping '{grouping_name}': Hierarchical CI effective_width {effective_width:.4f} < {delta_cap}")
+                # logger.info(f"Stopping grouping '{grouping_name}': Hierarchical CI effective_width {effective_width:.4f} < {delta_cap}")  # Results in output
 
             # Check stabilization criterion (if enough history)
             if len(stabilization_history['ci_width_history']) >= stab_window:
@@ -2893,7 +2890,7 @@ def optimal_stopping_live_single(
                                 'slope_threshold': slope_threshold,
                                 'samples_used': len(item_summaries)
                             }
-                            logger.info(f"Stopping grouping '{grouping_name}' via hierarchical continuous stabilization: slope {slope:.6f}")
+                            # logger.info(f"Stopping grouping '{grouping_name}' via hierarchical continuous stabilization: slope {slope:.6f}")  # Results in output
                         # For low performance, require stronger stabilization
                         elif abs(slope) <= slope_threshold / 2:
                             stop_this_grouping.append(grouping_name)
@@ -2903,18 +2900,18 @@ def optimal_stopping_live_single(
                                 'slope_threshold': slope_threshold,
                                 'samples_used': len(item_summaries)
                             }
-                            logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong hierarchical continuous stabilization")
+                            # logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong hierarchical continuous stabilization")  # Results in output
 
             # TIMING_TEST: Continuous inference complete
             _continuous_elapsed = time.perf_counter() - _continuous_start
-            logger.warning(f"🕐 TIMING_TEST: Continuous group inference TOTAL took {_continuous_elapsed:.3f}s for {len(item_summaries)} items")
+            # logger.warning(f"🕐 TIMING_TEST: Continuous group inference TOTAL took {_continuous_elapsed:.3f}s for {len(item_summaries)} items")
 
     # Update samples evaluated count
     stabilization_history['n_samples_evaluated'] = len(item_summaries)
 
     # TIMING_TEST: Overall function complete
     _function_elapsed = time.perf_counter() - _function_start_time
-    logger.warning(f"🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
+    # logger.warning(f"🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
 
     # Rebuild model_caches dict for return (OPTIMIZATION #2)
     model_caches_out = {
@@ -3139,8 +3136,8 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                 stop_task_groupings.extend(res['stop_this_grouping'])
 
             logger.info('Live optimal stopping complete')
-            if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
-                print(f"Run complete. See the log file for details: {_get_logfile_path()}")
+            # if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
+            #     print(f"Run complete. See the log file for details: {_get_logfile_path()}")
             return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
     finally:
         sys.stdout = old_stdout

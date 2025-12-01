@@ -149,6 +149,31 @@ OptimalStoppingManager(
 )
 ```
 
+**⚠️ Performance Note for Ordinal Discrete Tasks:**
+Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive.
+
+**Typical per-inference timing (CPU, ~100 completed trials):**
+| Pathway | Time per Inference | Notes |
+|---------|-------------------|-------|
+| Binary discrete | ~3-4 seconds | Fast, suitable for real-time stopping |
+| Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
+| Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
+
+**GPU Recommendation:** If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck. In these cases, **GPU acceleration is strongly recommended** to ensure stopping decisions arrive in time. GPU acceleration typically provides a **2-4× speedup** for MCMC sampling:
+
+```python
+# For fast ordinal evaluations, enable GPU
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['rating'],
+    ordinal_inference='hybrid',
+    gpu_ids=[0]  # Enable GPU acceleration (2-4× faster)
+)
+```
+
+Alternatively, if GPU is unavailable, consider using `score_agg='mean'` to aggregate ordinal scores into continuous values, which routes to the much faster continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
+
 #### 4. Shadow Mode for A/B Testing
 
 Compare performance with and without early stopping:

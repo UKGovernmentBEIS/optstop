@@ -18,9 +18,12 @@ try:
     from inspect_ai.dataset._dataset import Sample
     from inspect_ai.log._log import EvalSpec
     from inspect_ai.scorer._metric import SampleScore
-    from inspect_ai.util import EarlyStopping
+    from inspect_ai.util import EarlyStopping, trace_message
     from inspect_ai.util._early_stopping import EarlyStop
 except (ImportError, AttributeError):
+    # trace_message fallback for testing
+    def trace_message(logger, component, message):
+        logger.info(f"[{component}] {message}")
     # Use mock protocol for testing
     import sys
     import os
@@ -193,7 +196,7 @@ class OptimalStoppingManager(EarlyStopping):
         self.optstop_params['random_seed'] = self.random_seed
 
         # Log seed immediately for reproducibility tracking
-        logger.info(f"🎲 Random seed: {self.random_seed} ({self._seed_source})")
+        trace_message(logger, "OptimalStopping", f"Random seed: {self.random_seed} ({self._seed_source})")
 
         # Ordinal configuration
         self.ordinal_tasks = ordinal_tasks
@@ -367,7 +370,7 @@ class OptimalStoppingManager(EarlyStopping):
         try:
             from inspect_ai.scorer._metric import value_to_float
             converter = value_to_float()
-            logger.debug("Successfully imported value_to_float from inspect_ai")
+            # logger.debug("Successfully imported value_to_float from inspect_ai")  # Superseded by version log below
             return converter
         except ImportError:
             logger.info(
@@ -376,9 +379,9 @@ class OptimalStoppingManager(EarlyStopping):
             )
             return None
         except Exception as e:
-            logger.warning(
-                f"Error initializing value_to_float converter: {e}. "
-                "Using basic float conversion for score extraction."
+            trace_message(
+                logger, "OptimalStopping",
+                f"Error initializing value_to_float converter: {e}. Using basic float conversion."
             )
             return None
 
@@ -511,9 +514,9 @@ class OptimalStoppingManager(EarlyStopping):
                 grouping_values[col] = first_row[col]
             else:
                 # Column not in dataframe - warn and use None
-                logger.warning(
-                    f"Grouping column '{col}' not found in compiled_dataset. "
-                    f"Using None as grouping value."
+                trace_message(
+                    logger, "OptimalStopping",
+                    f"Grouping column '{col}' not found in compiled_dataset. Using None."
                 )
                 grouping_values[col] = None
 
@@ -548,7 +551,7 @@ class OptimalStoppingManager(EarlyStopping):
             float | None: Extracted/aggregated score, or None if unavailable
         """
         if not scores:
-            logger.warning("Empty scores dictionary provided")
+            logger.info("Empty scores dictionary provided")
             return None
 
         # Use cached converter (initialized in __init__ via _init_value_converter)
@@ -566,14 +569,14 @@ class OptimalStoppingManager(EarlyStopping):
                     try:
                         return converter(value)
                     except Exception as e:
-                        logger.debug(f"Converter failed on '{value}': {e}")
+                        logger.info(f"Converter failed on '{value}': {e}")
                         return None
                 else:
                     # Fallback: try direct float conversion
                     try:
                         return float(value)
                     except ValueError:
-                        logger.debug(f"Could not convert string '{value}' to float")
+                        logger.info(f"Could not convert string '{value}' to float")
                         return None
 
             # Try using converter for other types (booleans, etc.)
@@ -595,9 +598,9 @@ class OptimalStoppingManager(EarlyStopping):
         # Mode 1: Extract specific score by key
         if self.score_choice is not None:
             if self.score_choice not in scores:
-                logger.warning(
-                    f"Requested score key '{self.score_choice}' not found in scores. "
-                    f"Available keys: {list(scores.keys())}"
+                trace_message(
+                    logger, "OptimalStopping",
+                    f"Requested score key '{self.score_choice}' not found. Available: {list(scores.keys())}"
                 )
                 return None
 
@@ -605,7 +608,7 @@ class OptimalStoppingManager(EarlyStopping):
             value = convert_to_float(sample_score.score.value)
 
             if value is None or pd.isna(value):
-                logger.warning(f"Could not convert score '{self.score_choice}' to float")
+                logger.info(f"Could not convert score '{self.score_choice}' to float")
                 return None
 
             return float(value)
@@ -618,10 +621,10 @@ class OptimalStoppingManager(EarlyStopping):
             if value is not None and not pd.isna(value):
                 numeric_scores.append(value)
             else:
-                logger.debug(f"Could not convert score from scorer '{scorer_name}'")
+                logger.info(f"Could not convert score from scorer '{scorer_name}'")
 
         if not numeric_scores:
-            logger.warning("No valid numeric scores found")
+            logger.info("No valid numeric scores found")
             return None
 
         # Mode 2: Aggregate multiple scores
@@ -741,10 +744,10 @@ class OptimalStoppingManager(EarlyStopping):
         self._continuous_item_model_caches = {}
         self._continuous_group_model_caches = {}
 
-        logger.info(
-            f"Initialized optimal stopping dataset with {len(self.compiled_dataset)} "
-            f"planned trials ({len(samples)} samples × {epochs} epochs)"
-        )
+        # logger.info(
+        #     f"Initialized optimal stopping dataset with {len(self.compiled_dataset)} "
+        #     f"planned trials ({len(samples)} samples × {epochs} epochs)"
+        # )  # Redundant with configuration summary
 
         # Print configuration summary to console
         self._print_configuration_summary(len(samples), epochs)
@@ -809,7 +812,7 @@ class OptimalStoppingManager(EarlyStopping):
         matching_rows = self.compiled_dataset[mask]
 
         if len(matching_rows) == 0:
-            logger.warning(
+            logger.info(
                 f"No matching row found for sample_id={id}, epoch={epoch}"
             )
             return None
@@ -928,10 +931,10 @@ class OptimalStoppingManager(EarlyStopping):
 
         # Log validation result
         if not score_valid_for_inference:
-            logger.warning(
-                f"⚠️  Invalid score for sample_id={id}, epoch={epoch}: {validation_message}. "
-                f"Score will be recorded but no inference will run for this sample. "
-                f"Task will continue to completion without early stopping."
+            trace_message(
+                logger, "OptimalStopping",
+                f"Invalid score for sample_id={id}, epoch={epoch}: {validation_message}. "
+                f"Task continues without early stopping for this sample."
             )
 
         # Step 4: Update compiled_dataset regardless of validation
@@ -956,16 +959,16 @@ class OptimalStoppingManager(EarlyStopping):
             self._decision_counters[grouping_name] = 0
         self._decision_counters[grouping_name] += 1
 
-        logger.debug(
-            f"Completed sample_id={id}, epoch={epoch}, score={score_value}. "
-            f"Grouping '{grouping_name}' counter: {self._decision_counters[grouping_name]}"
-        )
+        # logger.debug(
+        #     f"Completed sample_id={id}, epoch={epoch}, score={score_value}. "
+        #     f"Grouping '{grouping_name}' counter: {self._decision_counters[grouping_name]}"
+        # )  # Verbose per-sample logging
 
         # Step 7: Check if grouping has already stopped (OPTIMIZATION #1)
         if grouping_name in self._stopped_groupings:
-            logger.debug(
-                f"Skipping inference for '{grouping_name}' - grouping already stopped"
-            )
+            # logger.debug(
+            #     f"Skipping inference for '{grouping_name}' - grouping already stopped"
+            # )  # Verbose skip logging
             return
 
         # Step 8: Check if we should run inference for this grouping
@@ -1008,10 +1011,10 @@ class OptimalStoppingManager(EarlyStopping):
         # Check minimum samples threshold
         n_completed = len(completed_data[self.sample_id_column].unique())
         if n_completed < self.min_samples_per_grouping:
-            logger.debug(
-                f"Skipping inference for '{grouping_name}': only {n_completed} completed samples, "
-                f"minimum is {self.min_samples_per_grouping}"
-            )
+            # logger.debug(
+            #     f"Skipping inference for '{grouping_name}': only {n_completed} completed samples, "
+            #     f"minimum is {self.min_samples_per_grouping}"
+            # )  # Verbose threshold logging
             return {
                 'grouping': grouping_name,
                 'stop_sample_ids': [],
@@ -1115,9 +1118,9 @@ class OptimalStoppingManager(EarlyStopping):
                 inference_call
             )
         except asyncio.CancelledError:
-            logger.error(
-                f"Inference cancelled for '{grouping_name}'. "
-                f"This may occur if the evaluation was interrupted."
+            trace_message(
+                logger, "OptimalStopping",
+                f"Inference cancelled for '{grouping_name}'. Evaluation may have been interrupted."
             )
             # Return safe default - no stopping decisions
             return {
@@ -1129,9 +1132,9 @@ class OptimalStoppingManager(EarlyStopping):
                 }
             }
         except Exception as e:
-            logger.error(
-                f"Error running optimal stopping inference for '{grouping_name}': {e}",
-                exc_info=True
+            trace_message(
+                logger, "OptimalStopping",
+                f"Error running inference for '{grouping_name}': {e}"
             )
             # Return safe default - no stopping decisions
             return {
@@ -1165,9 +1168,9 @@ class OptimalStoppingManager(EarlyStopping):
             # Extract just the sample_id part
             parts = stop_id_str.split(':::', 1)
             if len(parts) != 2:
-                logger.error(
-                    f"Unexpected format for stop_id_str: '{stop_id_str}'. "
-                    f"Expected format: 'grouping_name:::sample_id'"
+                trace_message(
+                    logger, "OptimalStopping",
+                    f"Unexpected format for stop_id_str: '{stop_id_str}'. Expected: 'grouping_name:::sample_id'"
                 )
                 continue
             sample_id = parts[1]
@@ -1203,24 +1206,12 @@ class OptimalStoppingManager(EarlyStopping):
                     )
                 ))
 
-                # Log with reason and key values
-                reason = reason_info.get('reason', 'unknown')
-                epochs_used = reason_info.get('epochs_used', 0)
-
-                # Build detailed log message based on reason
-                if 'ci_width' in reason_info:
-                    ci_width = reason_info['ci_width']
-                    threshold = reason_info.get('threshold', 'N/A')
-                    logger.info(
-                        f"Stopped sample {sample_id} in '{grouping_name}' after {epochs_used} epochs: "
-                        f"{reason} (CI width={ci_width:.4f}, threshold={threshold})"
-                    )
-                else:
-                    logger.info(
-                        f"Stopped sample {sample_id} in '{grouping_name}' after {epochs_used} epochs: {reason}"
-                    )
-            else:
-                logger.info(f"Marked sample {sample_id} for early stopping in grouping '{grouping_name}'")
+                # Sample stopping details available in complete_task() diagnostics
+                # reason = reason_info.get('reason', 'unknown')
+                # epochs_used = reason_info.get('epochs_used', 0)
+                # ... (logging commented out - info in stopped_samples output)
+            # else:
+            #     logger.info(f"Marked sample {sample_id} for early stopping in grouping '{grouping_name}'")
 
         # Process group-level stopping
         if result['stop_this_grouping']:
@@ -1240,108 +1231,8 @@ class OptimalStoppingManager(EarlyStopping):
                     if k[:len(grouping_prefix)] != grouping_prefix
                 }
 
-                # Log with reason and key values
-                group_reason_info = result['metadata'].get('group_stopping_reason', {})
-                if group_reason_info:
-                    reason = group_reason_info.get('reason', 'unknown')
-                    samples_used = group_reason_info.get('samples_used', 0)
-
-                    # Build metrics string from available fields
-                    metrics = []
-
-                    # CI width metrics (binary and some ordinal)
-                    if 'ci_width' in group_reason_info:
-                        ci_width = group_reason_info['ci_width']
-                        metrics.append(f"CI width={ci_width:.4f}")
-                    if 'effective_width' in group_reason_info:
-                        effective_width = group_reason_info['effective_width']
-                        metrics.append(f"effective width={effective_width:.4f}")
-                    if 'threshold' in group_reason_info:
-                        threshold = group_reason_info['threshold']
-                        metrics.append(f"threshold={threshold}")
-
-                    # Stabilization metrics (binary)
-                    if 'slope' in group_reason_info:
-                        slope = group_reason_info['slope']
-                        metrics.append(f"slope={slope:.6f}")
-                    if 'slope_threshold' in group_reason_info:
-                        slope_threshold = group_reason_info['slope_threshold']
-                        metrics.append(f"slope threshold={slope_threshold:.6f}")
-
-                    # Ordinal-specific diagnostics (hybrid, entropy)
-                    if 'diagnostics' in group_reason_info:
-                        diag = group_reason_info['diagnostics']
-                        if isinstance(diag, dict):
-                            # Ordinal hybrid diagnostics from _ordinal_hybrid_stopping_criterion
-                            # Pathway 1: modal_ci_narrow_validated
-                            if 'modal_width' in diag:
-                                modal_width = diag['modal_width']
-                                metrics.append(f"modal CI width={modal_width:.4f}")
-                            if 'modal_ci' in diag and isinstance(diag['modal_ci'], (list, tuple)):
-                                modal_lo, modal_hi = diag['modal_ci']
-                                metrics.append(f"modal CI=[{modal_lo:.2f}, {modal_hi:.2f}]")
-                            if 'entropy_median' in diag:
-                                entropy_median = diag['entropy_median']
-                                metrics.append(f"entropy={entropy_median:.4f}")
-                            if 'entropy_threshold' in diag:
-                                entropy_threshold = diag['entropy_threshold']
-                                metrics.append(f"entropy threshold={entropy_threshold:.2f}")
-                            if 'threshold' in diag and 'threshold' not in group_reason_info:
-                                threshold = diag['threshold']
-                                metrics.append(f"modal threshold={threshold}")
-
-                            # Pathway 2: entropy_stabilized
-                            if 'entropy_width' in diag:
-                                entropy_width = diag['entropy_width']
-                                metrics.append(f"entropy CI width={entropy_width:.4f}")
-                            if 'relative_change' in diag:
-                                relative_change = diag['relative_change']
-                                metrics.append(f"relative change={relative_change:.4f}")
-                            if 'stabilization_threshold' in diag:
-                                stab_threshold = diag['stabilization_threshold']
-                                metrics.append(f"stab threshold={stab_threshold:.4f}")
-
-                            # Legacy checks for backwards compatibility
-                            if 'entropy' in diag and 'entropy_median' not in diag:
-                                metrics.append(f"entropy={diag['entropy']:.4f}")
-                            if 'modal_prob' in diag:
-                                metrics.append(f"modal prob={diag['modal_prob']:.4f}")
-                            if 'ci_width' in diag and 'ci_width' not in group_reason_info and 'modal_width' not in diag:
-                                metrics.append(f"CI width={diag['ci_width']:.4f}")
-
-                    # Add plain-English explanation for ordinal stopping
-                    explanation = None
-                    if reason in ['modal_ci_narrow_validated', 'entropy_stabilized'] and 'diagnostics' in group_reason_info:
-                        diag = group_reason_info['diagnostics']
-                        if reason == 'modal_ci_narrow_validated':
-                            modal_width = diag.get('modal_width')
-                            entropy_median = diag.get('entropy_median')
-                            threshold = diag.get('threshold')
-                            entropy_threshold = diag.get('entropy_threshold', 1.5)
-                            if isinstance(modal_width, (int, float)) and isinstance(entropy_median, (int, float)):
-                                explanation = (
-                                    f"Modal CI width ({modal_width:.4f}) < threshold ({threshold}), "
-                                    f"entropy ({entropy_median:.4f}) < {entropy_threshold:.2f} (peaked distribution)"
-                                )
-                        elif reason == 'entropy_stabilized':
-                            relative_change = diag.get('relative_change')
-                            stab_threshold = diag.get('stabilization_threshold')
-                            if isinstance(relative_change, (int, float)) and isinstance(stab_threshold, (int, float)):
-                                explanation = (
-                                    f"Entropy stabilized: relative change ({relative_change:.4f}) < "
-                                    f"threshold ({stab_threshold:.4f})"
-                                )
-
-                    # Format log message with explanation
-                    metrics_str = ", ".join(metrics) if metrics else "no metrics"
-                    log_msg = f"Stopped grouping '{grouping_name}' after {samples_used} samples: {reason} ({metrics_str})"
-                    if explanation:
-                        logger.info(log_msg)
-                        logger.info(f"  → {explanation}")
-                    else:
-                        logger.info(log_msg)
-                else:
-                    logger.info(f"Marked entire grouping '{grouping_name}' for early stopping")
+                # Grouping stopping details available in complete_task() diagnostics
+                # (Detailed logging commented out - info in stopped_groupings output)
 
         return result
 
@@ -1362,9 +1253,9 @@ class OptimalStoppingManager(EarlyStopping):
         # Shutdown inference executor gracefully
         # wait=True ensures any running inference completes before proceeding
         # This blocks until PyMC worker pools terminate cleanly
-        logger.info("Shutting down inference executor...")
+        # logger.info("Shutting down inference executor...")  # Verbose shutdown logging
         self._inference_executor.shutdown(wait=True)
-        logger.info("Inference executor shutdown complete.")
+        # logger.info("Inference executor shutdown complete.")  # Verbose shutdown logging
 
         # Calculate summary statistics
         total_planned = len(self.compiled_dataset)
@@ -1450,9 +1341,9 @@ class OptimalStoppingManager(EarlyStopping):
                 }
             }
 
-        logger.info(
-            f"Task complete. Ran {total_ran}/{total_planned} trials "
-            f"({efficiency:.1f}% efficiency gain)"
-        )
+        # logger.info(
+        #     f"Task complete. Ran {total_ran}/{total_planned} trials "
+        #     f"({efficiency:.1f}% efficiency gain)"
+        # )  # Summary available in returned metadata
 
         return metadata

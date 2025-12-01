@@ -18,6 +18,17 @@ import logging
 import subprocess
 from typing import Dict, Any, Optional, Tuple, List
 
+# Module-level flags for log deduplication (only log once per session)
+_gpu_status_logged = False
+_sampling_config_logged = False
+
+
+def reset_logging_flags():
+    """Reset logging deduplication flags. Useful for testing multiple datasets."""
+    global _gpu_status_logged, _sampling_config_logged
+    _gpu_status_logged = False
+    _sampling_config_logged = False
+
 def check_nutpie_available() -> Tuple[bool, Optional[str]]:
     """
     Check if nutpie (Rust-based NUTS sampler) is available.
@@ -259,6 +270,10 @@ def check_gpu_availability() -> Tuple[bool, str, Dict[str, Any]]:
 
     logger = logging.getLogger('optstop.gpu_utils')
 
+    # Use module-level flag to only log GPU status once per session
+    global _gpu_status_logged
+    should_log = not _gpu_status_logged
+
     # Phase 1: Check JAX backend (preferred)
     jax_gpu_available = False
     try:
@@ -298,14 +313,17 @@ def check_gpu_availability() -> Tuple[bool, str, Dict[str, Any]]:
                 gpu_available = True
                 gpu_info['backend_used'] = 'jax-gpu'
                 gpu_info['optimization_available'] = True
-                logger.info(f"JAX GPU acceleration available: {jax_gpu_count} GPU(s)")
+                if should_log:
+                    logger.info(f"JAX GPU acceleration available: {jax_gpu_count} GPU(s)")
             except Exception as e:
                 logger.warning(f"JAX GPU detected but test failed: {e}")
         else:
-            logger.info(f"JAX backend: {jax_backend}, GPU devices: {jax_gpu_count}")
+            if should_log:
+                logger.info(f"JAX backend: {jax_backend}, GPU devices: {jax_gpu_count}")
 
     except ImportError:
-        logger.info("JAX not available - checking other GPU backends")
+        if should_log:
+            logger.info("JAX not available - checking other GPU backends")
     except Exception as e:
         logger.warning(f"JAX GPU detection error: {e}")
 
@@ -321,27 +339,30 @@ def check_gpu_availability() -> Tuple[bool, str, Dict[str, Any]]:
             gpu_info['optimization_available'] = True
             gpu_info['device_count'] = 1  # PyTensor typically uses 1 device
             gpu_info['cuda_available'] = True
-            logger.info(f"PyTensor GPU backend available: {pytensor_info['pytensor_device']}")
+            if should_log:
+                logger.info(f"PyTensor GPU backend available: {pytensor_info['pytensor_device']}")
 
     # Phase 3: System-level GPU detection (for user awareness)
     system_gpu_info = _detect_system_gpus()
     gpu_info.update(system_gpu_info)
 
     # Phase 4: Generate recommendations based on findings
-    _generate_gpu_recommendations(gpu_info, jax_gpu_available, logger)
+    _generate_gpu_recommendations(gpu_info, jax_gpu_available, logger, should_log)
 
-    # Final status
-    if gpu_available:
-        logger.info(f"GPU acceleration enabled via {gpu_info['backend_used']}")
-    else:
-        if gpu_info['system_gpus_detected']:
-            logger.warning(f"System GPUs detected ({gpu_info['system_gpu_count']}) but no PyMC GPU backend available")
+    # Final status (only log once per session)
+    if should_log:
+        if gpu_available:
+            logger.info(f"GPU acceleration enabled via {gpu_info['backend_used']}")
         else:
-            logger.info("No GPU acceleration available - using CPU")
+            if gpu_info['system_gpus_detected']:
+                logger.warning(f"System GPUs detected ({gpu_info['system_gpu_count']}) but no PyMC GPU backend available")
+            else:
+                logger.info("No GPU acceleration available - using CPU")
+        _gpu_status_logged = True
 
     return gpu_available, backend, gpu_info
 
-def _generate_gpu_recommendations(gpu_info: Dict[str, Any], jax_available: bool, logger) -> None:
+def _generate_gpu_recommendations(gpu_info: Dict[str, Any], jax_available: bool, logger, should_log: bool = True) -> None:
     """Generate user recommendations based on GPU detection results."""
     recommendations = []
 
@@ -364,9 +385,10 @@ def _generate_gpu_recommendations(gpu_info: Dict[str, Any], jax_available: bool,
 
     gpu_info['recommendations'] = recommendations
 
-    # Log key recommendations
-    for rec in recommendations[:2]:  # Log top 2 recommendations
-        logger.info(f"Recommendation: {rec}")
+    # Log key recommendations (only once per session)
+    if should_log:
+        for rec in recommendations[:2]:  # Log top 2 recommendations
+            logger.info(f"Recommendation: {rec}")
 
 
 def configure_jax_for_gpu() -> bool:
@@ -704,6 +726,10 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
     _ = score_type  # Suppress unused variable warning
     logger = logging.getLogger('optstop.gpu_utils')
 
+    # Use module-level flag to only log sampling config once per session
+    global _sampling_config_logged
+    should_log = not _sampling_config_logged
+
     # Use intelligent GPU/CPU decision making if auto_decide is enabled
     if auto_decide and gpu_available:
         # Get optimal parameters based on workload analysis
@@ -719,13 +745,15 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
 
         if not use_gpu_decision:
             # Smart logic decided CPU is better - override gpu_available
-            logger.info("Auto-decision: Using CPU instead of GPU (workload analysis)")
+            if should_log:
+                logger.info("Auto-decision: Using CPU instead of GPU (workload analysis)")
             gpu_available = False
             gpu_backend = 'cpu'
         else:
             # Use the optimized chains/cores from smart decision
             params = optimized_params
-            logger.info(f"Auto-decision: Using GPU with optimized parameters (chains={params.get('chains')}, cores={params.get('cores')})")
+            if should_log:
+                logger.info(f"Auto-decision: Using GPU with optimized parameters (chains={params.get('chains')}, cores={params.get('cores')})")
 
     # Base sampling arguments
     sampling_kwargs = {
@@ -740,7 +768,8 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
     # Include random_seed if provided for reproducibility
     if 'random_seed' in params and params['random_seed'] is not None:
         sampling_kwargs['random_seed'] = params['random_seed']
-        logger.info(f"MCMC random_seed: {params['random_seed']}")
+        if should_log:
+            logger.info(f"MCMC random_seed: {params['random_seed']}")
 
     if gpu_available and params.get('use_gpu', True):
         if gpu_backend == 'jax-gpu':
@@ -750,18 +779,21 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
             # numpyro runs chains in parallel on the SAME GPU
             sampling_kwargs['chains'] = params.get('chains', 1)
             sampling_kwargs['cores'] = params.get('cores', 1)
-            logger.info(f"Configured sampling for GPU acceleration with JAX/numpyro (chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']})")
+            if should_log:
+                logger.info(f"Configured sampling for GPU acceleration with JAX/numpyro (chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']})")
 
         elif gpu_backend == 'pytensor-gpu':
             # Use standard PyMC sampler with PyTensor GPU backend
             # No special sampler needed - PyTensor handles GPU automatically
-            logger.info("Configured sampling for GPU acceleration with PyTensor CUDA backend")
+            if should_log:
+                logger.info("Configured sampling for GPU acceleration with PyTensor CUDA backend")
 
         else:
             # Fallback to CPU (unknown GPU backend)
             sampler, sampler_desc = get_optimal_nuts_sampler(gpu_available=False, gpu_backend='cpu')
             sampling_kwargs['nuts_sampler'] = sampler
-            logger.info(f"GPU detected but backend unknown - falling back to CPU: {sampler} ({sampler_desc})")
+            if should_log:
+                logger.info(f"GPU detected but backend unknown - falling back to CPU: {sampler} ({sampler_desc})")
     else:
         # CPU sampling strategy:
         # Use PyMC default for ALL score types on CPU.
@@ -769,8 +801,13 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         # as JAX's compilation overhead negates any sampling speedups without GPU.
         # PyMC's native PyTensor backend is well-optimized for CPU execution.
         sampler_desc = 'PyMC default (optimal for CPU)'
-        logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
+        if should_log:
+            logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
         # No nuts_sampler set = PyMC default
+
+    # Mark as logged after first successful configuration
+    if should_log:
+        _sampling_config_logged = True
 
     return sampling_kwargs
 

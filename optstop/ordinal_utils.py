@@ -30,6 +30,14 @@ import numpy as np
 import logging
 from typing import Tuple, Optional, Dict
 
+# Import trace_message for inspect_ai integration (with fallback)
+try:
+    from inspect_ai.util import trace_message
+except (ImportError, AttributeError):
+    def trace_message(logger, component, message):
+        """Fallback when inspect_ai is not available."""
+        logger.info(f"[{component}] {message}")
+
 
 def _ordinal_ci_adaptive(
     scores: np.ndarray,
@@ -79,7 +87,7 @@ def _ordinal_ci_adaptive(
 
     # Handle edge cases
     if len(scores) == 0:
-        logger.warning("Empty scores array provided to _ordinal_ci_adaptive")
+        trace_message(logger, "OrdinalUtils", "Empty scores array provided to _ordinal_ci_adaptive")
         return 0.0, 1.0, 1.0
 
     # Ensure scores are integers
@@ -147,7 +155,7 @@ def _ordinal_ci_adaptive(
         # Scale up the effective width for more stringent stopping criteria
         # This prevents premature stopping when performance is poor
         effective_width = width * conservatism
-        logger.debug(
+        logger.info(
             f"Applied conservatism to ordinal CI: mean_scaled={mean_scaled:.3f}, "
             f"modal_cat_range=[{lo_cat:.1f}, {hi_cat:.1f}], "
             f"raw_width={width:.4f}, effective_width={effective_width:.4f}"
@@ -180,7 +188,7 @@ def validate_ordinal_scores(
     valid_scores = scores[~np.isnan(scores)]
 
     if len(valid_scores) == 0:
-        logger.warning(f"Ordinal grouping '{grouping_name}' has no valid scores")
+        trace_message(logger, "OrdinalUtils", f"Ordinal grouping '{grouping_name}' has no valid scores")
         return
 
     min_score = valid_scores.min()
@@ -203,15 +211,15 @@ def validate_ordinal_scores(
 
     # Warn if scores are not integers (allowed but unusual for ordinal data)
     if not np.allclose(valid_scores, np.round(valid_scores)):
-        logger.warning(
+        logger.info(
             f"Ordinal grouping '{grouping_name}' contains non-integer scores. "
             f"These will be used as-is, but ordinal scoring typically expects integers."
         )
 
-    logger.debug(
-        f"Validated ordinal scores for '{grouping_name}': "
-        f"range=[{min_score}, {max_score}], n={len(valid_scores)}"
-    )
+    # logger.debug(
+    #     f"Validated ordinal scores for '{grouping_name}': "
+    #     f"range=[{min_score}, {max_score}], n={len(valid_scores)}"
+    # )
 
 
 def determine_score_type(
@@ -286,21 +294,21 @@ def determine_score_type(
         if is_ordinal:
             score_type = 'continuous_bounded'
             bounds = {'lower': 0.0, 'upper': upper_bound}
-            logger.info(
-                f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_BOUNDED [0, {upper_bound}]"
-            )
+            # logger.info(
+            #     f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_BOUNDED [0, {upper_bound}]"
+            # )
         else:
             score_type = 'continuous_01'
             bounds = {'lower': 0.0, 'upper': 1.0}
-            logger.info(
-                f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_01 [0, 1]"
-            )
+            # logger.info(
+            #     f"Grouping '{grouping_name}' with aggregation → CONTINUOUS_01 [0, 1]"
+            # )
         return score_type, bounds
 
     # Non-aggregated: return discrete types
     if is_ordinal:
-        logger.info(f"Grouping '{grouping_name}' → ORDINAL (discrete)")
+        # logger.info(f"Grouping '{grouping_name}' → ORDINAL (discrete)")
         return 'ordinal', {'lower': 0.0, 'upper': upper_bound}
     else:
-        logger.debug(f"Grouping '{grouping_name}' → BINARY (discrete)")
+        # logger.debug(f"Grouping '{grouping_name}' → BINARY (discrete)")
         return 'binary', {'lower': 0.0, 'upper': 1.0}

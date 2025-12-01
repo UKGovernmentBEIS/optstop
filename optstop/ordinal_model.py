@@ -333,7 +333,7 @@ def _ordinal_entropy_ci_adaptive(
             pm.set_data({"n_items": np.array(n_items, dtype="int64")})
             pm.set_data({"scores": scores.astype("int64")})
 
-        logger.debug(f"Reusing OrderedLogistic model (updated from {n_items_last} to {n_items} items)")
+        # logger.debug(f"Reusing OrderedLogistic model (updated from {n_items_last} to {n_items} items)")
     else:
         # Create new model
         model = _create_orderedlogistic_model(
@@ -345,16 +345,16 @@ def _ordinal_entropy_ci_adaptive(
         with model:
             pm.set_data({"scores": scores.astype("int64")})
 
-        logger.debug(f"Created new OrderedLogistic model for {n_items} items")
+        # logger.debug(f"Created new OrderedLogistic model for {n_items} items")
 
     # Sample from posterior
     compute_kwargs = compute_kwargs or {}
 
     # === DIAGNOSTIC LOGGING: Track parameter passing ===
-    logger.warning(f"🔍 _ordinal_entropy_ci_adaptive called:")
-    logger.warning(f"   n_samples (default parameter): {n_samples}")
-    logger.warning(f"   n_tune (default parameter): {n_tune}")
-    logger.warning(f"   compute_kwargs received: {compute_kwargs}")
+    # logger.warning(f"🔍 _ordinal_entropy_ci_adaptive called:")
+    # logger.warning(f"   n_samples (default parameter): {n_samples}")
+    # logger.warning(f"   n_tune (default parameter): {n_tune}")
+    # logger.warning(f"   compute_kwargs received: {compute_kwargs}")
 
     default_kwargs = {
         'draws': n_samples,
@@ -366,8 +366,8 @@ def _ordinal_entropy_ci_adaptive(
     default_kwargs.update(compute_kwargs)
 
     # === DIAGNOSTIC LOGGING: Track final values being used ===
-    logger.warning(f"   Final draws (after update): {default_kwargs['draws']}")
-    logger.warning(f"   Final tune (after update): {default_kwargs['tune']}")
+    # logger.warning(f"   Final draws (after update): {default_kwargs['draws']}")
+    # logger.warning(f"   Final tune (after update): {default_kwargs['tune']}")
 
     # NOTE: Ordinal inference uses numpyro (JAX backend) for CPU sampling
     # This is configured in gpu_utils.py and avoids numba cumsum compatibility issues
@@ -414,7 +414,7 @@ def _ordinal_entropy_ci_adaptive(
 
     if current_perf < low_perf_threshold:
         effective_width = raw_width * conservatism
-        logger.debug(
+        logger.info(
             f"Applied conservatism {conservatism:.2f} (perf={current_perf:.2f} < {low_perf_threshold}) "
             f"→ width {raw_width:.3f} → {effective_width:.3f}"
         )
@@ -565,10 +565,10 @@ def _ordinal_hybrid_stopping_criterion(
                 'false_peak_detected': True,
                 'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {entropy_threshold})'
             }
-            logger.debug(
-                f"False peak detected: modal_width={modal_width:.3f} < {delta_item:.3f} "
-                f"BUT entropy={entropy_median:.2f} > {entropy_threshold} - continuing to Pathway 2"
-            )
+            # logger.debug(
+            #     f"False peak detected: modal_width={modal_width:.3f} < {delta_item:.3f} "
+            #     f"BUT entropy={entropy_median:.2f} > {entropy_threshold} - continuing to Pathway 2"
+            # )
             # Fall through to Pathway 2 (don't return here)
         else:
             # TRUE PEAK: Modal CI narrow AND entropy low (distribution peaked)
@@ -582,10 +582,10 @@ def _ordinal_hybrid_stopping_criterion(
                 'entropy_epochs': len(entropy_history),
                 'validated': True
             }
-            logger.info(
-                f"Stopping via Pathway 1 (Modal CI narrow + validated): "
-                f"width={modal_width:.3f} < {delta_item:.3f}, entropy={entropy_median:.2f} < {entropy_threshold}"
-            )
+            # logger.info(
+            #     f"Stopping via Pathway 1 (Modal CI narrow + validated): "
+            #     f"width={modal_width:.3f} < {delta_item:.3f}, entropy={entropy_median:.2f} < {entropy_threshold}"
+            # )
             return True, 'modal_ci_narrow_validated', diagnostics
 
     # === PATHWAY 2: Entropy Stabilization (for non-peaked or false peaks) ===
@@ -604,7 +604,7 @@ def _ordinal_hybrid_stopping_criterion(
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization
         }
-        logger.debug(f"Continue: insufficient history ({len(entropy_history)}/{min_epochs_for_stabilization})")
+        # logger.debug(f"Continue: insufficient history ({len(entropy_history)}/{min_epochs_for_stabilization})")
         return False, 'continue_insufficient_history', diagnostics
 
     # Check for CI width convergence (diminishing returns from collecting more data)
@@ -629,10 +629,10 @@ def _ordinal_hybrid_stopping_criterion(
             'relative_change': float(relative_change),
             'stabilization_threshold': float(stabilization_threshold)
         }
-        logger.info(
-            f"Stopping via Pathway 2 (Entropy stabilized): "
-            f"relative_change={relative_change:.4f} < {stabilization_threshold:.4f}"
-        )
+        # logger.info(
+        #     f"Stopping via Pathway 2 (Entropy stabilized): "
+        #     f"relative_change={relative_change:.4f} < {stabilization_threshold:.4f}"
+        # )
         return True, 'entropy_stabilized', diagnostics
 
     # Continue collecting data
@@ -646,10 +646,10 @@ def _ordinal_hybrid_stopping_criterion(
         'relative_change': float(relative_change),
         'learning': True
     }
-    logger.debug(
-        f"Continue learning: modal_width={modal_width:.3f} (>{delta_item:.3f}), "
-        f"entropy_change={relative_change:.4f} (>{stabilization_threshold:.4f})"
-    )
+    # logger.debug(
+    #     f"Continue learning: modal_width={modal_width:.3f} (>{delta_item:.3f}), "
+    #     f"entropy_change={relative_change:.4f} (>{stabilization_threshold:.4f})"
+    # )
     return False, 'continue_learning', diagnostics
 
 

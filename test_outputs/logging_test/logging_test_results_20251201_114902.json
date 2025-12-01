@@ -1,0 +1,575 @@
+{
+  "dataset_1_binary": {
+    "dataset": "dataset_1_binary_discrete.csv",
+    "expected_routing": "BINARY",
+    "execution": {
+      "init_time_sec": 0.00036334991455078125,
+      "run_time_sec": 73.2386269569397,
+      "trial_count": 500,
+      "total_planned": "500",
+      "efficiency_pct": 0.0,
+      "stopped_samples": 0
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 500,
+      "total_ran": 500,
+      "total_skipped": 0,
+      "efficiency_percent": 0.0,
+      "stopped_samples_count": 0,
+      "stopped_samples": [],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 0
+      },
+      "stopped_groupings": [
+        "gpt-4-turbo-math_easy"
+      ],
+      "stopped_groupings_count": 1,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 500,
+          "inference_calls": 20,
+          "next_inference_at": 525
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 50,
+          "final_ci_width": 0.09927879694353703,
+          "final_slope": -0.0019479795684479281,
+          "n_group_checks": 17,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T11:49:04.973856",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 104,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4"
+    ]
+  },
+  "dataset_2_ordinal": {
+    "dataset": "dataset_2_ordinal_with_choice.csv",
+    "expected_routing": "ORDINAL",
+    "execution": {
+      "init_time_sec": 0.0004723072052001953,
+      "run_time_sec": 138.77971625328064,
+      "trial_count": 100,
+      "total_planned": "500",
+      "efficiency_pct": 80.0,
+      "stopped_samples": 40
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 500,
+      "total_ran": 100,
+      "total_skipped": 400,
+      "efficiency_percent": 80.0,
+      "stopped_samples_count": 0,
+      "stopped_samples": [],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 0
+      },
+      "stopped_groupings": [
+        "gpt-4-turbo-math_easy"
+      ],
+      "stopped_groupings_count": 1,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 10,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": 0.0,
+          "final_modal_ci": [
+            0.9,
+            0.9
+          ],
+          "final_entropy": 1.3255528766347044,
+          "final_entropy_threshold": 1.5,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": 1
+        }
+      },
+      "ordinal_glossary": {
+        "modal_ci_narrow_validated": {
+          "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+          "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+          "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+        },
+        "entropy_stabilized": {
+          "description": "Distribution entropy converged, indicating stable ordinal estimates",
+          "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+          "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+        },
+        "continue_insufficient_history": {
+          "description": "Need more epochs to assess stabilization",
+          "interpretation": "Collecting more data to establish convergence pattern",
+          "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T11:50:18.247480",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 8,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4"
+    ]
+  },
+  "dataset_3_continuous": {
+    "dataset": "dataset_3_ordinal_with_agg.csv",
+    "expected_routing": "CONTINUOUS",
+    "execution": {
+      "init_time_sec": 0.0004565715789794922,
+      "run_time_sec": 4.1402833461761475,
+      "trial_count": 100,
+      "total_planned": "500",
+      "efficiency_pct": 80.0,
+      "stopped_samples": 40
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 500,
+      "total_ran": 100,
+      "total_skipped": 400,
+      "efficiency_percent": 80.0,
+      "stopped_samples_count": 10,
+      "stopped_samples": [
+        {
+          "id": "sample_0000",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.8234623051667285,
+            "ci_width_normalized": 0.08234623051667285,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0001",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5544815841536117,
+            "ci_width_normalized": 0.05544815841536117,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0002",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.1030334139444111,
+            "ci_width_normalized": 0.11030334139444112,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0003",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.3808229777817562,
+            "ci_width_normalized": 0.13808229777817563,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0004",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.831183446801603,
+            "ci_width_normalized": 0.0831183446801603,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0005",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.6945459243821794,
+            "ci_width_normalized": 0.06945459243821794,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0006",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.8633977872759342,
+            "ci_width_normalized": 0.08633977872759342,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0007",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.1875838853563945,
+            "ci_width_normalized": 0.11875838853563944,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0008",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.2127988857109564,
+            "ci_width_normalized": 0.12127988857109565,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0009",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.0896526283772285,
+            "ci_width_normalized": 0.10896526283772286,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        }
+      ],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 10
+      },
+      "stopped_groupings": [
+        "gpt-4-turbo-math_easy"
+      ],
+      "stopped_groupings_count": 1,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 10,
+          "final_ci_width": 0.07220981035073315,
+          "final_slope": null,
+          "n_group_checks": 1,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        }
+      },
+      "ordinal_glossary": {
+        "modal_ci_narrow_validated": {
+          "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+          "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+          "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+        },
+        "entropy_stabilized": {
+          "description": "Distribution entropy converged, indicating stable ordinal estimates",
+          "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+          "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+        },
+        "continue_insufficient_history": {
+          "description": "Need more epochs to assess stabilization",
+          "interpretation": "Collecting more data to establish convergence pattern",
+          "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T11:52:37.061668",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 8,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4"
+    ]
+  }
+}

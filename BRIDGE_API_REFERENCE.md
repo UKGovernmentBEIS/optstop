@@ -170,6 +170,13 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 - No early exit optimization (always runs both)
 - Designed for maximum safety, not performance
 
+**Typical per-inference timing (CPU, ~100 completed trials):**
+| Pathway | Time per Inference | Notes |
+|---------|-------------------|-------|
+| Binary discrete | ~3-4 seconds | Fast, suitable for real-time stopping |
+| Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
+| Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
+
 **Recommendation:**
 ```python
 # For production with >50 samples
@@ -183,6 +190,21 @@ ordinal_inference='hybrid'  # Safe but slow
 - Modal: May not stop for truly diffuse distributions (stays wide forever)
 - Hybrid: Catches all cases but 100-1000× slower
 - For most LLM evaluations, modal is sufficient (models are typically consistent or consistently inconsistent)
+
+**🔧 GPU Recommendation for Ordinal Tasks:**
+If your evaluation trials complete quickly (< 5 minutes per trial), ordinal inference may become a bottleneck. **GPU acceleration is strongly recommended** for ordinal discrete tasks, providing a typical **2-4× speedup** for MCMC sampling:
+
+```python
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['rating'],
+    ordinal_inference='hybrid',
+    gpu_ids=[0]  # Enable GPU for faster ordinal inference (2-4× speedup)
+)
+```
+
+**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
 
 ---
 
@@ -544,6 +566,22 @@ ordinal_inference='entropy'  # Very slow, use only when modal fails
 **Trade-offs:**
 - **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
 - **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
+
+**⚠️ GPU Recommendation for Fast Trials:**
+Ordinal discrete inference is significantly slower than binary/continuous pathways. Typical per-inference timing on CPU (~100 completed trials): **~7-8 minutes** for ordinal vs **~3-6 seconds** for binary/continuous. If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck preventing stopping decisions from arriving in time.
+
+**For fast ordinal evaluations, GPU acceleration is strongly recommended (2-4× speedup):**
+```python
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['rating'],
+    ordinal_inference='hybrid',
+    gpu_ids=[0]  # ← Enable GPU for ordinal inference (2-4× faster)
+)
+```
+
+**Alternative:** If GPU is unavailable, consider using `score_agg='mean'` or `score_agg='median'` to aggregate ordinal scores into continuous values, which routes to the much faster continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
 
 **See:** [Performance Considerations - Ordinal Inference Mode Selection](#5-ordinal-inference-mode-selection--critical) for detailed analysis.
 

@@ -22,22 +22,22 @@
     "random_seed": 42
   },
   "execution": {
-    "init_time_sec": 0.000102996826171875,
-    "run_time_sec": 385.17069244384766,
-    "run_time_min": 6.419511540730794,
-    "total_time_sec": 385.18240189552307,
-    "trial_count": 2929,
+    "init_time_sec": 0.0003387928009033203,
+    "run_time_sec": 530.7957060337067,
+    "run_time_min": 8.846595100561778,
+    "total_time_sec": 530.8041627407074,
+    "trial_count": 3625,
     "total_planned": 5000,
-    "stopped_samples": 231
+    "stopped_samples": 138
   },
   "diagnostics": {
     "manager": "optstop",
     "random_seed": 42,
     "seed_source": "user_specified",
     "total_planned_trials": 5000,
-    "total_ran": 2429,
-    "total_skipped": 2571,
-    "efficiency_percent": 51.42,
+    "total_ran": 3625,
+    "total_skipped": 1375,
+    "efficiency_percent": 27.5,
     "stopped_samples_count": 0,
     "stopped_samples": [],
     "grouping_columns": [
@@ -54,21 +54,20 @@
       "llama-70b-creative_writing": 0
     },
     "stopped_groupings": [
-      "llama-70b-creative_writing",
       "gpt-3.5-math_hard",
       "gpt-4-turbo-math_easy"
     ],
-    "stopped_groupings_count": 3,
+    "stopped_groupings_count": 2,
     "decision_counters": {
       "gpt-4-turbo-math_easy": {
-        "completed_samples": 235,
-        "inference_calls": 9,
-        "next_inference_at": 250
+        "completed_samples": 500,
+        "inference_calls": 20,
+        "next_inference_at": 525
       },
       "gpt-3.5-math_hard": {
-        "completed_samples": 212,
-        "inference_calls": 8,
-        "next_inference_at": 225
+        "completed_samples": 125,
+        "inference_calls": 5,
+        "next_inference_at": 150
       },
       "claude-3-opus-coding_medium": {
         "completed_samples": 1000,
@@ -81,17 +80,17 @@
         "next_inference_at": 1025
       },
       "llama-70b-creative_writing": {
-        "completed_samples": 482,
-        "inference_calls": 19,
-        "next_inference_at": 500
+        "completed_samples": 1000,
+        "inference_calls": 40,
+        "next_inference_at": 1025
       }
     },
     "stabilization_histories": {
       "gpt-4-turbo-math_easy": {
-        "n_samples": 15,
-        "final_ci_width": 0.09958655133745109,
-        "final_slope": null,
-        "n_group_checks": 3,
+        "n_samples": 50,
+        "final_ci_width": 0.09927879694353703,
+        "final_slope": -0.0019479795684479281,
+        "n_group_checks": 17,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
         "final_entropy": null,
@@ -103,7 +102,7 @@
       },
       "gpt-3.5-math_hard": {
         "n_samples": 13,
-        "final_ci_width": 0.09585072072095562,
+        "final_ci_width": 0.0824756070911847,
         "final_slope": null,
         "n_group_checks": 2,
         "final_modal_ci_width": null,
@@ -117,8 +116,8 @@
       },
       "claude-3-opus-coding_medium": {
         "n_samples": 100,
-        "final_ci_width": 0.3011786531194125,
-        "final_slope": -0.004634826740458283,
+        "final_ci_width": 0.3109707737469517,
+        "final_slope": -0.0025273268238833607,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -131,8 +130,8 @@
       },
       "gemini-pro-reasoning": {
         "n_samples": 100,
-        "final_ci_width": 0.4356291562965012,
-        "final_slope": 0.0008110118424902397,
+        "final_ci_width": 0.4152545560797046,
+        "final_slope": 4.299493060638711e-05,
         "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
@@ -144,10 +143,10 @@
         "ordinal_pathway": null
       },
       "llama-70b-creative_writing": {
-        "n_samples": 43,
-        "final_ci_width": 0.4897715578291431,
-        "final_slope": 2.314422711499367e-05,
-        "n_group_checks": 14,
+        "n_samples": 100,
+        "final_ci_width": 0.4634396100747444,
+        "final_slope": -0.0002467598092993643,
+        "n_group_checks": 37,
         "final_modal_ci_width": null,
         "final_modal_ci": null,
         "final_entropy": null,
@@ -170,14 +169,12 @@
     "pattern_count": 3
   },
   "group_level_stopping": {
-    "group_level_stopping_events": 6,
+    "group_level_stopping_events": 4,
     "stopped_groupings": [
-      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0996 < 0.1",
-      "Stopped grouping 'gpt-4-turbo-math_easy' after 15 samples: ci_width (CI width=0.0996, effective width=0.0996, threshold=0.1)",
-      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0959 < 0.1",
-      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0959, effective width=0.0959, threshold=0.1)",
-      "Stopping grouping 'llama-70b-creative_writing' via stabilization: slope 0.000023",
-      "Stopped grouping 'llama-70b-creative_writing' after 43 samples: ci_stabilization (slope=0.000023, slope threshold=0.000050)"
+      "Stopping grouping 'gpt-4-turbo-math_easy': CI 0.0993 < 0.1",
+      "Stopped grouping 'gpt-4-turbo-math_easy' after 50 samples: ci_width (CI width=0.0993, effective width=0.0993, threshold=0.1)",
+      "Stopping grouping 'gpt-3.5-math_hard': CI 0.0825 < 0.1",
+      "Stopped grouping 'gpt-3.5-math_hard' after 13 samples: ci_width (CI width=0.0825, effective width=0.0825, threshold=0.1)"
     ],
     "used_group_level_stopping": true
   }
