@@ -1236,7 +1236,53 @@ class OptimalStoppingManager(EarlyStopping):
 
         return result
 
-    @override
+    def _build_stabilization_entry(self, grouping_name: str, history: dict) -> dict:
+        """Build stabilization history entry for a grouping.
+
+        Only includes ordinal-specific fields when the grouping uses ordinal inference.
+
+        Args:
+            grouping_name: Name of the grouping (e.g., 'gpt-4-turbo-math_easy')
+            history: Raw stabilization history dict for this grouping
+
+        Returns:
+            Cleaned stabilization entry with appropriate fields for the score type
+        """
+        # Base fields for all score types
+        entry = {
+            'n_samples': history.get('n_samples_evaluated', 0),
+            'final_ci_width': history['ci_width_history'][-1] if history.get('ci_width_history') else None,
+            'final_slope': history['ci_slope_history'][-1] if history.get('ci_slope_history') else None,
+            'n_group_checks': len(history.get('ci_width_history', [])),
+        }
+
+        # Only include ordinal-specific fields if this grouping uses ordinal inference
+        # A grouping uses ordinal if ordinal_tasks is set AND the task part of the grouping
+        # matches one of the ordinal_tasks (case-insensitive, matching determine_score_type logic)
+        is_ordinal_grouping = False
+        if self.ordinal_tasks:
+            # Use case-insensitive matching to match routing logic in ordinal_utils.determine_score_type()
+            grouping_name_lower = grouping_name.lower()
+            for task in self.ordinal_tasks:
+                if task.lower() in grouping_name_lower:
+                    is_ordinal_grouping = True
+                    break
+
+        if is_ordinal_grouping:
+            # Add ordinal-specific fields
+            entry.update({
+                'final_modal_ci_width': history.get('final_modal_ci_width'),
+                'final_modal_ci': history.get('final_modal_ci'),
+                'final_entropy': history.get('final_entropy'),
+                'final_entropy_threshold': history.get('final_entropy_threshold'),
+                'final_entropy_ci_width': history.get('final_entropy_ci_width'),
+                'final_relative_change': history.get('final_relative_change'),
+                'final_stabilization_threshold': history.get('final_stabilization_threshold'),
+                'ordinal_pathway': history.get('ordinal_pathway'),
+            })
+
+        return entry
+
     async def complete_task(self) -> dict[str, JsonValue]:
         """Generate final diagnostics and metadata for completed task.
 
@@ -1302,21 +1348,7 @@ class OptimalStoppingManager(EarlyStopping):
                 for grouping, count in self._decision_counters.items()
             },
             "stabilization_histories": {
-                k: {
-                    'n_samples': v.get('n_samples_evaluated', 0),
-                    'final_ci_width': v['ci_width_history'][-1] if v.get('ci_width_history') else None,
-                    'final_slope': v['ci_slope_history'][-1] if v.get('ci_slope_history') else None,
-                    'n_group_checks': len(v.get('ci_width_history', [])),
-                    # Ordinal-specific fields
-                    'final_modal_ci_width': v.get('final_modal_ci_width'),
-                    'final_modal_ci': v.get('final_modal_ci'),
-                    'final_entropy': v.get('final_entropy'),
-                    'final_entropy_threshold': v.get('final_entropy_threshold'),
-                    'final_entropy_ci_width': v.get('final_entropy_ci_width'),
-                    'final_relative_change': v.get('final_relative_change'),
-                    'final_stabilization_threshold': v.get('final_stabilization_threshold'),
-                    'ordinal_pathway': v.get('ordinal_pathway')
-                }
+                k: self._build_stabilization_entry(k, v)
                 for k, v in self._stabilization_histories.items()
             }
         }

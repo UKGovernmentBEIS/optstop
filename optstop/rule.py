@@ -2663,6 +2663,13 @@ def optimal_stopping_live_single(
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold
                 )
+                # Track CI width for stabilization history (enables n_group_checks tracking)
+                stabilization_history['ci_width_history'].append(float(width))
+                # Store modal-specific diagnostics
+                stabilization_history['final_modal_ci_width'] = float(width)
+                stabilization_history['final_modal_ci'] = [float(lo), float(hi)]
+                stabilization_history['ordinal_pathway'] = 'modal'
+
                 if width < delta_cap:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
@@ -2683,6 +2690,13 @@ def optimal_stopping_live_single(
                     model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
+                # Track CI width for stabilization history (enables n_group_checks tracking)
+                stabilization_history['ci_width_history'].append(float(width))
+                # Store entropy-specific diagnostics
+                stabilization_history['final_entropy_ci_width'] = float(width)
+                stabilization_history['final_entropy'] = float(diagnostics.get('entropy_median', 0)) if diagnostics else None
+                stabilization_history['ordinal_pathway'] = 'entropy'
+
                 if width < delta_cap:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
@@ -2708,6 +2722,39 @@ def optimal_stopping_live_single(
                     model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
+                # Track CI width for stabilization history (enables n_group_checks tracking)
+                # Use modal_width or entropy_width from diagnostics, depending on pathway
+                # Use explicit None checks to avoid truthiness issues with 0.0 values
+                if diagnostics_group:
+                    width = diagnostics_group.get('modal_width')
+                    if width is None:
+                        width = diagnostics_group.get('entropy_width')
+                    if width is None:
+                        width = 0.0
+                    stabilization_history['ci_width_history'].append(float(width))
+
+                    # Populate ordinal fields unconditionally (not just when stopping)
+                    # This ensures diagnostics are available for non-stopping cases too
+                    stabilization_history['ordinal_pathway'] = 'hybrid'
+
+                    # Always populate modal fields if available
+                    if 'modal_width' in diagnostics_group:
+                        stabilization_history['final_modal_ci_width'] = float(diagnostics_group['modal_width'])
+                        if 'modal_ci' in diagnostics_group:
+                            stabilization_history['final_modal_ci'] = [float(x) for x in diagnostics_group['modal_ci']]
+
+                    # Always populate entropy fields if available
+                    if 'entropy_median' in diagnostics_group:
+                        stabilization_history['final_entropy'] = float(diagnostics_group['entropy_median'])
+                    if 'entropy_threshold' in diagnostics_group:
+                        stabilization_history['final_entropy_threshold'] = float(diagnostics_group['entropy_threshold'])
+                    if 'entropy_width' in diagnostics_group:
+                        stabilization_history['final_entropy_ci_width'] = float(diagnostics_group['entropy_width'])
+                    if 'relative_change' in diagnostics_group:
+                        stabilization_history['final_relative_change'] = float(diagnostics_group['relative_change'])
+                    if 'stabilization_threshold' in diagnostics_group:
+                        stabilization_history['final_stabilization_threshold'] = float(diagnostics_group['stabilization_threshold'])
+
                 if should_stop_group:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
@@ -2715,30 +2762,12 @@ def optimal_stopping_live_single(
                         'samples_used': len(item_summaries),
                         'diagnostics': diagnostics_group
                     }
+                    # Update ordinal_pathway to specific pathway number when stopping
+                    if diagnostics_group:
+                        stabilization_history['ordinal_pathway'] = diagnostics_group.get('pathway', 'hybrid')
                     # logger.info(f"Stopping ordinal grouping '{grouping_name}' via {reason_group}")  # Results in output
 
             stabilization_history['entropy_history'] = group_entropy_history
-
-            # Populate stabilization history metrics for ordinal pathways
-            # This enables users to see final stopping metrics in diagnostics
-            if ordinal_inference == 'hybrid' and stop_this_grouping:
-                if diagnostics_group:
-                    # Store pathway indicator
-                    stabilization_history['ordinal_pathway'] = diagnostics_group.get('pathway', 0)
-
-                    # Pathway 1: modal_ci_narrow_validated
-                    if 'modal_width' in diagnostics_group:
-                        stabilization_history['final_modal_ci_width'] = float(diagnostics_group['modal_width'])
-                        stabilization_history['final_entropy'] = float(diagnostics_group.get('entropy_median', 0))
-                        stabilization_history['final_entropy_threshold'] = float(diagnostics_group.get('entropy_threshold', 1.5))
-                        if 'modal_ci' in diagnostics_group:
-                            stabilization_history['final_modal_ci'] = [float(x) for x in diagnostics_group['modal_ci']]
-
-                    # Pathway 2: entropy_stabilized
-                    if 'entropy_width' in diagnostics_group:
-                        stabilization_history['final_entropy_ci_width'] = float(diagnostics_group['entropy_width'])
-                        stabilization_history['final_relative_change'] = float(diagnostics_group.get('relative_change', 0))
-                        stabilization_history['final_stabilization_threshold'] = float(diagnostics_group.get('stabilization_threshold', 0.002))
 
             # TIMING_TEST: Ordinal inference complete
             _ordinal_elapsed = time.perf_counter() - _ordinal_start

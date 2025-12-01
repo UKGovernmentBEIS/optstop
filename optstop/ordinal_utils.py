@@ -60,6 +60,10 @@ def _ordinal_ci_adaptive(
     The method applies conservatism to low-performance scenarios to prevent premature
     stopping when performance is poor (analogous to the binary case).
 
+    A sample-size-scaled floor is applied to prevent premature stopping when bootstrap
+    CI is zero due to homogeneous data. The floor decreases with more samples, reflecting
+    that more agreeing observations genuinely increase confidence.
+
     Args:
         scores: Array of ordinal scores (0 to ordinal_max_score)
         ordinal_max_score: Maximum possible score for scaling (e.g., 10 for 0-10 scale)
@@ -73,7 +77,7 @@ def _ordinal_ci_adaptive(
         Tuple of (lower_bound, upper_bound, effective_width), all in [0,1] scale
         - lower_bound: Lower bound of modal category CI (scaled)
         - upper_bound: Upper bound of modal category CI (scaled)
-        - effective_width: CI width (scaled), adjusted for conservatism if needed
+        - effective_width: CI width (scaled), adjusted for conservatism and sample-size floor
 
     Example:
         scores = [5, 6, 7, 7, 8, 7, 6]  # Modal category is 7
@@ -145,23 +149,71 @@ def _ordinal_ci_adaptive(
     # Scale to [0,1] for comparison with delta thresholds
     lo = lo_cat / ordinal_max_score
     hi = hi_cat / ordinal_max_score
-    width = hi - lo
+    raw_width = hi - lo
 
     # Apply conservatism for low-performance scenarios
     # Use mean of scaled scores to determine if performance is low
     mean_scaled = np.mean(scores_int / ordinal_max_score)
 
+    # Minimum CI width floor: prevents CI=0 from causing immediate stopping
+    # When all observations agree (bootstrap CI width = 0), we still need uncertainty
+    # because we have finite samples.
+    #
+    # Sample-size-scaled floor: floor = 1 / (ordinal_max_score * sqrt(n))
+    #
+    # Rationale:
+    #   - More samples agreeing = more confidence = lower floor
+    #   - Reflects statistical reality: CI width scales as 1/sqrt(n)
+    #   - Examples for 10-point scale:
+    #       n=10:  floor = 1/(10 * 3.16) = 0.032
+    #       n=100: floor = 1/(10 * 10)   = 0.010
+    #       n=500: floor = 1/(10 * 22.4) = 0.0045
+    #
+    # This prevents premature stopping with few samples while allowing
+    # stopping when sufficient consistent data has been collected.
+    n_samples = len(scores)
+    min_ci_width = 1.0 / (ordinal_max_score * np.sqrt(n_samples))
+
+    # Track whether we need to widen the CI bounds
+    bounds_adjusted = False
+
     if mean_scaled < low_perf_threshold:
         # Scale up the effective width for more stringent stopping criteria
         # This prevents premature stopping when performance is poor
-        effective_width = width * conservatism
+        # Apply floor BEFORE conservatism multiplication
+        floored_width = max(raw_width, min_ci_width)
+        effective_width = floored_width * conservatism
+
+        # Widen CI bounds symmetrically if floor was applied
+        if raw_width < min_ci_width:
+            bounds_adjusted = True
+            expansion = (min_ci_width - raw_width) / 2
+            lo = max(0.0, lo - expansion)
+            hi = min(1.0, hi + expansion)
+
         logger.info(
-            f"Applied conservatism to ordinal CI: mean_scaled={mean_scaled:.3f}, "
-            f"modal_cat_range=[{lo_cat:.1f}, {hi_cat:.1f}], "
-            f"raw_width={width:.4f}, effective_width={effective_width:.4f}"
+            f"Applied conservatism to ordinal CI (effective width for stopping): "
+            f"n_samples={n_samples}, mean_scaled={mean_scaled:.3f}, "
+            f"raw_ci=[{lo_cat/ordinal_max_score:.3f}, {hi_cat/ordinal_max_score:.3f}], "
+            f"{'adjusted_ci=[' + f'{lo:.3f}, {hi:.3f}], ' if bounds_adjusted else ''}"
+            f"raw_width={raw_width:.4f}, floor={min_ci_width:.4f}, effective_width={effective_width:.4f}"
         )
     else:
-        effective_width = width
+        # Even without conservatism, apply minimum floor for homogeneous data
+        effective_width = max(raw_width, min_ci_width)
+
+        # Widen CI bounds symmetrically if floor was applied
+        if raw_width < min_ci_width:
+            bounds_adjusted = True
+            expansion = (min_ci_width - raw_width) / 2
+            lo = max(0.0, lo - expansion)
+            hi = min(1.0, hi + expansion)
+            logger.info(
+                f"Applied sample-size-scaled CI floor to ordinal CI (effective width for stopping): "
+                f"n_samples={n_samples}, raw_ci=[{lo_cat/ordinal_max_score:.3f}, {hi_cat/ordinal_max_score:.3f}], "
+                f"adjusted_ci=[{lo:.3f}, {hi:.3f}], "
+                f"raw_width={raw_width:.4f}, floor={min_ci_width:.4f}, effective_width={effective_width:.4f}"
+            )
 
     return lo, hi, effective_width
 

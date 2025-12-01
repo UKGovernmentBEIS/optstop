@@ -1,0 +1,1508 @@
+{
+  "dataset_1_binary": {
+    "dataset": "dataset_1_binary_discrete.csv",
+    "expected_routing": "BINARY",
+    "execution": {
+      "init_time_sec": 0.0004029273986816406,
+      "run_time_sec": 528.640293598175,
+      "trial_count": 3625,
+      "total_planned": "5000",
+      "efficiency_pct": 27.5,
+      "stopped_samples": 138
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 5000,
+      "total_ran": 3625,
+      "total_skipped": 1375,
+      "efficiency_percent": 27.5,
+      "stopped_samples_count": 0,
+      "stopped_samples": [],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 0,
+        "gpt-3.5-math_hard": 0,
+        "claude-3-opus-coding_medium": 0,
+        "gemini-pro-reasoning": 0,
+        "llama-70b-creative_writing": 0
+      },
+      "stopped_groupings": [
+        "gpt-3.5-math_hard",
+        "gpt-4-turbo-math_easy"
+      ],
+      "stopped_groupings_count": 2,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 500,
+          "inference_calls": 20,
+          "next_inference_at": 525
+        },
+        "gpt-3.5-math_hard": {
+          "completed_samples": 125,
+          "inference_calls": 5,
+          "next_inference_at": 150
+        },
+        "claude-3-opus-coding_medium": {
+          "completed_samples": 1000,
+          "inference_calls": 40,
+          "next_inference_at": 1025
+        },
+        "gemini-pro-reasoning": {
+          "completed_samples": 1000,
+          "inference_calls": 40,
+          "next_inference_at": 1025
+        },
+        "llama-70b-creative_writing": {
+          "completed_samples": 1000,
+          "inference_calls": 40,
+          "next_inference_at": 1025
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 50,
+          "final_ci_width": 0.09927879694353703,
+          "final_slope": -0.0019479795684479281,
+          "n_group_checks": 17,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gpt-3.5-math_hard": {
+          "n_samples": 13,
+          "final_ci_width": 0.0824756070911847,
+          "final_slope": null,
+          "n_group_checks": 2,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "claude-3-opus-coding_medium": {
+          "n_samples": 100,
+          "final_ci_width": 0.3109707737469517,
+          "final_slope": -0.0025273268238833607,
+          "n_group_checks": 37,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gemini-pro-reasoning": {
+          "n_samples": 100,
+          "final_ci_width": 0.4152545560797046,
+          "final_slope": 4.299493060638711e-05,
+          "n_group_checks": 37,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "llama-70b-creative_writing": {
+          "n_samples": 100,
+          "final_ci_width": 0.4634396100747444,
+          "final_slope": -0.0002467598092993643,
+          "n_group_checks": 37,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T12:12:13.540024",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 137,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-3.5-math_hard'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gpt-3.5-math_hard'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 950 completed trials (95 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 975 completed trials (98 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 1000 completed trials (100 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 950 completed trials (95 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 975 completed trials (98 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 1000 completed trials (100 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 950 completed trials (95 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 975 completed trials (98 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 1000 completed trials (100 samples) for 'llama-70b-creative_writing'"
+    ]
+  },
+  "dataset_2_ordinal": {
+    "dataset": "dataset_2_ordinal_with_choice.csv",
+    "expected_routing": "ORDINAL",
+    "execution": {
+      "init_time_sec": 0.0005140304565429688,
+      "run_time_sec": 296.33274698257446,
+      "trial_count": 1550,
+      "total_planned": "5000",
+      "efficiency_pct": 69.0,
+      "stopped_samples": 345
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 5000,
+      "total_ran": 1550,
+      "total_skipped": 3450,
+      "efficiency_percent": 69.0,
+      "stopped_samples_count": 27,
+      "stopped_samples": [
+        {
+          "id": "sample_0000",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0001",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0002",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0003",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0004",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0005",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0006",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0007",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0008",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0009",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0100",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0101",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0102",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0103",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0104",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0105",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0106",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0107",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0108",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0109",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0200",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0202",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0205",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0207",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0320",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.09999999999999998,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0453",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        },
+        {
+          "id": "sample_0493",
+          "epoch": 10,
+          "reason": "ordinal_modal_ci_width",
+          "metadata": {
+            "reason": "ordinal_modal_ci_width",
+            "ci_width": 0.0,
+            "threshold": 0.15,
+            "epochs_used": 10
+          }
+        }
+      ],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 10,
+        "gpt-3.5-math_hard": 10,
+        "claude-3-opus-coding_medium": 4,
+        "gemini-pro-reasoning": 1,
+        "llama-70b-creative_writing": 2
+      },
+      "stopped_groupings": [
+        "claude-3-opus-coding_medium",
+        "gpt-3.5-math_hard",
+        "gpt-4-turbo-math_easy",
+        "gemini-pro-reasoning"
+      ],
+      "stopped_groupings_count": 4,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        },
+        "gpt-3.5-math_hard": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        },
+        "claude-3-opus-coding_medium": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        },
+        "gemini-pro-reasoning": {
+          "completed_samples": 250,
+          "inference_calls": 10,
+          "next_inference_at": 275
+        },
+        "llama-70b-creative_writing": {
+          "completed_samples": 1000,
+          "inference_calls": 40,
+          "next_inference_at": 1025
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 10,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gpt-3.5-math_hard": {
+          "n_samples": 10,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "claude-3-opus-coding_medium": {
+          "n_samples": 10,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gemini-pro-reasoning": {
+          "n_samples": 25,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "llama-70b-creative_writing": {
+          "n_samples": 100,
+          "final_ci_width": null,
+          "final_slope": null,
+          "n_group_checks": 0,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        }
+      },
+      "ordinal_glossary": {
+        "modal_ci_narrow_validated": {
+          "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+          "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+          "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+        },
+        "entropy_stabilized": {
+          "description": "Distribution entropy converged, indicating stable ordinal estimates",
+          "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+          "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+        },
+        "continue_insufficient_history": {
+          "description": "Need more epochs to assess stabilization",
+          "interpretation": "Collecting more data to establish convergence pattern",
+          "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T12:21:02.410610",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 65,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-3.5-math_hard'",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.ordinal_utils - Applied conservatism to ordinal CI: mean_scaled=0.000, modal_cat_range=[0.0, 0.0], raw_width=0.0000, effective_width=0.0000",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 950 completed trials (95 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 975 completed trials (98 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 1000 completed trials (100 samples) for 'llama-70b-creative_writing'"
+    ]
+  },
+  "dataset_3_continuous": {
+    "dataset": "dataset_3_ordinal_with_agg.csv",
+    "expected_routing": "CONTINUOUS",
+    "execution": {
+      "init_time_sec": 0.00044417381286621094,
+      "run_time_sec": 526.3227560520172,
+      "trial_count": 2325,
+      "total_planned": "5000",
+      "efficiency_pct": 53.5,
+      "stopped_samples": 269
+    },
+    "diagnostics": {
+      "manager": "optstop",
+      "random_seed": 42,
+      "seed_source": "user_specified",
+      "total_planned_trials": 5000,
+      "total_ran": 2325,
+      "total_skipped": 2675,
+      "efficiency_percent": 53.5,
+      "stopped_samples_count": 24,
+      "stopped_samples": [
+        {
+          "id": "sample_0000",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.8187978755245222,
+            "ci_width_normalized": 0.08187978755245222,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0001",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5612234177837578,
+            "ci_width_normalized": 0.05612234177837579,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0002",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.1133790692874026,
+            "ci_width_normalized": 0.11133790692874027,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0003",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.3985293906605296,
+            "ci_width_normalized": 0.13985293906605295,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0004",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.830010452023318,
+            "ci_width_normalized": 0.0830010452023318,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0005",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.6842974828014796,
+            "ci_width_normalized": 0.06842974828014796,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0006",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.8675355268824472,
+            "ci_width_normalized": 0.08675355268824472,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0007",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.196327271338335,
+            "ci_width_normalized": 0.11963272713383351,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0008",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.2203012070471502,
+            "ci_width_normalized": 0.12203012070471501,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0009",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.0755665273139936,
+            "ci_width_normalized": 0.10755665273139936,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0100",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0101",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0102",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0103",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0104",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0105",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0106",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0107",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0108",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0109",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.5,
+            "ci_width_normalized": 0.05,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0200",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.387927807239321,
+            "ci_width_normalized": 0.1387927807239321,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0202",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.4994895838203641,
+            "ci_width_normalized": 0.14994895838203642,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0210",
+          "epoch": 10,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 1.1999177308494398,
+            "ci_width_normalized": 0.11999177308494398,
+            "threshold": 0.15,
+            "epochs_used": 10,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        },
+        {
+          "id": "sample_0212",
+          "epoch": 5,
+          "reason": "continuous_bounded_ci_width",
+          "metadata": {
+            "reason": "continuous_bounded_ci_width",
+            "ci_width": 0.9193546622847695,
+            "ci_width_normalized": 0.09193546622847695,
+            "threshold": 0.15,
+            "epochs_used": 5,
+            "bounds": {
+              "lower": 0.0,
+              "upper": 10
+            }
+          }
+        }
+      ],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 25,
+      "min_samples_per_grouping": 10,
+      "stopped_samples_per_grouping": {
+        "gpt-4-turbo-math_easy": 10,
+        "gpt-3.5-math_hard": 10,
+        "claude-3-opus-coding_medium": 4,
+        "gemini-pro-reasoning": 0,
+        "llama-70b-creative_writing": 0
+      },
+      "stopped_groupings": [
+        "claude-3-opus-coding_medium",
+        "gpt-3.5-math_hard",
+        "gpt-4-turbo-math_easy",
+        "gemini-pro-reasoning"
+      ],
+      "stopped_groupings_count": 4,
+      "decision_counters": {
+        "gpt-4-turbo-math_easy": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        },
+        "gpt-3.5-math_hard": {
+          "completed_samples": 100,
+          "inference_calls": 4,
+          "next_inference_at": 125
+        },
+        "claude-3-opus-coding_medium": {
+          "completed_samples": 200,
+          "inference_calls": 8,
+          "next_inference_at": 225
+        },
+        "gemini-pro-reasoning": {
+          "completed_samples": 925,
+          "inference_calls": 37,
+          "next_inference_at": 950
+        },
+        "llama-70b-creative_writing": {
+          "completed_samples": 1000,
+          "inference_calls": 40,
+          "next_inference_at": 1025
+        }
+      },
+      "stabilization_histories": {
+        "gpt-4-turbo-math_easy": {
+          "n_samples": 10,
+          "final_ci_width": 0.07220981035073315,
+          "final_slope": null,
+          "n_group_checks": 1,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gpt-3.5-math_hard": {
+          "n_samples": 10,
+          "final_ci_width": 0.009299362967556915,
+          "final_slope": null,
+          "n_group_checks": 1,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "claude-3-opus-coding_medium": {
+          "n_samples": 21,
+          "final_ci_width": 0.09290165413903073,
+          "final_slope": null,
+          "n_group_checks": 5,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "gemini-pro-reasoning": {
+          "n_samples": 93,
+          "final_ci_width": 0.1562816323718157,
+          "final_slope": -2.0771248739098907e-05,
+          "n_group_checks": 34,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        },
+        "llama-70b-creative_writing": {
+          "n_samples": 100,
+          "final_ci_width": 0.24772132233463473,
+          "final_slope": 0.0011949510249595614,
+          "n_group_checks": 37,
+          "final_modal_ci_width": null,
+          "final_modal_ci": null,
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": null
+        }
+      },
+      "ordinal_glossary": {
+        "modal_ci_narrow_validated": {
+          "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+          "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+          "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+        },
+        "entropy_stabilized": {
+          "description": "Distribution entropy converged, indicating stable ordinal estimates",
+          "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+          "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+        },
+        "continue_insufficient_history": {
+          "description": "Need more epochs to assess stabilization",
+          "interpretation": "Collecting more data to establish convergence pattern",
+          "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+        }
+      }
+    },
+    "traces": {
+      "total_traces": 1,
+      "by_component": {
+        "OptimalStopping": 1
+      },
+      "components": [
+        "OptimalStopping"
+      ],
+      "all_traces": [
+        {
+          "timestamp": "2025-12-01T12:25:58.967416",
+          "component": "OptimalStopping",
+          "message": "Random seed: 42 (user_specified)",
+          "logger_name": "optstop.early_stopping"
+        }
+      ]
+    },
+    "log_summary": {
+      "DEBUG": 0,
+      "INFO": 85,
+      "WARNING": 0,
+      "ERROR": 0,
+      "CRITICAL": 0
+    },
+    "log_info_messages": [
+      "optstop.early_stopping - [TRACE:OptimalStopping] Random seed: 42 (user_specified)",
+      "optstop.early_stopping - Could not import value_to_float from inspect_ai. Using basic float conversion for score extraction.",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-4-turbo-math_easy'",
+      "optstop.gpu_utils - JAX backend: cpu, GPU devices: 0",
+      "optstop.gpu_utils - Recommendation: No system GPUs detected - CPU-only execution",
+      "optstop.gpu_utils - No GPU acceleration available - using CPU",
+      "optstop.gpu_utils - MCMC random_seed: 42",
+      "optstop.gpu_utils - Configured sampling for CPU: pymc (PyMC default (optimal for CPU)) - chains=4, cores=4",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gpt-3.5-math_hard'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (16 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (21 samples) for 'claude-3-opus-coding_medium'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'gemini-pro-reasoning'",
+      "optstop.early_stopping - Running optimal stopping inference on 100 completed trials (10 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 125 completed trials (13 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 150 completed trials (15 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 175 completed trials (18 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 200 completed trials (20 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 225 completed trials (23 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 250 completed trials (25 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 275 completed trials (28 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 300 completed trials (30 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 325 completed trials (33 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 350 completed trials (35 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 375 completed trials (38 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 400 completed trials (40 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 425 completed trials (43 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 450 completed trials (45 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 475 completed trials (48 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 500 completed trials (50 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 525 completed trials (53 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 550 completed trials (55 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 575 completed trials (58 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 600 completed trials (60 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 625 completed trials (63 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 650 completed trials (65 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 675 completed trials (68 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 700 completed trials (70 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 725 completed trials (73 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 750 completed trials (75 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 775 completed trials (78 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 800 completed trials (80 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 825 completed trials (83 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 850 completed trials (85 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 875 completed trials (88 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 900 completed trials (90 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 925 completed trials (93 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 950 completed trials (95 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 975 completed trials (98 samples) for 'llama-70b-creative_writing'",
+      "optstop.early_stopping - Running optimal stopping inference on 1000 completed trials (100 samples) for 'llama-70b-creative_writing'"
+    ]
+  }
+}
