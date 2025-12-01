@@ -653,6 +653,210 @@ def _ordinal_hybrid_stopping_criterion(
     return False, 'continue_learning', diagnostics
 
 
+def _ordinal_hybrid_stopping_criterion_hierarchical(
+    item_counts: np.ndarray,
+    item_ns: np.ndarray,
+    ordinal_max_score: int,
+    delta_item: float,
+    cred_level: float,
+    entropy_history: list,
+    entropy_threshold: float = 1.5,
+    conservatism: float = 1.0,
+    low_perf_threshold: float = 0.2,
+    current_perf: float = 0.5,
+    min_epochs_for_stabilization: int = 3,
+    stabilization_threshold: float = 0.002,
+    model_cache: Optional[Dict[str, Any]] = None,
+    sampling_kwargs: Optional[Dict[str, Any]] = None
+) -> Tuple[bool, str, Dict[str, Any]]:
+    """
+    Hierarchical hybrid stopping criterion for ordinal data.
+
+    Uses Dirichlet-Multinomial hierarchical model with partial pooling across items.
+    Two pathways to stopping (same logic as flat version, but with hierarchical estimates):
+
+    1. **Pathway 1 (Modal CI):** Stop when modal category CI is narrow AND entropy low → peaked distribution
+    2. **Pathway 2 (Entropy Stabilization):** Stop when entropy has stabilized → stable distribution
+
+    Parameters
+    ----------
+    item_counts : np.ndarray, shape (n_items, n_categories)
+        Category counts per item
+    item_ns : np.ndarray, shape (n_items,)
+        Total observations per item
+    ordinal_max_score : int
+        Maximum possible score (e.g., 10 for 0-10 scale)
+    delta_item : float
+        Threshold for modal CI width (e.g., 0.15)
+    cred_level : float
+        Credible level for intervals (e.g., 0.95)
+    entropy_history : list
+        List of (entropy_lo, entropy_hi, entropy_width) tuples from previous checks
+        Modified in-place to add current check
+    entropy_threshold : float, default=1.5
+        Absolute entropy level threshold for false peak detection
+    conservatism : float, default=1.0
+        Multiplier for CI width adjustment
+    low_perf_threshold : float, default=0.2
+        Performance threshold for conservatism adjustment
+    current_perf : float, default=0.5
+        Current performance estimate (normalized to [0,1])
+    min_epochs_for_stabilization : int, default=3
+        Minimum checks needed to assess stabilization
+    stabilization_threshold : float, default=0.002
+        Relative change threshold for declaring stabilization (0.2%)
+    model_cache : dict, optional
+        Cache for PyMC model reuse (must contain 'model' key with hierarchical ordinal model)
+    sampling_kwargs : dict, optional
+        Additional kwargs for PyMC sampling
+
+    Returns
+    -------
+    should_stop : bool
+        Whether to stop collecting data
+    reason : str
+        Stopping reason: 'modal_ci_narrow_validated_hierarchical', 'entropy_stabilized_hierarchical', or 'continue'
+    diagnostics : dict
+        Diagnostic information including modal CI, entropy CI, and history
+    """
+    from .ordinal_utils import (
+        _ordinal_ci_hierarchical_modal,
+        _ordinal_ci_hierarchical_entropy
+    )
+
+    # === COMPUTE BOTH METRICS FROM HIERARCHICAL MODEL ===
+    # Both functions share the same model cache, so they can reuse posterior samples
+
+    # Modal CI (hierarchical)
+    modal_lo, modal_hi, modal_width = _ordinal_ci_hierarchical_modal(
+        item_counts,
+        item_ns,
+        ordinal_max_score=ordinal_max_score,
+        cred_level=cred_level,
+        conservatism=conservatism,
+        low_perf_threshold=low_perf_threshold,
+        current_perf=current_perf,
+        model_cache=model_cache,
+        sampling_kwargs=sampling_kwargs
+    )
+
+    # Entropy CI (hierarchical)
+    entropy_lo, entropy_hi, entropy_width, entropy_diag = _ordinal_ci_hierarchical_entropy(
+        item_counts,
+        item_ns,
+        ordinal_max_score=ordinal_max_score,
+        cred_level=cred_level,
+        conservatism=conservatism,
+        low_perf_threshold=low_perf_threshold,
+        current_perf=current_perf,
+        model_cache=model_cache,
+        sampling_kwargs=sampling_kwargs
+    )
+
+    entropy_median = entropy_diag.get('entropy_median', 0.5)
+    n_items = len(item_ns)
+    n_obs = int(np.sum(item_ns))
+
+    # === PATHWAY 1: Modal CI with Entropy Validation (for peaked distributions) ===
+    if modal_width < delta_item:
+        # ENTROPY VALIDATION GATE: Check if distribution is truly peaked
+        if entropy_median > entropy_threshold:
+            # FALSE PEAK: Modal CI narrow but entropy high (distribution uncertain)
+            diagnostics = {
+                'pathway': 0,
+                'inference_type': 'hierarchical',
+                'modal_ci': (float(modal_lo), float(modal_hi)),
+                'modal_width': float(modal_width),
+                'entropy_median': float(entropy_median),
+                'entropy_threshold': float(entropy_threshold),
+                'false_peak_detected': True,
+                'n_items': n_items,
+                'n_obs': n_obs,
+                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {entropy_threshold})'
+            }
+            # Fall through to Pathway 2 (don't return here)
+        else:
+            # TRUE PEAK: Modal CI narrow AND entropy low (distribution peaked)
+            diagnostics = {
+                'pathway': 1,
+                'inference_type': 'hierarchical',
+                'modal_ci': (float(modal_lo), float(modal_hi)),
+                'modal_width': float(modal_width),
+                'entropy_median': float(entropy_median),
+                'entropy_threshold': float(entropy_threshold),
+                'threshold': float(delta_item),
+                'entropy_epochs': len(entropy_history),
+                'n_items': n_items,
+                'n_obs': n_obs,
+                'validated': True
+            }
+            return True, 'modal_ci_narrow_validated_hierarchical', diagnostics
+
+    # === PATHWAY 2: Entropy Stabilization (for non-peaked or false peaks) ===
+
+    # Store in history (modified in-place)
+    entropy_history.append((entropy_lo, entropy_hi, entropy_width))
+
+    # Need sufficient history to assess stabilization
+    if len(entropy_history) < min_epochs_for_stabilization:
+        diagnostics = {
+            'pathway': 0,
+            'inference_type': 'hierarchical',
+            'modal_width': float(modal_width),
+            'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+            'entropy_width': float(entropy_width),
+            'entropy_median': float(entropy_median),
+            'epochs_tracked': len(entropy_history),
+            'min_epochs': min_epochs_for_stabilization,
+            'n_items': n_items,
+            'n_obs': n_obs
+        }
+        return False, 'continue_insufficient_history', diagnostics
+
+    # Check for CI width convergence (diminishing returns from collecting more data)
+    recent_widths = [w for (_, _, w) in entropy_history[-min_epochs_for_stabilization:]]
+
+    # Calculate relative change in CI width
+    if len(recent_widths) >= 2:
+        width_change = recent_widths[-1] - recent_widths[-2]
+        relative_change = abs(width_change) / recent_widths[-2] if recent_widths[-2] > 0 else 1.0
+    else:
+        relative_change = 1.0  # Default to "not stabilized"
+
+    # Stabilization criterion: CI width has converged (< threshold change)
+    if relative_change < stabilization_threshold:
+        diagnostics = {
+            'pathway': 2,
+            'inference_type': 'hierarchical',
+            'modal_width': float(modal_width),
+            'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+            'entropy_width': float(entropy_width),
+            'entropy_median': float(entropy_median),
+            'width_history': [float(w) for w in recent_widths],
+            'relative_change': float(relative_change),
+            'stabilization_threshold': float(stabilization_threshold),
+            'n_items': n_items,
+            'n_obs': n_obs
+        }
+        return True, 'entropy_stabilized_hierarchical', diagnostics
+
+    # Continue collecting data
+    diagnostics = {
+        'pathway': 0,
+        'inference_type': 'hierarchical',
+        'modal_width': float(modal_width),
+        'entropy_ci': (float(entropy_lo), float(entropy_hi)),
+        'entropy_width': float(entropy_width),
+        'entropy_median': float(entropy_median),
+        'width_history': [float(w) for w in recent_widths],
+        'relative_change': float(relative_change),
+        'n_items': n_items,
+        'n_obs': n_obs,
+        'learning': True
+    }
+    return False, 'continue_learning', diagnostics
+
+
 def _compute_threshold_probability(
     probs: np.ndarray,
     threshold: int

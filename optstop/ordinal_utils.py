@@ -438,10 +438,18 @@ def _ordinal_ci_hierarchical_modal(
     Uses Dirichlet-Multinomial model with partial pooling across items.
     The model is defined in rule.py and cached in model_cache.
 
-    IMPORTANT: Modal category is discrete (integer). We compute the posterior
-    mean and HDI treating categories as numeric values. This is appropriate
-    for ordinal data where categories have meaningful numeric ordering, but
-    would NOT be appropriate for nominal categorical data.
+    KNOWN LIMITATION - Discrete Modal Category Treated as Continuous:
+        The modal category is inherently discrete (an integer 0 to K-1). This function
+        computes HDI on the posterior modal samples, treating them as continuous values.
+        This is a standard approximation for ordinal data where categories have meaningful
+        numeric ordering (e.g., Likert scales where category 7 is "between" 6 and 8).
+
+        This approach assumes equal spacing between categories and would NOT be appropriate
+        for nominal categorical data. The CI width represents uncertainty in category units,
+        not probability units as in binary inference.
+
+        A future enhancement would return the full posterior distribution over categories
+        or a discrete credible set. See PLAN_ordered_logistic.md for planned improvements.
 
     Args:
         item_counts: Category counts per item, shape (n_items, n_categories)
@@ -578,6 +586,12 @@ def _ordinal_ci_hierarchical_entropy(
     Uses Dirichlet-Multinomial model with partial pooling across items.
     Returns CI on entropy and diagnostics for stabilization tracking.
 
+    SCALING: Entropy is scaled to [0, 1] by dividing by max_entropy = log(K),
+    where K is the number of categories. This makes entropy comparable to
+    modal CI width, which is also in [0, 1].
+        - 0.0 = deterministic (all mass in one category)
+        - 1.0 = uniform distribution (maximum uncertainty)
+
     Args:
         item_counts: Category counts per item, shape (n_items, n_categories)
         item_ns: Total observations per item, shape (n_items,)
@@ -591,8 +605,8 @@ def _ordinal_ci_hierarchical_entropy(
 
     Returns:
         Tuple of (lower_bound, upper_bound, effective_width, diagnostics)
-        - Bounds and width are entropy values (not scaled)
-        - diagnostics contains 'entropy_median', 'entropy_samples' for stabilization
+        - Bounds and width are scaled to [0, 1] (entropy / max_entropy)
+        - diagnostics contains 'entropy_median', 'entropy_samples' (scaled)
     """
     logger = logging.getLogger('optstop.ordinal_utils')
 
@@ -601,11 +615,15 @@ def _ordinal_ci_hierarchical_entropy(
     import arviz as az
     import warnings
 
+    # Compute max entropy for scaling (log of number of categories)
+    n_categories = ordinal_max_score + 1
+    max_entropy = np.log(n_categories)
+
     # Validate inputs
     if model_cache is None or 'model' not in model_cache:
         logger.warning("No cached model provided for hierarchical entropy inference")
-        # Return fallback values
-        return 0.0, 1.0, 1.0, {'entropy_median': 0.5, 'entropy_samples': []}
+        # Return fallback values (scaled)
+        return 0.0, 1.0, 1.0, {'entropy_median': 0.5, 'entropy_samples': [], 'max_entropy': max_entropy}
 
     # Default sampling kwargs
     if sampling_kwargs is None:
@@ -618,7 +636,6 @@ def _ordinal_ci_hierarchical_entropy(
             'return_inferencedata': True
         }
 
-    n_categories = ordinal_max_score + 1
     n_items = len(item_ns)
 
     # Get cached model
@@ -637,41 +654,46 @@ def _ordinal_ci_hierarchical_entropy(
             # Sample from posterior
             trace = pm.sample(**sampling_kwargs)
 
-    # Extract entropy_group posterior samples
-    entropy_samples = trace.posterior["entropy_group"].values.flatten()
+    # Extract entropy_group posterior samples (raw, in nats)
+    entropy_samples_raw = trace.posterior["entropy_group"].values.flatten()
 
-    # Compute HDI on entropy
+    # Scale entropy samples to [0, 1] by dividing by max_entropy
+    entropy_samples_scaled = entropy_samples_raw / max_entropy
+
+    # Compute HDI on scaled entropy
     entropy_hdi = az.hdi(trace.posterior["entropy_group"], hdi_prob=cred_level)
 
     try:
-        lo = float(entropy_hdi["entropy_group"].sel(hdi="lower").values)
-        hi = float(entropy_hdi["entropy_group"].sel(hdi="higher").values)
+        lo_raw = float(entropy_hdi["entropy_group"].sel(hdi="lower").values)
+        hi_raw = float(entropy_hdi["entropy_group"].sel(hdi="higher").values)
     except (KeyError, ValueError):
         # Fallback extraction
-        lo = float(entropy_hdi["entropy_group"].values[0])
-        hi = float(entropy_hdi["entropy_group"].values[1])
+        lo_raw = float(entropy_hdi["entropy_group"].values[0])
+        hi_raw = float(entropy_hdi["entropy_group"].values[1])
 
+    # Scale to [0, 1]
+    lo = lo_raw / max_entropy
+    hi = hi_raw / max_entropy
     raw_width = hi - lo
-    entropy_median = float(np.median(entropy_samples))
+    entropy_median_scaled = float(np.median(entropy_samples_scaled))
 
     # Apply conservatism for low-performance scenarios
-    # Note: For entropy, we don't apply the sample-size floor in the same way
-    # because entropy is bounded [0, log(K)] and has different semantics
     if current_perf < low_perf_threshold:
         effective_width = raw_width * conservatism
         logger.info(
-            f"Hierarchical entropy CI (low perf): n_items={n_items}, "
-            f"entropy_median={entropy_median:.4f}, raw_width={raw_width:.4f}, "
+            f"Hierarchical entropy CI (low perf, scaled): n_items={n_items}, "
+            f"entropy_median={entropy_median_scaled:.4f}, raw_width={raw_width:.4f}, "
             f"effective_width={effective_width:.4f}"
         )
     else:
         effective_width = raw_width
 
-    # Build diagnostics dict for stabilization tracking
+    # Build diagnostics dict for stabilization tracking (all values scaled)
     diagnostics = {
-        'entropy_median': entropy_median,
-        'entropy_mean': float(np.mean(entropy_samples)),
-        'entropy_samples': entropy_samples.tolist(),  # For detailed analysis
+        'entropy_median': entropy_median_scaled,
+        'entropy_mean': float(np.mean(entropy_samples_scaled)),
+        'entropy_samples': entropy_samples_scaled.tolist(),  # Scaled for consistency
+        'max_entropy': max_entropy,  # Include for reference
         'n_items': n_items,
         'n_obs': int(np.sum(item_ns))
     }

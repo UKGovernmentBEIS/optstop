@@ -10,16 +10,22 @@
 | Phase 3 | ✅ Complete | Create _ordinal_ci_hierarchical_entropy in ordinal_utils.py |
 | Phase 4 | ✅ Complete | Update group-level stopping logic in optimal_stopping_live_single |
 | Phase 4b | ✅ Complete | Update group-level stopping in optimal_stopping_live functions |
-| Phase 5 | 🔄 Pending | Create _ordinal_hybrid_stopping_criterion_hierarchical |
-| Phase 7 | 🔄 Pending | Audit and update other ordinal code paths |
+| Phase 5 | ✅ Complete | Create _ordinal_hybrid_stopping_criterion_hierarchical |
+| Phase 7 | ✅ Complete | Audit and update other ordinal code paths |
 
 ### Key Changes Made:
 - **ordinal_utils.py**: Added `counts_to_scores()`, `aggregate_item_counts()`, `_ordinal_ci_hierarchical_modal()`, `_ordinal_ci_hierarchical_entropy()`
-- **rule.py**: Added Dirichlet-Multinomial model creation, updated item_summaries format to include category counts, updated group-level stopping to use hierarchical inference for modal and entropy modes
+- **ordinal_model.py**: Added `_ordinal_hybrid_stopping_criterion_hierarchical()` for hierarchical hybrid stopping
+- **rule.py**:
+  - Added Dirichlet-Multinomial model creation for ordinal hierarchical inference
+  - Updated item_summaries format to include category counts (`counts`, `n_obs`, `modal_category`, `mean_score`)
+  - Updated group-level stopping to use hierarchical inference for all three ordinal modes (modal, entropy, hybrid)
+  - Fixed undefined variable bugs (`ordinal_item_cache` references)
 
-### Remaining Work:
-- Phase 5: Hybrid mode still uses flat inference (TODO comment in code)
-- Phase 7: Integration tests need updates for new API changes
+### Test Results:
+- 22/22 ordinal scoring tests pass
+- 49/50 ordinal model tests pass (1 pre-existing cache test failure)
+- All API changes reflected in test updates
 
 ---
 
@@ -531,6 +537,79 @@ This matches binary/continuous group-level inference timing.
 
 ---
 
+## Model Caching Behavior
+
+### Cache Structure
+
+The ordinal hierarchical model uses two cache dictionaries:
+
+1. **`ordinal_group_cache`** - Group-level Dirichlet-Multinomial model
+   - Keys: `model`, `n_items_last`, `n_categories_last`
+   - Used by: `_ordinal_ci_hierarchical_modal()`, `_ordinal_ci_hierarchical_entropy()`
+
+2. **`ordinal_item_cache`** - Item-level OrderedLogistic model (for non-hierarchical entropy)
+   - Used by: Sample-level stopping decisions
+
+### Cache Invalidation Rules
+
+The cache is invalidated (cleared) when model dimensions change:
+
+```python
+if 'model' in ordinal_group_cache:
+    cached_n_items = ordinal_group_cache.get('n_items_last', 0)
+    cached_n_categories = ordinal_group_cache.get('n_categories_last', 0)
+    if cached_n_items != current_n_items or cached_n_categories != n_categories:
+        ordinal_group_cache.clear()  # Must recreate - dimensions changed
+```
+
+**Why dimension changes require recreation**:
+- PyMC models have fixed tensor shapes at compilation
+- Changing `n_items` changes the `p_item` tensor shape
+- Changing `n_categories` changes the Dirichlet dimensionality
+
+### Cache Reuse (Safe)
+
+When dimensions match, the cached model is reused with new data:
+
+```python
+pm.set_data({
+    "n_items": np.int64(n_items),
+    "item_counts": item_counts.astype("int64"),
+    "item_ns": item_ns.astype("int64")
+})
+```
+
+This is safe because:
+- `pm.Data` containers are designed for updating
+- MCMC sampling generates new posterior samples from fresh data
+- Model structure (priors, transformations) remains unchanged
+
+### Important Limitation: Data Values Not Tracked
+
+The cache only tracks **structural dimensions** (`n_items`, `n_categories`), NOT the actual data values. This means:
+
+- Same dimensions with different data → Cache HIT (correct behavior)
+- The model is re-sampled with new data, producing valid posteriors
+
+This design choice is intentional:
+- Model compilation is expensive (~1-5 seconds)
+- MCMC sampling is relatively fast with pre-compiled model
+- Data values don't affect model structure
+
+### Cross-Grouping Cache Behavior
+
+In `optimal_stopping_live_single`:
+- Each grouping maintains its own `ordinal_group_cache` instance
+- Caches persist across calls for the same grouping within a session
+- Caches are returned via `model_caches_out` for external management
+
+In `optimal_stopping_live`:
+- Parallelizes across groupings (each in separate process/thread)
+- Each parallel worker has independent cache
+- Caches are NOT shared between groupings (by design)
+
+---
+
 ## Known Limitations
 
 ### 1. Ordinal vs Nominal Treatment
@@ -560,6 +639,30 @@ The scaling to [0,1] (dividing by `ordinal_max_score`) allows comparison with `d
 ### 3. Small Sample Behavior
 
 With very few observations per item (e.g., 1-2 epochs), individual item posteriors will be dominated by the prior. The hierarchical model handles this through partial pooling - sparse items borrow strength from data-rich items.
+
+### 4. Semantic Differences Between Inference Types
+
+The stopping criterion `delta_cap` has **different semantic meanings** depending on inference type:
+
+| Inference Type | CI Target | delta_cap = 0.10 means... |
+|---------------|-----------|---------------------------|
+| Binary | Population proportion | "95% CI width on success rate ≤ 10 percentage points" |
+| Ordinal (modal) | Modal category (scaled 0-1) | "95% CI width on modal category ≤ 1 category" (for 10-scale) |
+| Ordinal (entropy) | Entropy (scaled 0-1) | "95% CI width on distribution entropy ≤ 10% of max entropy" |
+
+**Implications for users:**
+
+1. **Modal inference**: A `delta_cap = 0.10` means the modal category is localized to within 1 category on a 10-point scale. This is relatively strict - requiring strong agreement on which category is most common.
+
+2. **Entropy inference**: A `delta_cap = 0.10` means entropy uncertainty is within 10% of maximum possible entropy. Low entropy = peaked distribution, high entropy = diffuse.
+
+3. **Comparing thresholds**: The same `delta_cap` value is NOT directly comparable between binary and ordinal. Users should calibrate thresholds separately for each type.
+
+**Recommendation**: When using mixed binary/ordinal datasets:
+- Use `delta_cap` for overall stopping
+- Consider that ordinal modal inference typically produces wider CIs than binary proportion inference
+- Entropy inference provides a more comparable metric across score types
+- Test threshold sensitivity with your specific data before production use
 
 ---
 

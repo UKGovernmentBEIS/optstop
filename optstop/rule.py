@@ -33,6 +33,7 @@ warnings.filterwarnings('ignore')
 
 import pymc as pm
 import arviz as az
+import pytensor.tensor as pt
 
 # Import GPU utilities and cleanup utilities
 from . import gpu_utils
@@ -53,6 +54,7 @@ from .ordinal_utils import (
 from .ordinal_model import (
     _ordinal_entropy_ci_adaptive,
     _ordinal_hybrid_stopping_criterion,
+    _ordinal_hybrid_stopping_criterion_hierarchical,
     _compute_threshold_probability
 )
 
@@ -877,7 +879,6 @@ def _worker_initializer_posthoc(worker_dir, gpu_id=None, suppress_output=True):
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        # Remove force_compile as it's not a valid PyTensor config
         # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -1018,7 +1019,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             CI_slopes_hist = []
             entropy_history = []  # Track entropy CI history for hybrid stopping (item-level)
             group_entropy_history = []  # Track entropy CI history for hybrid stopping (group-level)
-            ordinal_model_cache = {}  # Cache for OrderedLogistic model reuse
+            ordinal_item_cache = {}  # Cache for item-level OrderedLogistic model reuse
             group_ordinal_model_cache = {}  # Separate cache for group-level hierarchical model
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
@@ -1066,7 +1067,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
 
                     # Derived quantities for stopping criteria
-                    modal_group = pm.Deterministic("modal_group", pm.math.argmax(alpha_group))
+                    # Note: Dirichlet samples are on the simplex (sum to 1), so alpha_group
+                    # already represents probabilities. argmax gives the most probable category.
+                    modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
+                    # Note: Normalization is technically redundant but kept for clarity
                     p_group_normalized = alpha_group / pm.math.sum(alpha_group)
                     entropy_group = pm.Deterministic(
                         "entropy_group",
@@ -1311,21 +1315,21 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             # Update entropy history for stabilization
                             group_entropy_history.append((entropy_lo, entropy_hi, theta_width))
                         elif ordinal_inference == 'hybrid':
-                            # Hybrid pathway: Still uses flat inference until Phase 5
-                            # TODO: Update to hierarchical hybrid in Phase 5
-                            aggregated_counts = aggregate_item_counts(item_summaries, ordinal_max_score)
-                            all_ord_scores = counts_to_scores(aggregated_counts)
-                            should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion(
-                                np.array(all_ord_scores),
+                            # Hierarchical hybrid: uses Dirichlet-Multinomial model
+                            should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion_hierarchical(
+                                item_counts_matrix,
+                                item_ns,
                                 ordinal_max_score=ordinal_max_score,
-                                delta_item=delta_cap,  # Use delta_cap for group-level
+                                delta_item=delta_cap,
                                 cred_level=cred_level,
-                                entropy_history=group_entropy_history,  # Separate group-level history
+                                entropy_history=group_entropy_history,
                                 entropy_threshold=entropy_threshold,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
-                                model_cache=group_ordinal_model_cache,  # Separate cache
-                                compute_kwargs=sampling_kwargs
+                                current_perf=current_perf_normalized,
+                                stabilization_threshold=entropy_stabilization_threshold,
+                                model_cache=group_ordinal_model_cache,
+                                sampling_kwargs=sampling_kwargs
                             )
                             theta_width = diag_group.get('modal_width', delta_cap)
                             # Extract CI bounds from diagnostics
@@ -1440,7 +1444,6 @@ def _worker_initializer_live(worker_dir, gpu_id=None, suppress_output=True):
     try:
         import pytensor
         pytensor.config.compiledir = unique_worker_dir
-        # Remove force_compile as it's not a valid PyTensor config
         # Clear any existing module cache
         if hasattr(pytensor.link.c.basic, '_module_cache'):
             pytensor.link.c.basic._module_cache = None
@@ -1592,7 +1595,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         item_ids = list(df_grouping['sample_id_num'].unique())
 
         # Initialize ordinal-specific variables
-        ordinal_model_cache = {}
+        ordinal_item_cache = {}  # Cache for item-level OrderedLogistic model
         entropy_history_per_item = {}
 
         # PyMC model for group-level (binary only)
@@ -2519,10 +2522,13 @@ def optimal_stopping_live_single(
 
                 # Derived quantities for stopping criteria
                 # Group modal category: argmax of alpha_group for each posterior sample
-                # Note: This is discrete, but we compute mean/HDI treating it as numeric
-                modal_group = pm.Deterministic("modal_group", pm.math.argmax(alpha_group))
+                # Note: Dirichlet samples are on the simplex (sum to 1), so alpha_group
+                # already represents probabilities. argmax gives the most probable category.
+                modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
 
-                # Group entropy: -sum(p * log(p)) where p = normalized alpha_group
+                # Group entropy: -sum(p * log(p)) where p = alpha_group
+                # Note: The normalization below is technically redundant since Dirichlet
+                # samples already sum to 1, but is kept for explicit clarity.
                 p_group_normalized = alpha_group / pm.math.sum(alpha_group)
                 entropy_group = pm.Deterministic(
                     "entropy_group",
@@ -2888,13 +2894,10 @@ def optimal_stopping_live_single(
                     # logger.info(f"Stopping ordinal grouping '{grouping_name}': Hierarchical Entropy CI {width:.4f} < {delta_cap}")
 
             elif ordinal_inference == 'hybrid':
-                # Hybrid pathway: Still uses flat inference until Phase 5 hierarchical update
-                # TODO: Update to hierarchical hybrid in Phase 5
-                aggregated_counts = aggregate_item_counts(item_summaries, ordinal_max_score)
-                all_ord_scores = counts_to_scores(aggregated_counts)
-
-                should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
-                    np.array(all_ord_scores),
+                # Hierarchical hybrid: uses Dirichlet-Multinomial model
+                should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion_hierarchical(
+                    item_counts_matrix,
+                    item_ns,
                     ordinal_max_score=ordinal_max_score,
                     delta_item=delta_cap,
                     cred_level=cred_level,
@@ -2902,9 +2905,10 @@ def optimal_stopping_live_single(
                     entropy_threshold=entropy_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
+                    current_perf=current_perf_normalized,
                     stabilization_threshold=entropy_stabilization_threshold,
-                    model_cache=ordinal_item_cache,
-                    compute_kwargs=sampling_kwargs
+                    model_cache=ordinal_group_cache,
+                    sampling_kwargs=sampling_kwargs
                 )
                 # Track CI width for stabilization history (enables n_group_checks tracking)
                 # Use modal_width or entropy_width from diagnostics, depending on pathway
@@ -2919,7 +2923,7 @@ def optimal_stopping_live_single(
 
                     # Populate ordinal fields unconditionally (not just when stopping)
                     # This ensures diagnostics are available for non-stopping cases too
-                    stabilization_history['ordinal_pathway'] = 'hybrid'
+                    stabilization_history['ordinal_pathway'] = 'hybrid_hierarchical'
 
                     # Always populate modal fields if available
                     if 'modal_width' in diagnostics_group:
