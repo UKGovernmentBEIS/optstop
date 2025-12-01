@@ -42,7 +42,11 @@ from . import cleanup_utils
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
     validate_ordinal_scores,
-    determine_score_type
+    determine_score_type,
+    counts_to_scores,
+    aggregate_item_counts,
+    _ordinal_ci_hierarchical_modal,
+    _ordinal_ci_hierarchical_entropy
 )
 
 # Import ordinal model for entropy-based stopping
@@ -1015,21 +1019,63 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             entropy_history = []  # Track entropy CI history for hybrid stopping (item-level)
             group_entropy_history = []  # Track entropy CI history for hybrid stopping (group-level)
             ordinal_model_cache = {}  # Cache for OrderedLogistic model reuse
-            group_ordinal_model_cache = {}  # Separate cache for group-level model
+            group_ordinal_model_cache = {}  # Separate cache for group-level hierarchical model
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
-            with pm.Model() as model:
-                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
-                sigma_group = pm.Exponential("sigma_group", lam=1.0)
-                successes_data = pm.Data("successes", np.array([0]))
-                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-                trials_data = pm.Data("trials", np.array([1]))
-                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-                obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+
             item_ids = list(df_part['sample_id_num'].unique())
+            n_items_total = len(item_ids)
+
+            # Create PyMC model based on score type
+            if score_type == 'binary':
+                # Binary hierarchical model
+                with pm.Model() as model:
+                    mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                    sigma_group = pm.Exponential("sigma_group", lam=1.0)
+                    successes_data = pm.Data("successes", np.array([0]))
+                    n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                    trials_data = pm.Data("trials", np.array([1]))
+                    z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+                    mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+            elif score_type == 'ordinal':
+                # Ordinal hierarchical model (Dirichlet-Multinomial)
+                n_categories = ordinal_max_score + 1
+                with pm.Model() as ordinal_group_model:
+                    # Group-level: baseline category probabilities
+                    alpha_prior = np.ones(n_categories)
+                    alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
+
+                    # Concentration parameter
+                    kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
+
+                    # Mutable data containers
+                    n_items_data = pm.Data("n_items", np.array(n_items_total, dtype="int64"))
+                    item_counts_data = pm.Data("item_counts", np.zeros((n_items_total, n_categories), dtype="int64"))
+                    item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
+
+                    # Item-level concentrations
+                    alpha_item = alpha_group * kappa
+
+                    # Item-specific probabilities with partial pooling
+                    p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+
+                    # Multinomial likelihood on category counts
+                    obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+
+                    # Derived quantities for stopping criteria
+                    modal_group = pm.Deterministic("modal_group", pm.math.argmax(alpha_group))
+                    p_group_normalized = alpha_group / pm.math.sum(alpha_group)
+                    entropy_group = pm.Deterministic(
+                        "entropy_group",
+                        -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
+                    )
+
+                group_ordinal_model_cache['model'] = ordinal_group_model
+                group_ordinal_model_cache['n_items_last'] = n_items_total
+                group_ordinal_model_cache['n_categories_last'] = n_categories
             for item_idx, item_id in enumerate(item_ids):
                 df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
 
@@ -1149,7 +1195,17 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 if score_type == 'binary':
                     item_summaries.append({'successes': successes, 'trials': trials})
                 else:  # ordinal
-                    item_summaries.append({'scores': accumulated_scores.copy()})
+                    # Store category counts for hierarchical Dirichlet-Multinomial model
+                    counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
+                    item_summaries.append({
+                        'counts': counts,
+                        'n_obs': len(accumulated_scores),
+                        'modal_category': int(np.argmax(counts)),
+                        'mean_score': float(np.mean(accumulated_scores)),
+                        'successes': int(np.sum(accumulated_scores)),
+                        'trials': len(accumulated_scores),
+                        'scores': accumulated_scores.copy()  # Keep for backward compat
+                    })
 
                 used_reps_dfs.append(pd.DataFrame(used_reps, columns=df_item.columns))
 
@@ -1157,11 +1213,13 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 if score_type == 'binary':
                     current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
                 else:  # ordinal
-                    # Average scaled score across all accumulated scores
-                    all_ord_scores = []
-                    for s in item_summaries:
-                        all_ord_scores.extend(s['scores'])
-                    current_perf_estimate = np.mean(all_ord_scores) / ordinal_max_score if all_ord_scores else 0.0
+                    # Use mean_score stored in item_summaries (already computed)
+                    total_obs = sum(s['n_obs'] for s in item_summaries)
+                    if total_obs > 0:
+                        # Weighted mean of item mean_scores
+                        current_perf_estimate = sum(s['mean_score'] * s['n_obs'] for s in item_summaries) / total_obs / ordinal_max_score
+                    else:
+                        current_perf_estimate = 0.0
 
                 current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
 
@@ -1214,36 +1272,49 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                         logger.info(f"Stopping low-performance grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
 
-                # Group-level stopping for ordinal scoring (compute CI on aggregated scores)
+                # Group-level stopping for ordinal scoring (HIERARCHICAL)
                 elif score_type == 'ordinal' and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
-                    # Aggregate all scores collected so far
-                    all_ord_scores = []
-                    for s in item_summaries:
-                        all_ord_scores.extend(s['scores'])
+                    # Extract item counts matrix for hierarchical model
+                    item_counts_matrix = np.array([s['counts'] for s in item_summaries])
+                    item_ns = np.array([s['n_obs'] for s in item_summaries])
 
-                    if len(all_ord_scores) > 0:
-                        # Compute group-level CI from aggregated scores using appropriate inference method
+                    current_perf_normalized = current_perf_estimate / ordinal_max_score if ordinal_max_score > 0 else 0.0
+
+                    if len(item_ns) > 0 and np.sum(item_ns) > 0:
+                        # Compute group-level CI using hierarchical inference
                         if ordinal_inference == 'modal':
-                            theta_lo, theta_hi, theta_width = _ordinal_ci_adaptive(
-                                np.array(all_ord_scores),
-                                ordinal_max_score=ordinal_max_score,
-                                cred_level=cred_level,
-                                conservatism=current_conservatism,
-                                low_perf_threshold=low_perf_threshold
-                            )
-                        elif ordinal_inference == 'entropy':
-                            entropy_lo, entropy_hi, theta_width, diag = _ordinal_entropy_ci_adaptive(
-                                np.array(all_ord_scores),
+                            theta_lo, theta_hi, theta_width = _ordinal_ci_hierarchical_modal(
+                                item_counts_matrix,
+                                item_ns,
                                 ordinal_max_score=ordinal_max_score,
                                 cred_level=cred_level,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
-                                compute_kwargs=sampling_kwargs
+                                current_perf=current_perf_normalized,
+                                model_cache=group_ordinal_model_cache,
+                                sampling_kwargs=sampling_kwargs
+                            )
+                        elif ordinal_inference == 'entropy':
+                            entropy_lo, entropy_hi, theta_width, diag = _ordinal_ci_hierarchical_entropy(
+                                item_counts_matrix,
+                                item_ns,
+                                ordinal_max_score=ordinal_max_score,
+                                cred_level=cred_level,
+                                conservatism=current_conservatism,
+                                low_perf_threshold=low_perf_threshold,
+                                current_perf=current_perf_normalized,
+                                model_cache=group_ordinal_model_cache,
+                                sampling_kwargs=sampling_kwargs
                             )
                             # Use entropy values for stopping
                             theta_lo, theta_hi = entropy_lo, entropy_hi
+                            # Update entropy history for stabilization
+                            group_entropy_history.append((entropy_lo, entropy_hi, theta_width))
                         elif ordinal_inference == 'hybrid':
-                            # Apply full hybrid logic at group-level for consistency
+                            # Hybrid pathway: Still uses flat inference until Phase 5
+                            # TODO: Update to hierarchical hybrid in Phase 5
+                            aggregated_counts = aggregate_item_counts(item_summaries, ordinal_max_score)
+                            all_ord_scores = counts_to_scores(aggregated_counts)
                             should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion(
                                 np.array(all_ord_scores),
                                 ordinal_max_score=ordinal_max_score,
@@ -1662,8 +1733,16 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
                 entropy_history_per_item[item_id] = entropy_history
                 used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
-                # For ordinal, track mean score instead of successes/trials
-                item_summaries.append({'successes': int(np.sum(accumulated_scores)), 'trials': len(accumulated_scores)})
+                # Store category counts for hierarchical Dirichlet-Multinomial model
+                counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
+                item_summaries.append({
+                    'counts': counts,
+                    'n_obs': len(accumulated_scores),
+                    'modal_category': int(np.argmax(counts)),
+                    'mean_score': float(np.mean(accumulated_scores)),
+                    'successes': int(np.sum(accumulated_scores)),
+                    'trials': len(accumulated_scores)
+                })
             
             # Group-level stopping check (periodic)
             current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
@@ -2376,6 +2455,85 @@ def optimal_stopping_live_single(
             continuous_group_cache['n_items_last'] = current_n_items  # Track for validation
             # logger.info(f"✗ CACHE MISS: Created new continuous group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
 
+    elif score_type == 'ordinal':
+        # === ORDINAL HIERARCHICAL MODEL ===
+        # Dirichlet-Multinomial hierarchy (analogous to Beta-Binomial for binary)
+        #
+        # Model Structure:
+        #   - Group level: alpha_group (category probability direction), kappa (concentration)
+        #   - Item level: p_item_i ~ Dirichlet(alpha_group * kappa) with partial pooling
+        #   - Observation level: Multinomial likelihood on category counts
+        #
+        # Key Design Choices:
+        #   - Uninformative Dirichlet(1,...,1) prior on alpha_group
+        #   - Gamma(2, 0.1) prior on kappa (mean=20, moderate pooling)
+        #   - Categories treated as nominal (no ordinal structure in likelihood)
+        #     This is a simplification; ordered logistic would be more appropriate
+        #     but adds significant complexity. Document as known limitation.
+        #
+        # OPTIMIZATION: Cache model to avoid recompilation
+        # PyMC shapes are fixed at creation, so validate n_items AND n_categories
+        n_categories = ordinal_max_score + 1
+        current_n_items = len(item_ids)
+
+        if 'model' in ordinal_group_cache:
+            cached_n_items = ordinal_group_cache.get('n_items_last', 0)
+            cached_n_categories = ordinal_group_cache.get('n_categories_last', 0)
+            if cached_n_items == current_n_items and cached_n_categories == n_categories:
+                # Safe to reuse - dimensions unchanged
+                ordinal_model = ordinal_group_cache['model']
+                # logger.info(f"✓ CACHE HIT: Reusing ordinal group model for '{grouping_name}' (n_items={current_n_items}, K={n_categories})")
+            else:
+                # Must recreate - dimensions changed (PyMC shapes are immutable)
+                # logger.info(f"✗ CACHE INVALIDATED: Ordinal model dimensions changed for '{grouping_name}'")
+                ordinal_group_cache.clear()
+
+        if 'model' not in ordinal_group_cache:
+            with pm.Model() as ordinal_model:
+                # Group-level: baseline category probabilities
+                # Uninformative symmetric Dirichlet prior (all alphas = 1)
+                alpha_prior = np.ones(n_categories)
+                alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
+
+                # Concentration parameter: higher = items more similar to group
+                # Gamma(2, 0.1) gives mean=20, reasonable pooling strength
+                kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
+
+                # Mutable data containers
+                n_items_data = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
+                item_counts_data = pm.Data("item_counts", np.zeros((current_n_items, n_categories), dtype="int64"))
+                item_ns_data = pm.Data("item_ns", np.ones(current_n_items, dtype="int64"))
+
+                # Item-level concentrations (shared across all items, broadcast)
+                # alpha_item has shape (n_categories,) and broadcasts to (n_items, n_categories)
+                alpha_item = alpha_group * kappa
+
+                # Item-specific probabilities with partial pooling
+                # Each item draws from Dirichlet with same concentration parameters
+                # Shape: (n_items, n_categories)
+                p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+
+                # Multinomial likelihood on category counts
+                # n parameter is the known total count per item (passed as separate data)
+                obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+
+                # Derived quantities for stopping criteria
+                # Group modal category: argmax of alpha_group for each posterior sample
+                # Note: This is discrete, but we compute mean/HDI treating it as numeric
+                modal_group = pm.Deterministic("modal_group", pm.math.argmax(alpha_group))
+
+                # Group entropy: -sum(p * log(p)) where p = normalized alpha_group
+                p_group_normalized = alpha_group / pm.math.sum(alpha_group)
+                entropy_group = pm.Deterministic(
+                    "entropy_group",
+                    -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
+                )
+
+            ordinal_group_cache['model'] = ordinal_model
+            ordinal_group_cache['n_items_last'] = current_n_items
+            ordinal_group_cache['n_categories_last'] = n_categories
+            # logger.info(f"✗ CACHE MISS: Created new ordinal group model for '{grouping_name}' (n_items={current_n_items}, K={n_categories})")
+
     # Process each sample for sample-level stopping
     item_summaries = []
     for item_idx, item_id in enumerate(item_ids):
@@ -2483,7 +2641,14 @@ def optimal_stopping_live_single(
                     # logger.info(f"Stopping ordinal sample {original_sample_id} via {reason}")  # Results in output
 
             entropy_history_per_item[item_id] = entropy_history
+            # Store category counts for hierarchical Dirichlet-Multinomial model
+            counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
             item_summaries.append({
+                'counts': counts,                              # Vector of length K for hierarchical model
+                'n_obs': len(accumulated_scores),              # Total observations for this item
+                'modal_category': int(np.argmax(counts)),      # Most frequent category
+                'mean_score': float(np.mean(accumulated_scores)),  # Mean score
+                # Keep successes/trials for backward compatibility with perf estimate
                 'successes': int(np.sum(accumulated_scores)),
                 'trials': len(accumulated_scores)
             })
@@ -2641,14 +2806,14 @@ def optimal_stopping_live_single(
             # logger.warning(f"🕐 TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
 
         elif score_type == 'ordinal':
-            # === ORDINAL GROUP-LEVEL STOPPING ===
+            # === ORDINAL GROUP-LEVEL STOPPING (HIERARCHICAL) ===
+            # Uses Dirichlet-Multinomial hierarchy for partial pooling across items
             # TIMING_TEST: Ordinal-specific timing start
             _ordinal_start = time.perf_counter()
 
-            all_ord_scores = []
-            for item_id in item_ids:
-                df_item = df_work[df_work['sample_id_num'] == item_id]
-                all_ord_scores.extend(df_item[score_column].tolist())
+            # Extract item counts matrix for hierarchical model
+            item_counts_matrix = np.array([s['counts'] for s in item_summaries])
+            item_ns = np.array([s['n_obs'] for s in item_summaries])
 
             current_perf_normalized = current_perf_estimate / ordinal_max_score
             current_conservatism = conservatism if current_perf_normalized < low_perf_threshold else 1.0
@@ -2656,59 +2821,78 @@ def optimal_stopping_live_single(
             group_entropy_history = stabilization_history.get('entropy_history', [])
 
             if ordinal_inference == 'modal':
-                lo, hi, width = _ordinal_ci_adaptive(
-                    np.array(all_ord_scores),
+                # Hierarchical modal inference with partial pooling
+                lo, hi, width = _ordinal_ci_hierarchical_modal(
+                    item_counts_matrix,
+                    item_ns,
                     ordinal_max_score=ordinal_max_score,
                     cred_level=cred_level,
                     conservatism=current_conservatism,
-                    low_perf_threshold=low_perf_threshold
+                    low_perf_threshold=low_perf_threshold,
+                    current_perf=current_perf_normalized,
+                    model_cache=ordinal_group_cache,
+                    sampling_kwargs=sampling_kwargs
                 )
                 # Track CI width for stabilization history (enables n_group_checks tracking)
                 stabilization_history['ci_width_history'].append(float(width))
                 # Store modal-specific diagnostics
                 stabilization_history['final_modal_ci_width'] = float(width)
                 stabilization_history['final_modal_ci'] = [float(lo), float(hi)]
-                stabilization_history['ordinal_pathway'] = 'modal'
+                stabilization_history['ordinal_pathway'] = 'modal_hierarchical'
 
                 if width < delta_cap:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
-                        'reason': 'ordinal_modal_ci_width',
+                        'reason': 'ordinal_modal_ci_width_hierarchical',
                         'ci_width': float(width),
                         'threshold': delta_cap,
-                        'samples_used': len(item_summaries)
+                        'samples_used': len(item_summaries),
+                        'n_items': len(item_ns)
                     }
-                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Modal CI {width:.4f} < {delta_cap}")  # Results in output
+                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Hierarchical Modal CI {width:.4f} < {delta_cap}")
 
             elif ordinal_inference == 'entropy':
-                lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
-                    np.array(all_ord_scores),
+                # Hierarchical entropy inference with partial pooling
+                lo, hi, width, diagnostics = _ordinal_ci_hierarchical_entropy(
+                    item_counts_matrix,
+                    item_ns,
                     ordinal_max_score=ordinal_max_score,
                     cred_level=cred_level,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    model_cache=ordinal_item_cache,
-                    compute_kwargs=sampling_kwargs
+                    current_perf=current_perf_normalized,
+                    model_cache=ordinal_group_cache,
+                    sampling_kwargs=sampling_kwargs
                 )
                 # Track CI width for stabilization history (enables n_group_checks tracking)
                 stabilization_history['ci_width_history'].append(float(width))
                 # Store entropy-specific diagnostics
                 stabilization_history['final_entropy_ci_width'] = float(width)
                 stabilization_history['final_entropy'] = float(diagnostics.get('entropy_median', 0)) if diagnostics else None
-                stabilization_history['ordinal_pathway'] = 'entropy'
+                stabilization_history['ordinal_pathway'] = 'entropy_hierarchical'
+
+                # Update entropy history for stabilization tracking
+                group_entropy_history.append((lo, hi, width))
+                stabilization_history['entropy_history'] = group_entropy_history
 
                 if width < delta_cap:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
-                        'reason': 'ordinal_entropy_ci_width',
+                        'reason': 'ordinal_entropy_ci_width_hierarchical',
                         'ci_width': float(width),
                         'threshold': delta_cap,
                         'samples_used': len(item_summaries),
+                        'n_items': len(item_ns),
                         'diagnostics': diagnostics
                     }
-                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Entropy CI {width:.4f} < {delta_cap}")  # Results in output
+                    # logger.info(f"Stopping ordinal grouping '{grouping_name}': Hierarchical Entropy CI {width:.4f} < {delta_cap}")
 
             elif ordinal_inference == 'hybrid':
+                # Hybrid pathway: Still uses flat inference until Phase 5 hierarchical update
+                # TODO: Update to hierarchical hybrid in Phase 5
+                aggregated_counts = aggregate_item_counts(item_summaries, ordinal_max_score)
+                all_ord_scores = counts_to_scores(aggregated_counts)
+
                 should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
                     np.array(all_ord_scores),
                     ordinal_max_score=ordinal_max_score,

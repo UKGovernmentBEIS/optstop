@@ -364,3 +364,316 @@ def determine_score_type(
     else:
         # logger.debug(f"Grouping '{grouping_name}' → BINARY (discrete)")
         return 'binary', {'lower': 0.0, 'upper': 1.0}
+
+
+def counts_to_scores(counts: np.ndarray) -> np.ndarray:
+    """
+    Reconstruct individual scores from a category count vector.
+
+    This utility function converts the sufficient statistics (counts per category)
+    back into individual scores. Useful for backward compatibility with functions
+    that expect raw score arrays.
+
+    Args:
+        counts: Array of shape (K,) where counts[k] is the number of observations
+                in category k.
+
+    Returns:
+        Array of individual scores, where each category k appears counts[k] times.
+
+    Example:
+        >>> counts = np.array([0, 2, 3, 1])  # 2 ones, 3 twos, 1 three
+        >>> counts_to_scores(counts)
+        array([1, 1, 2, 2, 2, 3])
+    """
+    return np.repeat(np.arange(len(counts)), counts.astype(int))
+
+
+def aggregate_item_counts(item_summaries: list, ordinal_max_score: int) -> np.ndarray:
+    """
+    Aggregate category counts across all items into a single count vector.
+
+    Used for flat (non-hierarchical) inference that pools all observations.
+
+    Args:
+        item_summaries: List of item summary dicts, each containing 'counts' key
+                        with a count vector of shape (K,).
+        ordinal_max_score: Maximum ordinal score (K-1 where K is number of categories).
+
+    Returns:
+        Aggregated count vector of shape (K,) = (ordinal_max_score + 1,).
+
+    Example:
+        >>> summaries = [{'counts': np.array([1, 2, 0])}, {'counts': np.array([0, 1, 1])}]
+        >>> aggregate_item_counts(summaries, ordinal_max_score=2)
+        array([1, 3, 1])
+    """
+    K = ordinal_max_score + 1
+    total_counts = np.zeros(K, dtype=int)
+    for s in item_summaries:
+        counts = s.get('counts', np.zeros(K, dtype=int))
+        # Ensure counts has correct length
+        if len(counts) < K:
+            padded = np.zeros(K, dtype=int)
+            padded[:len(counts)] = counts
+            counts = padded
+        total_counts += counts[:K].astype(int)
+    return total_counts
+
+
+def _ordinal_ci_hierarchical_modal(
+    item_counts: np.ndarray,
+    item_ns: np.ndarray,
+    ordinal_max_score: int,
+    cred_level: float = 0.95,
+    conservatism: float = 1.0,
+    low_perf_threshold: float = 0.2,
+    current_perf: float = 0.5,
+    model_cache: Optional[Dict] = None,
+    sampling_kwargs: Optional[Dict] = None
+) -> Tuple[float, float, float]:
+    """
+    Hierarchical Bayesian CI for population modal category.
+
+    Uses Dirichlet-Multinomial model with partial pooling across items.
+    The model is defined in rule.py and cached in model_cache.
+
+    IMPORTANT: Modal category is discrete (integer). We compute the posterior
+    mean and HDI treating categories as numeric values. This is appropriate
+    for ordinal data where categories have meaningful numeric ordering, but
+    would NOT be appropriate for nominal categorical data.
+
+    Args:
+        item_counts: Category counts per item, shape (n_items, n_categories)
+        item_ns: Total observations per item, shape (n_items,)
+        ordinal_max_score: Maximum category value (K-1 where K is n_categories)
+        cred_level: Credibility level for HDI (default 0.95)
+        conservatism: Multiplier for CI width in low-performance scenarios
+        low_perf_threshold: Performance threshold for conservatism
+        current_perf: Current performance estimate (for conservatism check)
+        model_cache: Dict containing cached PyMC model with 'model' key
+        sampling_kwargs: MCMC sampling parameters
+
+    Returns:
+        Tuple of (lower_bound, upper_bound, effective_width), all scaled to [0,1]
+    """
+    logger = logging.getLogger('optstop.ordinal_utils')
+
+    # Validate inputs
+    if model_cache is None or 'model' not in model_cache:
+        logger.warning("No cached model provided for hierarchical modal inference")
+        # Fallback to flat inference
+        all_scores = counts_to_scores(np.sum(item_counts, axis=0))
+        return _ordinal_ci_adaptive(
+            all_scores,
+            ordinal_max_score=ordinal_max_score,
+            cred_level=cred_level,
+            conservatism=conservatism,
+            low_perf_threshold=low_perf_threshold
+        )
+
+    # Import PyMC and arviz here to avoid top-level import issues
+    import pymc as pm
+    import arviz as az
+    import warnings
+
+    # Default sampling kwargs
+    if sampling_kwargs is None:
+        sampling_kwargs = {
+            'draws': 500,
+            'tune': 300,
+            'chains': 2,
+            'cores': 1,
+            'progressbar': False,
+            'return_inferencedata': True
+        }
+
+    n_categories = ordinal_max_score + 1
+    n_items = len(item_ns)
+
+    # Get cached model
+    ordinal_model = model_cache['model']
+
+    # Update model data
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with ordinal_model:
+            pm.set_data({
+                "n_items": np.int64(n_items),
+                "item_counts": item_counts.astype("int64"),
+                "item_ns": item_ns.astype("int64")
+            })
+
+            # Sample from posterior
+            trace = pm.sample(**sampling_kwargs)
+
+    # Extract modal_group posterior samples
+    modal_samples = trace.posterior["modal_group"].values.flatten()
+
+    # Compute HDI on modal category
+    modal_hdi = az.hdi(trace.posterior["modal_group"], hdi_prob=cred_level)
+
+    try:
+        lo_cat = float(modal_hdi["modal_group"].sel(hdi="lower").values)
+        hi_cat = float(modal_hdi["modal_group"].sel(hdi="higher").values)
+    except (KeyError, ValueError):
+        # Fallback extraction
+        lo_cat = float(modal_hdi["modal_group"].values[0])
+        hi_cat = float(modal_hdi["modal_group"].values[1])
+
+    # Scale to [0, 1]
+    lo = lo_cat / ordinal_max_score
+    hi = hi_cat / ordinal_max_score
+    raw_width = hi - lo
+
+    # Apply sample-size-scaled floor (consistent with flat inference)
+    n_samples = int(np.sum(item_ns))
+    min_ci_width = 1.0 / (ordinal_max_score * np.sqrt(n_samples))
+
+    # Apply conservatism for low-performance scenarios
+    if current_perf < low_perf_threshold:
+        floored_width = max(raw_width, min_ci_width)
+        effective_width = floored_width * conservatism
+
+        # Widen CI bounds symmetrically if floor was applied
+        if raw_width < min_ci_width:
+            expansion = (min_ci_width - raw_width) / 2
+            lo = max(0.0, lo - expansion)
+            hi = min(1.0, hi + expansion)
+
+        logger.info(
+            f"Hierarchical modal CI (low perf): n_items={n_items}, n_obs={n_samples}, "
+            f"raw_width={raw_width:.4f}, effective_width={effective_width:.4f}"
+        )
+    else:
+        effective_width = max(raw_width, min_ci_width)
+
+        # Widen CI bounds symmetrically if floor was applied
+        if raw_width < min_ci_width:
+            expansion = (min_ci_width - raw_width) / 2
+            lo = max(0.0, lo - expansion)
+            hi = min(1.0, hi + expansion)
+            logger.info(
+                f"Hierarchical modal CI (floor applied): n_items={n_items}, n_obs={n_samples}, "
+                f"raw_width={raw_width:.4f}, floor={min_ci_width:.4f}"
+            )
+
+    return lo, hi, effective_width
+
+
+def _ordinal_ci_hierarchical_entropy(
+    item_counts: np.ndarray,
+    item_ns: np.ndarray,
+    ordinal_max_score: int,
+    cred_level: float = 0.95,
+    conservatism: float = 1.0,
+    low_perf_threshold: float = 0.2,
+    current_perf: float = 0.5,
+    model_cache: Optional[Dict] = None,
+    sampling_kwargs: Optional[Dict] = None
+) -> Tuple[float, float, float, Dict]:
+    """
+    Hierarchical Bayesian CI for population entropy.
+
+    Uses Dirichlet-Multinomial model with partial pooling across items.
+    Returns CI on entropy and diagnostics for stabilization tracking.
+
+    Args:
+        item_counts: Category counts per item, shape (n_items, n_categories)
+        item_ns: Total observations per item, shape (n_items,)
+        ordinal_max_score: Maximum category value
+        cred_level: Credibility level for HDI
+        conservatism: Multiplier for CI width in low-performance scenarios
+        low_perf_threshold: Performance threshold for conservatism
+        current_perf: Current performance estimate
+        model_cache: Dict containing cached PyMC model with 'model' key
+        sampling_kwargs: MCMC sampling parameters
+
+    Returns:
+        Tuple of (lower_bound, upper_bound, effective_width, diagnostics)
+        - Bounds and width are entropy values (not scaled)
+        - diagnostics contains 'entropy_median', 'entropy_samples' for stabilization
+    """
+    logger = logging.getLogger('optstop.ordinal_utils')
+
+    # Import PyMC and arviz here to avoid top-level import issues
+    import pymc as pm
+    import arviz as az
+    import warnings
+
+    # Validate inputs
+    if model_cache is None or 'model' not in model_cache:
+        logger.warning("No cached model provided for hierarchical entropy inference")
+        # Return fallback values
+        return 0.0, 1.0, 1.0, {'entropy_median': 0.5, 'entropy_samples': []}
+
+    # Default sampling kwargs
+    if sampling_kwargs is None:
+        sampling_kwargs = {
+            'draws': 500,
+            'tune': 300,
+            'chains': 2,
+            'cores': 1,
+            'progressbar': False,
+            'return_inferencedata': True
+        }
+
+    n_categories = ordinal_max_score + 1
+    n_items = len(item_ns)
+
+    # Get cached model
+    ordinal_model = model_cache['model']
+
+    # Update model data and sample
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        with ordinal_model:
+            pm.set_data({
+                "n_items": np.int64(n_items),
+                "item_counts": item_counts.astype("int64"),
+                "item_ns": item_ns.astype("int64")
+            })
+
+            # Sample from posterior
+            trace = pm.sample(**sampling_kwargs)
+
+    # Extract entropy_group posterior samples
+    entropy_samples = trace.posterior["entropy_group"].values.flatten()
+
+    # Compute HDI on entropy
+    entropy_hdi = az.hdi(trace.posterior["entropy_group"], hdi_prob=cred_level)
+
+    try:
+        lo = float(entropy_hdi["entropy_group"].sel(hdi="lower").values)
+        hi = float(entropy_hdi["entropy_group"].sel(hdi="higher").values)
+    except (KeyError, ValueError):
+        # Fallback extraction
+        lo = float(entropy_hdi["entropy_group"].values[0])
+        hi = float(entropy_hdi["entropy_group"].values[1])
+
+    raw_width = hi - lo
+    entropy_median = float(np.median(entropy_samples))
+
+    # Apply conservatism for low-performance scenarios
+    # Note: For entropy, we don't apply the sample-size floor in the same way
+    # because entropy is bounded [0, log(K)] and has different semantics
+    if current_perf < low_perf_threshold:
+        effective_width = raw_width * conservatism
+        logger.info(
+            f"Hierarchical entropy CI (low perf): n_items={n_items}, "
+            f"entropy_median={entropy_median:.4f}, raw_width={raw_width:.4f}, "
+            f"effective_width={effective_width:.4f}"
+        )
+    else:
+        effective_width = raw_width
+
+    # Build diagnostics dict for stabilization tracking
+    diagnostics = {
+        'entropy_median': entropy_median,
+        'entropy_mean': float(np.mean(entropy_samples)),
+        'entropy_samples': entropy_samples.tolist(),  # For detailed analysis
+        'n_items': n_items,
+        'n_obs': int(np.sum(item_ns))
+    }
+
+    return lo, hi, effective_width, diagnostics

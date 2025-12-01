@@ -238,27 +238,36 @@ class TestScoreTypeDetection:
     """Test score type determination for mixed datasets."""
 
     def test_binary_detection(self):
-        """Test that binary groupings are correctly identified."""
+        """Test that binary groupings are correctly identified.
+
+        Note: determine_score_type returns (score_type, bounds) tuple.
+        """
         ordinal_tasks = ['likert', 'rating', 'performance']
 
-        assert determine_score_type('accuracy_binary', ordinal_tasks) == 'binary'
-        assert determine_score_type('pass_fail_binary', ordinal_tasks) == 'binary'
+        assert determine_score_type('accuracy_binary', ordinal_tasks)[0] == 'binary'
+        assert determine_score_type('pass_fail_binary', ordinal_tasks)[0] == 'binary'
 
     def test_ordinal_detection(self):
-        """Test that ordinal groupings are correctly identified."""
+        """Test that ordinal groupings are correctly identified.
+
+        Note: determine_score_type returns (score_type, bounds) tuple.
+        """
         ordinal_tasks = ['likert', 'rating', 'performance']
 
-        assert determine_score_type('likert_survey', ordinal_tasks) == 'ordinal'
-        assert determine_score_type('rating_scale', ordinal_tasks) == 'ordinal'
-        assert determine_score_type('performance_ordinal', ordinal_tasks) == 'ordinal'
+        assert determine_score_type('likert_survey', ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type('rating_scale', ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type('performance_ordinal', ordinal_tasks)[0] == 'ordinal'
 
     def test_case_insensitive(self):
-        """Test case-insensitive matching."""
+        """Test case-insensitive matching.
+
+        Note: determine_score_type returns (score_type, bounds) tuple.
+        """
         ordinal_tasks = ['Likert', 'RATING']
 
-        assert determine_score_type('likert_survey', ordinal_tasks) == 'ordinal'
-        assert determine_score_type('RATING_scale', ordinal_tasks) == 'ordinal'
-        assert determine_score_type('accuracy', ordinal_tasks) == 'binary'
+        assert determine_score_type('likert_survey', ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type('RATING_scale', ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type('accuracy', ordinal_tasks)[0] == 'binary'
 
 
 class TestScoreValidation:
@@ -273,13 +282,13 @@ class TestScoreValidation:
     def test_out_of_range_scores(self):
         """Test that out-of-range scores are rejected."""
         scores = np.array([0, 5, 12, 8])  # 12 exceeds max
-        with pytest.raises(ValueError, match="out of valid range"):
+        with pytest.raises(ValueError, match="exceeding ordinal_max_score"):
             validate_ordinal_scores(scores, ordinal_max_score=10, grouping_name='test')
 
     def test_negative_scores(self):
         """Test that negative scores are rejected."""
         scores = np.array([-1, 5, 7, 8])
-        with pytest.raises(ValueError, match="out of valid range"):
+        with pytest.raises(ValueError, match="negative scores"):
             validate_ordinal_scores(scores, ordinal_max_score=10, grouping_name='test')
 
 

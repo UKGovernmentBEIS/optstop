@@ -1,5 +1,28 @@
 # Plan: Hierarchical Ordinal Inference
 
+## Implementation Status (Updated 2025-12-01)
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Update item_summaries format for ordinal in rule.py |
+| Phase 2 | ✅ Complete | Add hierarchical PyMC model for ordinal in rule.py |
+| Phase 3 | ✅ Complete | Create _ordinal_ci_hierarchical_modal in ordinal_utils.py |
+| Phase 3 | ✅ Complete | Create _ordinal_ci_hierarchical_entropy in ordinal_utils.py |
+| Phase 4 | ✅ Complete | Update group-level stopping logic in optimal_stopping_live_single |
+| Phase 4b | ✅ Complete | Update group-level stopping in optimal_stopping_live functions |
+| Phase 5 | 🔄 Pending | Create _ordinal_hybrid_stopping_criterion_hierarchical |
+| Phase 7 | 🔄 Pending | Audit and update other ordinal code paths |
+
+### Key Changes Made:
+- **ordinal_utils.py**: Added `counts_to_scores()`, `aggregate_item_counts()`, `_ordinal_ci_hierarchical_modal()`, `_ordinal_ci_hierarchical_entropy()`
+- **rule.py**: Added Dirichlet-Multinomial model creation, updated item_summaries format to include category counts, updated group-level stopping to use hierarchical inference for modal and entropy modes
+
+### Remaining Work:
+- Phase 5: Hybrid mode still uses flat inference (TODO comment in code)
+- Phase 7: Integration tests need updates for new API changes
+
+---
+
 ## Problem Statement
 
 Currently, ordinal inference (modal/entropy/hybrid) uses **flat pooling** - all scores from all samples are combined into a single array and analyzed together. This is inconsistent with binary and continuous pathways which use **hierarchical models** that:

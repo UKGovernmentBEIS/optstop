@@ -19,45 +19,61 @@ from optstop.ordinal_utils import (
 
 
 class TestDetermineScoreType:
-    """Tests for score type determination."""
+    """Tests for score type determination.
+
+    Note: determine_score_type returns (score_type, bounds) tuple.
+    Tests check [0] for score_type string.
+    """
 
     def test_binary_default(self):
         """Test that binary is returned when no ordinal_tasks specified."""
-        assert determine_score_type("subject1-task1", None) == 'binary'
-        assert determine_score_type("subject1-task1", []) == 'binary'
+        assert determine_score_type("subject1-task1", None)[0] == 'binary'
+        assert determine_score_type("subject1-task1", [])[0] == 'binary'
 
     def test_ordinal_single_match(self):
         """Test ordinal detection with single pattern match."""
-        assert determine_score_type("subject1-likert_scale", ['likert']) == 'ordinal'
-        assert determine_score_type("1-2_rating_task", ['rating']) == 'ordinal'
+        assert determine_score_type("subject1-likert_scale", ['likert'])[0] == 'ordinal'
+        assert determine_score_type("1-2_rating_task", ['rating'])[0] == 'ordinal'
 
     def test_ordinal_multiple_patterns(self):
         """Test ordinal detection with multiple patterns."""
         ordinal_tasks = ['likert', 'rating', 'difficulty']
-        assert determine_score_type("subject1-likert", ordinal_tasks) == 'ordinal'
-        assert determine_score_type("subject1-rating_task", ordinal_tasks) == 'ordinal'
-        assert determine_score_type("subject1-difficulty_scale", ordinal_tasks) == 'ordinal'
+        assert determine_score_type("subject1-likert", ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type("subject1-rating_task", ordinal_tasks)[0] == 'ordinal'
+        assert determine_score_type("subject1-difficulty_scale", ordinal_tasks)[0] == 'ordinal'
 
     def test_binary_no_match(self):
         """Test binary when no pattern matches."""
         ordinal_tasks = ['likert', 'rating']
-        assert determine_score_type("subject1-accuracy", ordinal_tasks) == 'binary'
-        assert determine_score_type("1-1", ordinal_tasks) == 'binary'
+        assert determine_score_type("subject1-accuracy", ordinal_tasks)[0] == 'binary'
+        assert determine_score_type("1-1", ordinal_tasks)[0] == 'binary'
 
     def test_case_insensitive(self):
         """Test that matching is case-insensitive."""
-        assert determine_score_type("Subject1-LIKERT", ['likert']) == 'ordinal'
-        assert determine_score_type("subject1-likert", ['LIKERT']) == 'ordinal'
-        assert determine_score_type("SuBjEcT1-LiKeRt", ['LiKeRt']) == 'ordinal'
+        assert determine_score_type("Subject1-LIKERT", ['likert'])[0] == 'ordinal'
+        assert determine_score_type("subject1-likert", ['LIKERT'])[0] == 'ordinal'
+        assert determine_score_type("SuBjEcT1-LiKeRt", ['LiKeRt'])[0] == 'ordinal'
 
     def test_substring_matching(self):
         """Test that substrings are matched correctly."""
         # Should match partial strings
-        assert determine_score_type("subject1-likert_scale_5pt", ['likert']) == 'ordinal'
-        assert determine_score_type("pre_rating_post", ['rating']) == 'ordinal'
+        assert determine_score_type("subject1-likert_scale_5pt", ['likert'])[0] == 'ordinal'
+        assert determine_score_type("pre_rating_post", ['rating'])[0] == 'ordinal'
 
         # Should not match if substring not present
-        assert determine_score_type("subject1-like", ['likert']) == 'binary'
+        assert determine_score_type("subject1-like", ['likert'])[0] == 'binary'
+
+    def test_returns_bounds(self):
+        """Test that bounds are returned correctly."""
+        # Binary returns [0, 1]
+        score_type, bounds = determine_score_type("subject1-task1", None)
+        assert score_type == 'binary'
+        assert bounds == {'lower': 0.0, 'upper': 1.0}
+
+        # Ordinal returns [0, upper_bound]
+        score_type, bounds = determine_score_type("subject1-likert", ['likert'], upper_bound=10.0)
+        assert score_type == 'ordinal'
+        assert bounds == {'lower': 0.0, 'upper': 10.0}
 
 
 class TestValidateOrdinalScores:
