@@ -55,7 +55,9 @@ from .ordinal_model import (
     _ordinal_entropy_ci_adaptive,
     _ordinal_hybrid_stopping_criterion,
     _ordinal_hybrid_stopping_criterion_hierarchical,
-    _compute_threshold_probability
+    _compute_threshold_probability,
+    _create_ordered_logistic_hierarchical,
+    _compute_adaptive_cutpoint_prior_params
 )
 
 # Suppress PyMC logging and warnings
@@ -1500,6 +1502,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         ordinal_tasks = params.get('ordinal_tasks', None)
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
+        ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
         entropy_threshold = params.get('entropy_threshold', 1.5)
 
         # Determine score type for this grouping
@@ -1911,6 +1914,7 @@ def optimal_stopping_posthoc(
     ordinal_tasks: Optional[List[str]] = None,
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
+    ordinal_model_type: str = 'ordered_logistic',
     entropy_threshold: float = 1.5,
     gpu_ids: Optional[List[int]] = None,
     max_workers: Optional[int] = None
@@ -1939,8 +1943,10 @@ def optimal_stopping_posthoc(
           * 'hybrid': Combines modal CI + entropy stabilization (RECOMMENDED)
               - Stops via Pathway 1 if modal CI narrow (peaked data)
               - Stops via Pathway 2 if entropy stabilized (non-peaked but stable data)
-              - Provides both efficiency (for peaked) and safety (for diffuse)
-          * Hybrid method provides best balance of efficiency and safety
+      - ordinal_model_type: Hierarchical model type for ordinal data (default: 'ordered_logistic')
+          * 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
+          * 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
+          * Falls back to 'dirichlet' if ordered_logistic sampling fails
       - entropy_threshold: Threshold for entropy CI width when using entropy inference (default: 1.5)
           * Only used for pure 'entropy' mode (not 'hybrid')
           * Lower values → more aggressive stopping
@@ -1999,6 +2005,7 @@ def optimal_stopping_posthoc(
         params_with_context['ordinal_tasks'] = ordinal_tasks
         params_with_context['ordinal_max_score'] = ordinal_max_score
         params_with_context['ordinal_inference'] = ordinal_inference
+        params_with_context['ordinal_model_type'] = ordinal_model_type
         params_with_context['entropy_threshold'] = entropy_threshold
 
         # Validate ordinal scores upfront for all ordinal groupings
@@ -2152,6 +2159,7 @@ def optimal_stopping_live_single(
     ordinal_tasks: Optional[List[str]] = None,
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
+    ordinal_model_type: str = 'ordered_logistic',
     entropy_threshold: float = 1.5,
     sampling_kwargs: Optional[Dict[str, Any]] = None,
     model_caches: Optional[Dict[str, Dict[str, Any]]] = None
@@ -2183,6 +2191,10 @@ def optimal_stopping_live_single(
         ordinal_tasks: List of substrings to identify if this grouping uses ordinal scoring
         ordinal_max_score: Maximum score for ordinal data (default: 10)
         ordinal_inference: Ordinal inference mode ('modal', 'entropy', 'hybrid')
+        ordinal_model_type: Hierarchical model type for ordinal data (default: 'ordered_logistic')
+            - 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
+            - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
+            Falls back to 'dirichlet' if ordered_logistic sampling fails.
         entropy_threshold: Entropy threshold for hybrid mode validation
         sampling_kwargs: Pre-configured PyMC sampling kwargs (chains, draws, etc.)
             If None, will be auto-configured based on available resources.
@@ -2460,85 +2472,86 @@ def optimal_stopping_live_single(
 
     elif score_type == 'ordinal':
         # === ORDINAL HIERARCHICAL MODEL ===
-        # Dirichlet-Multinomial hierarchy (analogous to Beta-Binomial for binary)
-        #
-        # Model Structure:
-        #   - Group level: alpha_group (category probability direction), kappa (concentration)
-        #   - Item level: p_item_i ~ Dirichlet(alpha_group * kappa) with partial pooling
-        #   - Observation level: Multinomial likelihood on category counts
-        #
-        # Key Design Choices:
-        #   - Uninformative Dirichlet(1,...,1) prior on alpha_group
-        #   - Gamma(2, 0.1) prior on kappa (mean=20, moderate pooling)
-        #   - Categories treated as nominal (no ordinal structure in likelihood)
-        #     This is a simplification; ordered logistic would be more appropriate
-        #     but adds significant complexity. Document as known limitation.
+        # Two model types available:
+        #   - 'ordered_logistic': Cumulative link model (respects ordinal structure)
+        #   - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
         #
         # OPTIMIZATION: Cache model to avoid recompilation
-        # PyMC shapes are fixed at creation, so validate n_items AND n_categories
+        # PyMC shapes are fixed at creation, so validate n_items, n_categories, AND model_type
         n_categories = ordinal_max_score + 1
         current_n_items = len(item_ids)
 
+        # Check cache validity (must match dimensions AND model type)
         if 'model' in ordinal_group_cache:
             cached_n_items = ordinal_group_cache.get('n_items_last', 0)
             cached_n_categories = ordinal_group_cache.get('n_categories_last', 0)
-            if cached_n_items == current_n_items and cached_n_categories == n_categories:
-                # Safe to reuse - dimensions unchanged
+            cached_model_type = ordinal_group_cache.get('model_type', 'dirichlet')
+            if (cached_n_items == current_n_items and
+                cached_n_categories == n_categories and
+                cached_model_type == ordinal_model_type):
+                # Safe to reuse - dimensions and model type unchanged
                 ordinal_model = ordinal_group_cache['model']
-                # logger.info(f"✓ CACHE HIT: Reusing ordinal group model for '{grouping_name}' (n_items={current_n_items}, K={n_categories})")
             else:
-                # Must recreate - dimensions changed (PyMC shapes are immutable)
-                # logger.info(f"✗ CACHE INVALIDATED: Ordinal model dimensions changed for '{grouping_name}'")
+                # Must recreate - dimensions or model type changed
                 ordinal_group_cache.clear()
 
         if 'model' not in ordinal_group_cache:
-            with pm.Model() as ordinal_model:
-                # Group-level: baseline category probabilities
-                # Uninformative symmetric Dirichlet prior (all alphas = 1)
-                alpha_prior = np.ones(n_categories)
-                alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
+            # Track which model type we actually use (may fall back)
+            actual_model_type = ordinal_model_type
 
-                # Concentration parameter: higher = items more similar to group
-                # Gamma(2, 0.1) gives mean=20, reasonable pooling strength
-                kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
+            if ordinal_model_type == 'ordered_logistic':
+                # === ORDERED LOGISTIC (Cumulative Link) ===
+                # Respects ordinal structure via latent scale with identified cutpoints
+                try:
+                    ordinal_model = _create_ordered_logistic_hierarchical(
+                        n_categories=n_categories,
+                        n_items=current_n_items
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to create ordered_logistic model for '{grouping_name}': {e}. "
+                        f"Falling back to dirichlet."
+                    )
+                    actual_model_type = 'dirichlet'
 
-                # Mutable data containers
-                n_items_data = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
-                item_counts_data = pm.Data("item_counts", np.zeros((current_n_items, n_categories), dtype="int64"))
-                item_ns_data = pm.Data("item_ns", np.ones(current_n_items, dtype="int64"))
+            if actual_model_type == 'dirichlet':
+                # === DIRICHLET-MULTINOMIAL ===
+                # Treats categories as exchangeable (no ordinal structure)
+                with pm.Model() as ordinal_model:
+                    # Group-level: baseline category probabilities
+                    alpha_prior = np.ones(n_categories)
+                    alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
 
-                # Item-level concentrations (shared across all items, broadcast)
-                # alpha_item has shape (n_categories,) and broadcasts to (n_items, n_categories)
-                alpha_item = alpha_group * kappa
+                    # Concentration parameter
+                    kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
 
-                # Item-specific probabilities with partial pooling
-                # Each item draws from Dirichlet with same concentration parameters
-                # Shape: (n_items, n_categories)
-                p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+                    # Mutable data containers (n_items allows dynamic resizing via set_data)
+                    n_items_data = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
+                    item_counts_data = pm.Data("item_counts", np.zeros((current_n_items, n_categories), dtype="int64"))
+                    item_ns_data = pm.Data("item_ns", np.ones(current_n_items, dtype="int64"))
 
-                # Multinomial likelihood on category counts
-                # n parameter is the known total count per item (passed as separate data)
-                obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+                    # Item-level concentrations
+                    alpha_item = alpha_group * kappa
 
-                # Derived quantities for stopping criteria
-                # Group modal category: argmax of alpha_group for each posterior sample
-                # Note: Dirichlet samples are on the simplex (sum to 1), so alpha_group
-                # already represents probabilities. argmax gives the most probable category.
-                modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
+                    # Item-specific probabilities with partial pooling
+                    # Using n_items_data allows shape to change when set_data() is called
+                    p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
 
-                # Group entropy: -sum(p * log(p)) where p = alpha_group
-                # Note: The normalization below is technically redundant since Dirichlet
-                # samples already sum to 1, but is kept for explicit clarity.
-                p_group_normalized = alpha_group / pm.math.sum(alpha_group)
-                entropy_group = pm.Deterministic(
-                    "entropy_group",
-                    -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
-                )
+                    # Multinomial likelihood on category counts
+                    obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+
+                    # Derived quantities for stopping criteria
+                    modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
+                    p_group_normalized = alpha_group / pm.math.sum(alpha_group)
+                    entropy_group = pm.Deterministic(
+                        "entropy_group",
+                        -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
+                    )
 
             ordinal_group_cache['model'] = ordinal_model
             ordinal_group_cache['n_items_last'] = current_n_items
             ordinal_group_cache['n_categories_last'] = n_categories
-            # logger.info(f"✗ CACHE MISS: Created new ordinal group model for '{grouping_name}' (n_items={current_n_items}, K={n_categories})")
+            ordinal_group_cache['model_type'] = actual_model_type
 
     # Process each sample for sample-level stopping
     item_summaries = []
@@ -3150,7 +3163,7 @@ def optimal_stopping_live_single(
     }
 
 
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
 
@@ -3173,6 +3186,10 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             - 'modal': Fast bootstrap-based modal category estimation
             - 'entropy': Slow but conservative OrderedLogistic entropy estimation
             - 'hybrid': RECOMMENDED - Combines modal CI + entropy validation for efficiency and safety
+        ordinal_model_type: Hierarchical model type for ordinal data (default: 'ordered_logistic')
+            - 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
+            - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
+            Falls back to 'dirichlet' if ordered_logistic sampling fails.
         entropy_threshold: Threshold for entropy validation in hybrid mode (default: 1.5).
             Used to detect false peaks: if entropy > threshold, modal CI narrow is rejected as false peak.
             Typical values: 1.0 for 5-point scale, 1.5 for 11-point scale, 2.0 for 21-point scale.
@@ -3230,6 +3247,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         params_with_context['ordinal_tasks'] = ordinal_tasks
         params_with_context['ordinal_max_score'] = ordinal_max_score
         params_with_context['ordinal_inference'] = ordinal_inference
+        params_with_context['ordinal_model_type'] = ordinal_model_type
         params_with_context['entropy_threshold'] = entropy_threshold
 
         # Validate ordinal scores upfront if ordinal tasks specified

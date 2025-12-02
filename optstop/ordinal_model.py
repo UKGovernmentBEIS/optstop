@@ -1,15 +1,34 @@
 """
-OrderedLogistic model for ordinal scoring with entropy-based stopping.
+Ordinal models for ordinal scoring with entropy-based stopping.
 
-This module provides hierarchical Bayesian inference for ordinal scores (e.g., 0-10 Likert scales)
-using OrderedLogistic regression. It computes entropy-based credible intervals for stopping decisions.
+This module provides hierarchical Bayesian inference for ordinal scores (e.g., 0-10 Likert scales).
+Two model types are available:
+
+Model Types:
+    ordered_logistic (default):
+        Cumulative link model that respects ordinal structure via latent scale.
+        - Uses identified cutpoints (first cutpoint fixed at 0)
+        - Adaptive priors scale with number of categories
+        - Better theoretical fit for truly ordinal data
+        - Faster sampling (~3x vs Dirichlet-Multinomial)
+
+    dirichlet:
+        Dirichlet-Multinomial model treating categories as exchangeable.
+        - Does not enforce ordinal structure
+        - More robust to bimodal/U-shaped distributions
+        - Available as fallback if ordered_logistic fails
 
 Key Features:
 - Full categorical distribution inference (not just modal category)
 - Entropy-based uncertainty quantification
 - Threshold-based queries (P(Score ≥ k))
-- Hierarchical structure (group-level and item-level parameters)
-- GPU-accelerated sampling via PyMC + JAX
+- Hierarchical structure with partial pooling across items
+- Non-centered parameterization for efficient MCMC sampling
+
+Usage:
+    Set `ordinal_model_type` parameter in optimal_stopping functions:
+    - 'ordered_logistic': Use cumulative link model (default)
+    - 'dirichlet': Use Dirichlet-Multinomial model
 
 References:
 - McCullagh, P. (1980). Regression models for ordinal data. JRSS Series B, 42(2), 109-127.
@@ -18,6 +37,7 @@ References:
 
 import numpy as np
 import pymc as pm
+import pytensor.tensor as pt
 import logging
 from typing import Tuple, Dict, Any, Optional
 import arviz as az
@@ -100,6 +120,241 @@ def _create_orderedlogistic_model(
         # Likelihood
         scores_data = pm.Data("scores", np.zeros(n_items, dtype="int64"))
         obs = pm.OrderedLogistic("obs", eta=eta, cutpoints=cutpoints, observed=scores_data)
+
+    return model
+
+
+def _compute_adaptive_cutpoint_prior_params(n_categories: int) -> Dict[str, float]:
+    """
+    Compute adaptive prior parameters for cutpoint increments based on K.
+
+    The prior scales with number of categories to ensure reasonable spacing:
+    - Total spread increases with K (more categories = wider latent scale)
+    - Individual increments decrease with K (more cutpoints to fit)
+
+    Design:
+        expected_spread = 2 * log(K)  # Grows slowly: K=5->3.2, K=11->4.8, K=21->6.1
+        expected_increment = spread / (K-2)  # Per-increment target
+
+    For softplus(Normal(mu, sigma)), we adjust mu to achieve target increment.
+
+    Parameters
+    ----------
+    n_categories : int
+        Number of ordinal categories (K)
+
+    Returns
+    -------
+    dict with keys:
+        - expected_spread: Total expected spread from first to last cutpoint
+        - expected_increment: Expected size of each increment
+        - delta_mu: Mean for Normal prior on raw increments
+        - delta_sigma: Std for Normal prior on raw increments
+    """
+    K = n_categories
+
+    # Total spread from first to last cutpoint (log scale growth)
+    expected_spread = 2.0 * np.log(K)
+
+    # Number of increments to estimate (K-1 cutpoints, first fixed, so K-2 increments)
+    n_increments = max(K - 2, 1)
+
+    # Expected increment size
+    expected_increment = expected_spread / n_increments
+
+    # For softplus(Normal(mu, sigma)):
+    # softplus(x) = log(1 + exp(x)), softplus(0) ≈ 0.693
+    # To target expected_increment, adjust mu
+    # Approximation: mu ≈ expected_increment - 0.5 works reasonably
+    delta_mu = expected_increment - 0.5
+    delta_sigma = max(expected_increment * 0.5, 0.3)  # Allow ~50% variation, min 0.3
+
+    return {
+        'expected_spread': float(expected_spread),
+        'expected_increment': float(expected_increment),
+        'delta_mu': float(delta_mu),
+        'delta_sigma': float(delta_sigma),
+        'n_increments': int(n_increments)
+    }
+
+
+def _create_ordered_logistic_hierarchical(
+    n_categories: int,
+    n_items: int,
+    mu_group_prior: Tuple[float, float] = (0.0, 2.0),
+    sigma_group_prior: float = 1.0
+) -> pm.Model:
+    """
+    Create IDENTIFIED hierarchical OrderedLogistic model for aggregated count data.
+
+    This model addresses critical issues from PLAN_ordered_logistic.md:
+    1. Identification: First cutpoint fixed at 0
+    2. Adaptive priors: Cutpoint increments scale with K
+    3. Aggregated likelihood: Multinomial on category probabilities
+
+    Model Structure:
+    ----------------
+    Group level:
+        μ_group ~ Normal(mu_group_prior[0], mu_group_prior[1])
+        σ_group ~ Exponential(sigma_group_prior)
+
+    Item level (non-centered parameterization):
+        z_i ~ Normal(0, 1)
+        η_i = μ_group + σ_group * z_i
+
+    Cutpoints (IDENTIFIED - first fixed at 0):
+        c_0 = 0 (fixed)
+        δ_raw ~ Normal(adaptive_mu, adaptive_sigma)  # K-2 parameters
+        δ = softplus(δ_raw)  # Ensure positive increments
+        c_k = c_{k-1} + δ_{k-1} for k > 0
+
+    Category probabilities (from cumulative logistic):
+        P(Y ≤ k) = sigmoid(c_k - η_i)
+        P(Y = k) = P(Y ≤ k) - P(Y ≤ k-1)
+
+    Likelihood (aggregated counts):
+        counts_i ~ Multinomial(n_i, probs_i)
+
+    Parameters
+    ----------
+    n_categories : int
+        Number of ordinal categories (e.g., 11 for 0-10 scale)
+    n_items : int
+        Number of items/samples with aggregated counts
+    mu_group_prior : Tuple[float, float], default=(0.0, 2.0)
+        Prior for group-level mean: (mean, std)
+    sigma_group_prior : float, default=1.0
+        Rate parameter for Exponential prior on group-level std
+
+    Returns
+    -------
+    model : pm.Model
+        PyMC model with Data containers for item_counts and item_ns
+
+    Notes
+    -----
+    Data must be set before sampling:
+        with model:
+            pm.set_data({
+                "item_counts": counts_array,  # shape (n_items, n_categories)
+                "item_ns": ns_array  # shape (n_items,)
+            })
+
+    See Also
+    --------
+    _create_orderedlogistic_model : Original model with individual observations
+    PLAN_phase0_ordered_logistic.md : Design documentation
+    """
+    # Get adaptive prior parameters
+    prior_params = _compute_adaptive_cutpoint_prior_params(n_categories)
+
+    with pm.Model() as model:
+        # === GROUP-LEVEL PARAMETERS ===
+        mu_group = pm.Normal("mu_group", mu=mu_group_prior[0], sigma=mu_group_prior[1])
+        sigma_group = pm.Exponential("sigma_group", lam=sigma_group_prior)
+
+        # === MUTABLE n_items FOR DYNAMIC RESIZING ===
+        # Using pm.Data allows shape to change when set_data() is called
+        # This is consistent with binary/continuous models in rule.py
+        n_items_data = pm.Data("n_items", np.array(n_items, dtype="int64"))
+
+        # === ITEM-LEVEL (non-centered parameterization) ===
+        z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+        eta = pm.Deterministic("eta", mu_group + z * sigma_group)
+
+        # === IDENTIFIED CUTPOINTS ===
+        # K categories need K-1 cutpoints
+        # Fix first cutpoint at 0, estimate K-2 increments
+        n_cutpoints = n_categories - 1
+
+        if n_cutpoints == 1:
+            # Special case: 2 categories, single cutpoint fixed at 0
+            cutpoints = pt.as_tensor_variable(np.array([0.0]))
+        elif n_cutpoints == 2:
+            # Special case: 3 categories, one free increment
+            delta_raw = pm.Normal(
+                "delta_raw",
+                mu=prior_params['delta_mu'],
+                sigma=prior_params['delta_sigma'],
+                shape=1
+            )
+            delta = pt.softplus(delta_raw)
+            cutpoints = pm.Deterministic(
+                "cutpoints",
+                pt.concatenate([pt.zeros(1), delta])
+            )
+        else:
+            # General case: K-2 free increments
+            n_increments = n_cutpoints - 1
+            delta_raw = pm.Normal(
+                "delta_raw",
+                mu=prior_params['delta_mu'],
+                sigma=prior_params['delta_sigma'],
+                shape=n_increments
+            )
+            deltas = pt.softplus(delta_raw)
+            cutpoints = pm.Deterministic(
+                "cutpoints",
+                pt.concatenate([pt.zeros(1), pt.cumsum(deltas)])
+            )
+
+        # === CATEGORY PROBABILITIES FROM ORDERED LOGISTIC ===
+        # P(Y <= k) = sigmoid(c_k - eta)
+        # P(Y = k) = P(Y <= k) - P(Y <= k-1)
+
+        # Expand dimensions for broadcasting
+        # eta: (n_items,) -> (n_items, 1)
+        # cutpoints: (n_cutpoints,) -> (1, n_cutpoints)
+        eta_expanded = eta[:, None]  # (n_items, 1)
+        cutpoints_expanded = cutpoints[None, :]  # (1, n_cutpoints)
+
+        # Cumulative probabilities: P(Y <= k)
+        cum_probs = pm.math.sigmoid(cutpoints_expanded - eta_expanded)  # (n_items, n_cutpoints)
+
+        # Category probabilities
+        # P(Y = 0) = P(Y <= 0) = cum_probs[:, 0]
+        # P(Y = k) = P(Y <= k) - P(Y <= k-1) for 0 < k < K-1
+        # P(Y = K-1) = 1 - P(Y <= K-2) = 1 - cum_probs[:, -1]
+        p_first = cum_probs[:, :1]  # (n_items, 1)
+        p_middle = cum_probs[:, 1:] - cum_probs[:, :-1]  # (n_items, K-2)
+        p_last = 1.0 - cum_probs[:, -1:]  # (n_items, 1)
+
+        probs = pm.Deterministic(
+            "probs",
+            pt.concatenate([p_first, p_middle, p_last], axis=1)
+        )
+
+        # === DATA CONTAINERS FOR AGGREGATED COUNTS ===
+        item_counts_data = pm.Data(
+            "item_counts",
+            np.ones((n_items, n_categories), dtype="int64")
+        )
+        item_ns_data = pm.Data(
+            "item_ns",
+            np.ones(n_items, dtype="int64") * n_categories
+        )
+
+        # === MULTINOMIAL LIKELIHOOD ON COUNTS ===
+        obs = pm.Multinomial(
+            "obs",
+            n=item_ns_data,
+            p=probs,
+            observed=item_counts_data
+        )
+
+        # === DERIVED QUANTITIES FOR STOPPING CRITERIA ===
+        # Group-level category probabilities (average over items)
+        probs_group = pm.Deterministic("probs_group", probs.mean(axis=0))
+
+        # Modal category at group level
+        modal_group = pm.Deterministic("modal_group", pt.argmax(probs_group))
+
+        # Entropy at group level
+        # H = -sum(p * log(p)), using log base 2 for interpretability
+        entropy_group = pm.Deterministic(
+            "entropy_group",
+            -pm.math.sum(probs_group * pm.math.log(probs_group + 1e-10)) / pm.math.log(2.0)
+        )
 
     return model
 

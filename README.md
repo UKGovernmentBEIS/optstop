@@ -413,7 +413,23 @@ Posthoc and live optimal stopping also benefit from vectorization (~5-20% faster
 | `ordinal_tasks` | List[str] or None | None | Substrings to identify ordinal groupings (e.g., `['confidence', 'rating']`) |
 | `ordinal_max_score` | int | 10 | Maximum score for ordinal data (e.g., 10 for 0-10 scale) |
 | `ordinal_inference` | str | 'modal' | Inference method: `'modal'`, `'entropy'`, or `'hybrid'` (recommended) |
+| `ordinal_model_type` | str | 'ordered_logistic' | Hierarchical model type: `'ordered_logistic'` or `'dirichlet'` |
 | `entropy_threshold` | float | 1.5 | Threshold for entropy validation in hybrid mode (prevents false peaks) |
+
+### Model Types
+
+**Ordered Logistic** (Recommended, Default):
+- Cumulative link model that respects ordinal structure
+- Uses identified cutpoints (first cutpoint fixed at 0 for model identification)
+- Adaptive priors that scale with number of categories
+- ~3x faster than Dirichlet-Multinomial due to fewer parameters
+- Best for truly ordinal data where category ordering matters
+
+**Dirichlet-Multinomial**:
+- Treats categories as exchangeable (no ordinal structure enforced)
+- More robust to bimodal or U-shaped distributions
+- Automatically used as fallback if ordered_logistic sampling fails
+- Use when response distributions don't follow ordinal assumptions
 
 ### Inference Modes
 
@@ -466,6 +482,7 @@ pruned_df, summary = optimal_stopping_posthoc(
     ordinal_tasks=['confidence', 'difficulty', 'rating'],  # Substring matching
     ordinal_max_score=10,                                  # 0-10 scale
     ordinal_inference='hybrid',                            # RECOMMENDED
+    ordinal_model_type='ordered_logistic',                 # Cumulative link model (default)
     entropy_threshold=1.5                                  # False peak detection
 )
 ```
@@ -499,10 +516,11 @@ result = optimal_stopping_live(
     score_column='score',
 
     # Ordinal parameters:
-    ordinal_tasks=['confidence'],     # Identify ordinal groupings
-    ordinal_max_score=10,            # 0-10 scale
-    ordinal_inference='hybrid',      # RECOMMENDED
-    entropy_threshold=1.5            # False peak detection
+    ordinal_tasks=['confidence'],          # Identify ordinal groupings
+    ordinal_max_score=10,                  # 0-10 scale
+    ordinal_inference='hybrid',            # RECOMMENDED
+    ordinal_model_type='ordered_logistic', # Cumulative link model (default)
+    entropy_threshold=1.5                  # False peak detection
 )
 
 print(result['stop_sample_ids'])  # Item IDs that reached stopping criteria
@@ -690,6 +708,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |
 | `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale)                 |
 | `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid' (RECOMMENDED)           |
+| `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
 | `entropy_threshold`      | 1.5       | All          | Threshold for entropy validation in hybrid mode (prevents false peaks)    |
 
 ### Example: Setting Parameters
@@ -1310,6 +1329,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 
 ### 2. Live Optimal Stopping
@@ -1342,6 +1362,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
@@ -1378,6 +1399,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
+- **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
