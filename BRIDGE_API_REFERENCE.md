@@ -1,9 +1,9 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.2.1+
-**Last Updated:** 2025-11-29
-**Status:** Production Ready (Phase 1 & 2 Complete)
-**Performance:** Numpyro/JAX integration available (2× CPU speedup)
+**Version:** 0.3.0+
+**Last Updated:** 2025-12-02
+**Status:** Production Ready (Phase 1-3 Complete)
+**Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
 ---
 
@@ -336,16 +336,13 @@ from optstop.early_stopping import OptimalStoppingManager
 manager = OptimalStoppingManager(
     optstop_params: dict[str, Any],
     grouping_columns: list[str],
-    score_column: str = "score",
-    sample_id_column: str = "sample_id",
-    epoch_column: str = "epoch",
     reanalysis_interval: int = 10,
     min_samples_per_grouping: int = 5,
     ordinal_tasks: Optional[list[str]] = None,
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'hybrid',
+    ordinal_model_type: str = 'ordered_logistic',
     gpu_ids: Optional[list[int]] = None,
-    max_workers: Optional[int] = None,
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
@@ -431,19 +428,6 @@ grouping_columns=['model', 'tag.category']
 ```
 
 **Important:** More granular groupings = more targeted stopping but require more data per grouping.
-
----
-
-### Optional Column Mapping Parameters
-
-#### `score_column: str = "score"`
-Name of the score column in the internal compiled dataset. Usually keep as default.
-
-#### `sample_id_column: str = "sample_id"`
-Name of the sample ID column. Usually keep as default.
-
-#### `epoch_column: str = "epoch"`
-Name of the epoch column. Usually keep as default.
 
 ---
 
@@ -585,6 +569,44 @@ manager = OptimalStoppingManager(
 
 **See:** [Performance Considerations - Ordinal Inference Mode Selection](#5-ordinal-inference-mode-selection--critical) for detailed analysis.
 
+#### `ordinal_model_type: str = 'ordered_logistic'`
+Statistical model for ordinal inference.
+
+**Valid values:**
+- `'ordered_logistic'` (default): Cumulative link (proportional odds) model. Theoretically superior for truly ordinal data where neighboring categories are related.
+- `'dirichlet'`: Dirichlet-Multinomial model. Treats categories as exchangeable (nominal). More robust for sparse edge categories or unusual distributions.
+
+**Trade-offs:**
+
+| Aspect | Ordered Logistic | Dirichlet-Multinomial |
+|--------|-----------------|----------------------|
+| Category structure | Ordered (ordinal) | Exchangeable (nominal) |
+| Neighboring shrinkage | Natural via latent scale | None |
+| Performance | ~3× faster | Slower |
+| Sparse categories | May struggle | Handles well |
+| Best for | Peaked/unimodal distributions | Bimodal/unusual distributions |
+
+**Fallback behavior:** If `ordered_logistic` sampling fails (rare), the system automatically falls back to `dirichlet` with a warning.
+
+**Example:**
+```python
+# Default: Ordered Logistic (recommended for most cases)
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['rating'],
+    ordinal_model_type='ordered_logistic'  # Default
+)
+
+# Alternative: Dirichlet-Multinomial for problematic distributions
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    ordinal_tasks=['rating'],
+    ordinal_model_type='dirichlet'  # Fallback option
+)
+```
+
 ---
 
 ### Hardware Configuration Parameters
@@ -604,13 +626,6 @@ gpu_ids=None       # CPU-only mode (default)
 - JAX with GPU support installed: `pip install optstop[gpu]`
 
 **Note:** GPU configuration for inspect_ai runtime environments is still being validated (see roadmap).
-
-#### `max_workers: Optional[int] = None`
-Maximum number of parallel workers for grouping inference.
-
-**Default (None):** Auto-configured based on available CPU cores.
-
-**Note:** Each worker runs PyMC inference, which itself uses multiple cores, so this typically stays at 1.
 
 ---
 
@@ -789,7 +804,7 @@ The manager automatically routes to different inference algorithms based on conf
         ▼         │         │
    CONTINUOUS     ▼         ▼
    BOUNDED     ORDINAL   BINARY
-   (Beta)     (Dirich)  (Binom)
+   (Beta)     (Ord.Log) (Binom)
 ```
 
 ### Routing Rules
@@ -797,7 +812,7 @@ The manager automatically routes to different inference algorithms based on conf
 | Configuration | Inference Type | Model | Score Range |
 |--------------|----------------|-------|-------------|
 | `score_agg='mean'` or `'median'` | **Continuous Bounded** | Hierarchical Beta | [0, 1] |
-| `ordinal_tasks=['...']` match + no aggregation | **Ordinal Discrete** | Dirichlet-Multinomial | [0, max_score] |
+| `ordinal_tasks=['...']` match + no aggregation | **Ordinal Discrete** | Ordered Logistic (default) or Dirichlet | [0, max_score] |
 | No aggregation + no ordinal match | **Binary Discrete** | Binomial | {0, 1} |
 
 ### Routing Examples
@@ -822,8 +837,9 @@ manager = OptimalStoppingManager(
     ordinal_tasks=['rating', 'confidence'],
     ordinal_max_score=5,
     # NO score_agg parameter
+    # ordinal_model_type='ordered_logistic' is the default
 )
-# → Routes to ordinal discrete (Dirichlet-Multinomial)
+# → Routes to ordinal discrete (Ordered Logistic model by default)
 # → Expects scores: 0, 1, 2, 3, 4, or 5 (discrete)
 ```
 
@@ -1026,6 +1042,15 @@ Called before each trial to determine if it should run or be stopped.
 **Returns:**
 - `None` - Run this trial
 - `EarlyStop` - Skip this trial (stopped early)
+
+**EarlyStop model:**
+```python
+class EarlyStop(BaseModel):
+    id: str | int         # Sample dataset ID
+    epoch: int            # Sample epoch number
+    reason: str | None    # Reason for the early stop
+    metadata: dict[str, JsonValue] | None  # Additional metadata
+```
 
 **Behavior:**
 - Fast DataFrame lookup (< 1ms typical)
@@ -1724,7 +1749,15 @@ gpu_ids=[0]
 
 ## Version History
 
-### v0.2.1 (Current)
+### v0.3.0 (Current)
+- ✅ `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')
+- ✅ Ordered Logistic (cumulative link) model as default for ordinal inference
+- ✅ ~3× faster ordinal inference vs Dirichlet-Multinomial
+- ✅ Automatic fallback to Dirichlet if Ordered Logistic sampling fails
+- ✅ Adaptive cutpoint priors scaling with number of categories
+- ✅ Full parameter recovery validation for Ordered Logistic
+
+### v0.2.1
 - ✅ `random_seed` parameter for MCMC reproducibility
 - ✅ `entropy_stabilization_threshold` parameter for ordinal tuning
 - ✅ Numpyro/JAX integration for ordinal inference (~2× CPU speedup)
@@ -1766,6 +1799,6 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2025-11-29
-**Document Version:** 1.1
-**Phase:** Production Ready (Phase 1 & 2 Complete)
+**Last Updated:** 2025-12-02
+**Document Version:** 1.2
+**Phase:** Production Ready (Phase 1-3 Complete)

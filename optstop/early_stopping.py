@@ -29,7 +29,7 @@ except (ImportError, AttributeError):
     import os
     # Add parent directory to path to find mock_inspect_early_stop
     sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
-    from mock_inspect_early_stop import EarlyStopping, EarlyStop, StoppedSample as _MockStoppedSample
+    from mock_inspect_early_stop import EarlyStopping, EarlyStop
 
     # Create minimal mocks for other types
     class Sample:
@@ -105,20 +105,22 @@ class OptimalStoppingManager(EarlyStopping):
     # Protocol-required attribute from EarlyStopping
     compiled_dataset: Optional[pd.DataFrame]
 
+    # Internal column names for compiled_dataset (not user-configurable)
+    _SCORE_COLUMN = "score"
+    _SAMPLE_ID_COLUMN = "sample_id"
+    _EPOCH_COLUMN = "epoch"
+
     def __init__(
         self,
         optstop_params: dict[str, Any],
         grouping_columns: list[str],
-        score_column: str = "score",
-        sample_id_column: str = "sample_id",
-        epoch_column: str = "epoch",
         reanalysis_interval: int = 10,
         min_samples_per_grouping: int = 5,
         ordinal_tasks: Optional[list[str]] = None,
         ordinal_max_score: int = 10,
         ordinal_inference: str = 'hybrid',
+        ordinal_model_type: str = 'ordered_logistic',
         gpu_ids: Optional[list[int]] = None,
-        max_workers: Optional[int] = None,
         manager_name: str = "optstop",
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
@@ -134,17 +136,14 @@ class OptimalStoppingManager(EarlyStopping):
                 REQUIRED - user must specify.
                 Can reference any column in compiled_dataset (from EvalSpec or sample metadata).
                 Examples: ['model', 'task'], ['model', 'difficulty'], ['dataset', 'temperature']
-
-            score_column: Name for score column in compiled_dataset
-            sample_id_column: Name for sample_id column
-            epoch_column: Name for epoch column
             reanalysis_interval: Run inference every N completed samples
             min_samples_per_grouping: Minimum completed samples before first inference
             ordinal_tasks: Task names/substrings using ordinal scoring
             ordinal_max_score: Maximum ordinal score value
             ordinal_inference: Ordinal inference mode ('modal', 'entropy', 'hybrid')
-            gpu_ids: GPU IDs to use for computation
-            max_workers: Max parallel workers
+            ordinal_model_type: Hierarchical model type for ordinal inference
+                ('ordered_logistic' or 'dirichlet'). Default: 'ordered_logistic'
+            gpu_ids: GPU IDs for computation (non-empty list enables GPU detection)
             manager_name: Name identifier for this manager
             shadow_mode: If True, schedule_sample() always returns None (run all trials).
                 Useful for comparing performance with/without early stopping.
@@ -173,9 +172,6 @@ class OptimalStoppingManager(EarlyStopping):
         # Configuration
         self.optstop_params = optstop_params.copy()  # Copy to avoid modifying original
         self.grouping_columns = grouping_columns
-        self.score_column = score_column
-        self.sample_id_column = sample_id_column
-        self.epoch_column = epoch_column
         self.reanalysis_interval = reanalysis_interval
         self.min_samples_per_grouping = min_samples_per_grouping
         self.manager_name = manager_name
@@ -202,10 +198,10 @@ class OptimalStoppingManager(EarlyStopping):
         self.ordinal_tasks = ordinal_tasks
         self.ordinal_max_score = ordinal_max_score
         self.ordinal_inference = ordinal_inference
+        self.ordinal_model_type = ordinal_model_type
 
         # GPU configuration
         self.gpu_ids = gpu_ids
-        self.max_workers = max_workers
 
         # Data tracking
         self.compiled_dataset: Optional[pd.DataFrame] = None
@@ -350,13 +346,6 @@ class OptimalStoppingManager(EarlyStopping):
         if self.ordinal_max_score <= 0:
             raise ValueError(f"ordinal_max_score must be > 0, got {self.ordinal_max_score}")
 
-        # 6. Validate column names are not empty
-        if not self.score_column:
-            raise ValueError("score_column cannot be empty")
-        if not self.sample_id_column:
-            raise ValueError("sample_id_column cannot be empty")
-        if not self.epoch_column:
-            raise ValueError("epoch_column cannot be empty")
 
     def _init_value_converter(self) -> Any:
         """Initialize and cache the value_to_float converter from inspect_ai.
@@ -402,9 +391,6 @@ class OptimalStoppingManager(EarlyStopping):
         print(f"  • Epochs per sample: {num_epochs}")
         print(f"  • Total planned trials: {num_samples * num_epochs}")
         print(f"  • Grouping columns: {', '.join(self.grouping_columns)}")
-        print(f"  • Sample ID column: {self.sample_id_column}")
-        print(f"  • Epoch column: {self.epoch_column}")
-        print(f"  • Score column: {self.score_column}")
 
         # Stopping Parameters (from optstop_params)
         print("\n🎯 Optimal Stopping Parameters:")
@@ -461,7 +447,6 @@ class OptimalStoppingManager(EarlyStopping):
         print("\n🖥️  Hardware Configuration:")
         if self.gpu_ids and len(self.gpu_ids) > 0:
             print(f"  • GPU IDs: {self.gpu_ids}")
-            print(f"  • Max workers: {self.max_workers if self.max_workers else 'auto'}")
             # Check actual GPU availability
             gpu_available, gpu_backend, _ = gpu_utils.check_gpu_availability()
             if gpu_available:
@@ -470,7 +455,6 @@ class OptimalStoppingManager(EarlyStopping):
                 print("  • GPU status: Requested but not available (falling back to CPU)")
         else:
             print("  • GPU: Disabled (CPU-only mode)")
-            print(f"  • Max workers: {self.max_workers if self.max_workers else 'auto'}")
 
         # Reproducibility Configuration
         print("\n🎲 Reproducibility:")
@@ -499,7 +483,7 @@ class OptimalStoppingManager(EarlyStopping):
 
         # Find any row with this sample_id (all rows for a sample have same grouping values)
         sample_rows = self.compiled_dataset[
-            self.compiled_dataset[self.sample_id_column] == sample_id
+            self.compiled_dataset[self._SAMPLE_ID_COLUMN] == sample_id
         ]
 
         if len(sample_rows) == 0:
@@ -713,13 +697,13 @@ class OptimalStoppingManager(EarlyStopping):
                     # EvalSpec core columns
                     **evalspec_columns,
                     # Sample ID
-                    self.sample_id_column: sample_id,
+                    self._SAMPLE_ID_COLUMN: sample_id,
                     # Epoch
-                    self.epoch_column: epoch_num,
+                    self._EPOCH_COLUMN: epoch_num,
                     # Sample metadata columns (NaN if missing)
                     **{key: sample_metadata.get(key, np.nan) for key in all_metadata_keys},
                     # Score column (initially empty)
-                    self.score_column: np.nan,
+                    self._SCORE_COLUMN: np.nan,
                     # Control columns
                     'trial_ran': 0,
                     'schedule_status': True
@@ -797,6 +781,8 @@ class OptimalStoppingManager(EarlyStopping):
             should_run = self._schedule_cache[cache_key]
             if not should_run:
                 return EarlyStop(
+                    id=id,
+                    epoch=epoch,
                     reason="Stopped by optimal stopping criteria",
                     metadata={"cache_hit": True}
                 )
@@ -805,8 +791,8 @@ class OptimalStoppingManager(EarlyStopping):
         # Build mask for filtering - sample_id + epoch uniquely identifies the row
         # (Grouping columns are already determined by sample_id, so we don't need to filter by them)
         mask = (
-            (self.compiled_dataset[self.sample_id_column] == id) &
-            (self.compiled_dataset[self.epoch_column] == epoch)
+            (self.compiled_dataset[self._SAMPLE_ID_COLUMN] == id) &
+            (self.compiled_dataset[self._EPOCH_COLUMN] == epoch)
         )
 
         matching_rows = self.compiled_dataset[mask]
@@ -824,6 +810,8 @@ class OptimalStoppingManager(EarlyStopping):
 
         if not should_run:
             return EarlyStop(
+                id=id,
+                epoch=epoch,
                 reason="Stopped by optimal stopping criteria",
                 metadata={"sample_id": id, "epoch": epoch}
             )
@@ -940,12 +928,12 @@ class OptimalStoppingManager(EarlyStopping):
         # Step 4: Update compiled_dataset regardless of validation
         # (Record the score even if invalid for inference)
         mask = (
-            (self.compiled_dataset[self.sample_id_column] == id) &
-            (self.compiled_dataset[self.epoch_column] == epoch)
+            (self.compiled_dataset[self._SAMPLE_ID_COLUMN] == id) &
+            (self.compiled_dataset[self._EPOCH_COLUMN] == epoch)
         )
 
         # Update the row
-        self.compiled_dataset.loc[mask, self.score_column] = score_value
+        self.compiled_dataset.loc[mask, self._SCORE_COLUMN] = score_value
         self.compiled_dataset.loc[mask, 'trial_ran'] = 1
         self.compiled_dataset.loc[mask, 'schedule_status'] = False  # Already ran
 
@@ -1009,7 +997,7 @@ class OptimalStoppingManager(EarlyStopping):
         completed_data = grouping_data[grouping_data['trial_ran'] == 1].copy()
 
         # Check minimum samples threshold
-        n_completed = len(completed_data[self.sample_id_column].unique())
+        n_completed = len(completed_data[self._SAMPLE_ID_COLUMN].unique())
         if n_completed < self.min_samples_per_grouping:
             # logger.debug(
             #     f"Skipping inference for '{grouping_name}': only {n_completed} completed samples, "
@@ -1101,13 +1089,14 @@ class OptimalStoppingManager(EarlyStopping):
                 df_grouping=completed_data,
                 grouping_name=grouping_name,
                 params=params_with_aggregation,  # Pass updated params with aggregation flag
-                sample_id_column=self.sample_id_column,
-                epoch_column=self.epoch_column,
-                score_column=self.score_column,
+                sample_id_column=self._SAMPLE_ID_COLUMN,
+                epoch_column=self._EPOCH_COLUMN,
+                score_column=self._SCORE_COLUMN,
                 stabilization_history=stabilization_history,
                 ordinal_tasks=self.ordinal_tasks,
                 ordinal_max_score=self.ordinal_max_score,
                 ordinal_inference=self.ordinal_inference,
+                ordinal_model_type=self.ordinal_model_type,
                 entropy_threshold=1.5,  # Could be added as init parameter if needed
                 sampling_kwargs=sampling_kwargs,
                 model_caches=model_caches  # OPTIMIZATION #2: Persist all PyMC models
@@ -1183,13 +1172,13 @@ class OptimalStoppingManager(EarlyStopping):
             self._stopped_sample_ids[grouping_name].add(sample_id)
 
             # Update compiled_dataset: set schedule_status=False for remaining epochs
-            update_mask = mask & (self.compiled_dataset[self.sample_id_column] == sample_id)
+            update_mask = mask & (self.compiled_dataset[self._SAMPLE_ID_COLUMN] == sample_id)
             update_mask &= (self.compiled_dataset['trial_ran'] == 0)  # Only unrun trials
 
             self.compiled_dataset.loc[update_mask, 'schedule_status'] = False
 
             # Clear cache for affected epochs (optimized with .unique())
-            affected_epochs = self.compiled_dataset.loc[update_mask, self.epoch_column].unique()
+            affected_epochs = self.compiled_dataset.loc[update_mask, self._EPOCH_COLUMN].unique()
             grouping_tuple = tuple(grouping_values.values())
             for epoch in affected_epochs:
                 self._schedule_cache.pop((*grouping_tuple, sample_id, epoch), None)
@@ -1197,10 +1186,13 @@ class OptimalStoppingManager(EarlyStopping):
             # Record stopped sample (only first time)
             if result['metadata'].get('sample_stopping_reasons', {}).get(str(sample_id)):
                 reason_info = result['metadata']['sample_stopping_reasons'][str(sample_id)]
+                stopped_epoch = reason_info.get('epochs_used', 0)
                 self.stopped_samples.append(StoppedSample(
                     id=sample_id,
-                    epoch=reason_info.get('epochs_used', 0),
+                    epoch=stopped_epoch,
                     early_stop=EarlyStop(
+                        id=sample_id,
+                        epoch=stopped_epoch,
                         reason=reason_info.get('reason', 'optimal_stopping'),
                         metadata=reason_info
                     )
