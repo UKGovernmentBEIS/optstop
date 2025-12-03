@@ -1,0 +1,65 @@
+{
+  "manager": "inspect_ai_integration_test",
+  "random_seed": 42,
+  "seed_source": "user_specified",
+  "total_planned_trials": 6000,
+  "total_ran": 1835,
+  "total_skipped": 4165,
+  "efficiency_percent": 69.42,
+  "stopped_samples_count": 0,
+  "stopped_samples": [],
+  "grouping_columns": [
+    "model",
+    "metadata.subtask"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 5,
+  "stopped_samples_per_grouping": {
+    "claude-3-sonnet-arithmetic_basic": 0,
+    "claude-3-sonnet-algebra_intermediate": 0,
+    "claude-3-sonnet-calculus_advanced": 0
+  },
+  "stopped_groupings": [
+    "claude-3-sonnet-algebra_intermediate",
+    "claude-3-sonnet-arithmetic_basic",
+    "claude-3-sonnet-calculus_advanced"
+  ],
+  "stopped_groupings_count": 3,
+  "decision_counters": {
+    "claude-3-sonnet-arithmetic_basic": {
+      "completed_samples": 250,
+      "inference_calls": 50,
+      "next_inference_at": 255
+    },
+    "claude-3-sonnet-algebra_intermediate": {
+      "completed_samples": 885,
+      "inference_calls": 177,
+      "next_inference_at": 890
+    },
+    "claude-3-sonnet-calculus_advanced": {
+      "completed_samples": 700,
+      "inference_calls": 140,
+      "next_inference_at": 705
+    }
+  },
+  "stabilization_histories": {
+    "claude-3-sonnet-arithmetic_basic": {
+      "n_samples": 50,
+      "final_ci_width": 0.14561552222006835,
+      "final_slope": 1.0870987260960654e-05,
+      "n_group_checks": 50
+    },
+    "claude-3-sonnet-algebra_intermediate": {
+      "n_samples": 50,
+      "final_ci_width": 0.27608745984074634,
+      "final_slope": 4.523804350507844e-05,
+      "n_group_checks": 177
+    },
+    "claude-3-sonnet-calculus_advanced": {
+      "n_samples": 50,
+      "final_ci_width": 0.36366252035205926,
+      "final_slope": -3.873849735943593e-05,
+      "n_group_checks": 140
+    }
+  }
+}

@@ -1,0 +1,1501 @@
+sample_id,subtask,epoch,raw_scores,aggregated_score,scheduled,stopped,stop_reason
+rubric_basic_000,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.2,True,False,
+rubric_basic_001,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_basic_002,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_basic_003,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_004,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_005,rubric_basic,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_basic_006,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.8,True,False,
+rubric_basic_007,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_008,rubric_basic,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",6.6,True,False,
+rubric_basic_009,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_010,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_011,rubric_basic,1,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_012,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.4,True,False,
+rubric_basic_013,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 10}",9.6,True,False,
+rubric_basic_014,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_015,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.2,True,False,
+rubric_basic_016,rubric_basic,1,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",9.0,True,False,
+rubric_basic_017,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_basic_018,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",7.2,True,False,
+rubric_basic_019,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_020,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_021,rubric_basic,1,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_022,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.6,True,False,
+rubric_basic_023,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.6,True,False,
+rubric_basic_024,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",7.0,True,False,
+rubric_basic_025,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_026,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_027,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 10}",9.4,True,False,
+rubric_basic_028,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_029,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 10}",9.2,True,False,
+rubric_basic_030,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_031,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 10, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_032,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_033,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_034,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.8,True,False,
+rubric_basic_035,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.4,True,False,
+rubric_basic_036,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_037,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_basic_038,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.2,True,False,
+rubric_basic_039,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.8,True,False,
+rubric_basic_040,rubric_basic,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 9}",7.4,True,False,
+rubric_basic_041,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.4,True,False,
+rubric_basic_042,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_043,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_044,rubric_basic,1,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_045,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_046,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_047,rubric_basic,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_048,rubric_basic,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_basic_049,rubric_basic,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_intermediate_000,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_intermediate_001,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.4,True,False,
+rubric_intermediate_002,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",6.2,True,False,
+rubric_intermediate_003,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",7.4,True,False,
+rubric_intermediate_004,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.8,True,False,
+rubric_intermediate_005,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_intermediate_006,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",4.8,True,False,
+rubric_intermediate_007,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 9, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_intermediate_008,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 3, 'rubric_criterion_3': 3, 'rubric_criterion_4': 3, 'rubric_criterion_5': 2}",3.4,True,False,
+rubric_intermediate_009,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_intermediate_010,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",6.4,True,False,
+rubric_intermediate_011,rubric_intermediate,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",7.8,True,False,
+rubric_intermediate_012,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 3}",4.0,True,False,
+rubric_intermediate_013,rubric_intermediate,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 9}",7.8,True,False,
+rubric_intermediate_014,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",5.8,True,False,
+rubric_intermediate_015,rubric_intermediate,1,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_intermediate_016,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 3, 'rubric_criterion_3': 3, 'rubric_criterion_4': 2, 'rubric_criterion_5': 4}",3.4,True,False,
+rubric_intermediate_017,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",6.0,True,False,
+rubric_intermediate_018,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_intermediate_019,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",4.8,True,False,
+rubric_intermediate_020,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 4}",4.0,True,False,
+rubric_intermediate_021,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_intermediate_022,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 5, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_intermediate_023,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 9, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_intermediate_024,rubric_intermediate,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 3, 'rubric_criterion_5': 4}",3.8,True,False,
+rubric_intermediate_025,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 6}",5.4,True,False,
+rubric_intermediate_026,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 3, 'rubric_criterion_4': 4, 'rubric_criterion_5': 3}",4.2,True,False,
+rubric_intermediate_027,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.8,True,False,
+rubric_intermediate_028,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.6,True,False,
+rubric_intermediate_029,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 7}",7.8,True,False,
+rubric_intermediate_030,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_intermediate_031,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 7, 'rubric_criterion_5': 4}",5.2,True,False,
+rubric_intermediate_032,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",4.6,True,False,
+rubric_intermediate_033,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 3, 'rubric_criterion_5': 4}",5.0,True,False,
+rubric_intermediate_034,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",5.8,True,False,
+rubric_intermediate_035,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.4,True,False,
+rubric_intermediate_036,rubric_intermediate,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 6, 'rubric_criterion_3': 8, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",6.6,True,False,
+rubric_intermediate_037,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.0,True,False,
+rubric_intermediate_038,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 4, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",5.8,True,False,
+rubric_intermediate_039,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_intermediate_040,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 6}",5.4,True,False,
+rubric_intermediate_041,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",4.2,True,False,
+rubric_intermediate_042,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 7, 'rubric_criterion_5': 4}",5.6,True,False,
+rubric_intermediate_043,rubric_intermediate,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 3, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",4.8,True,False,
+rubric_intermediate_044,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",5.4,True,False,
+rubric_intermediate_045,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 6}",7.6,True,False,
+rubric_intermediate_046,rubric_intermediate,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 6}",7.6,True,False,
+rubric_intermediate_047,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.0,True,False,
+rubric_intermediate_048,rubric_intermediate,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 7, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",5.2,True,False,
+rubric_intermediate_049,rubric_intermediate,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_advanced_000,rubric_advanced,1,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 0, 'rubric_criterion_3': 6, 'rubric_criterion_4': 2, 'rubric_criterion_5': 2}",2.2,True,False,
+rubric_advanced_001,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 3, 'rubric_criterion_5': 2}",2.4,True,False,
+rubric_advanced_002,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 7, 'rubric_criterion_3': 0, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",4.6,True,False,
+rubric_advanced_003,rubric_advanced,1,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 0, 'rubric_criterion_3': 1, 'rubric_criterion_4': 0, 'rubric_criterion_5': 5}",1.2,True,False,
+rubric_advanced_004,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 0, 'rubric_criterion_5': 1}",1.8,True,False,
+rubric_advanced_005,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_advanced_006,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.4,True,False,
+rubric_advanced_007,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 4, 'rubric_criterion_3': 6, 'rubric_criterion_4': 3, 'rubric_criterion_5': 2}",3.6,True,False,
+rubric_advanced_008,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 7, 'rubric_criterion_3': 2, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",4.8,True,False,
+rubric_advanced_009,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.2,True,False,
+rubric_advanced_010,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",3.2,True,False,
+rubric_advanced_011,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 8, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_012,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 6}",4.8,True,False,
+rubric_advanced_013,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 0, 'rubric_criterion_3': 1, 'rubric_criterion_4': 2, 'rubric_criterion_5': 3}",2.0,True,False,
+rubric_advanced_014,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 1, 'rubric_criterion_5': 1}",1.8,True,False,
+rubric_advanced_015,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 10, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.0,True,False,
+rubric_advanced_016,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 9, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",6.4,True,False,
+rubric_advanced_017,rubric_advanced,1,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 2, 'rubric_criterion_3': 4, 'rubric_criterion_4': 1, 'rubric_criterion_5': 4}",2.4,True,False,
+rubric_advanced_018,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 1, 'rubric_criterion_5': 2}",3.2,True,False,
+rubric_advanced_019,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",6.6,True,False,
+rubric_advanced_020,rubric_advanced,1,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",8.0,True,False,
+rubric_advanced_021,rubric_advanced,1,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 1}",2.8,True,False,
+rubric_advanced_022,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 8, 'rubric_criterion_3': 6, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_advanced_023,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 3, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",3.4,True,False,
+rubric_advanced_024,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 1, 'rubric_criterion_5': 4}",2.4,True,False,
+rubric_advanced_025,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",4.4,True,False,
+rubric_advanced_026,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 10, 'rubric_criterion_3': 10, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",8.2,True,False,
+rubric_advanced_027,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 2, 'rubric_criterion_5': 3}",3.8,True,False,
+rubric_advanced_028,rubric_advanced,1,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 5, 'rubric_criterion_4': 2, 'rubric_criterion_5': 4}",3.4,True,False,
+rubric_advanced_029,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.0,True,False,
+rubric_advanced_030,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 4}",4.0,True,False,
+rubric_advanced_031,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 1, 'rubric_criterion_4': 1, 'rubric_criterion_5': 3}",2.6,True,False,
+rubric_advanced_032,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 4, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 5}",6.4,True,False,
+rubric_advanced_033,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 10}",8.2,True,False,
+rubric_advanced_034,rubric_advanced,1,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 5, 'rubric_criterion_5': 1}",1.8,True,False,
+rubric_advanced_035,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 10, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",7.4,True,False,
+rubric_advanced_036,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_advanced_037,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_038,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 3, 'rubric_criterion_3': 4, 'rubric_criterion_4': 6, 'rubric_criterion_5': 4}",4.2,True,False,
+rubric_advanced_039,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 8, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",5.8,True,False,
+rubric_advanced_040,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",6.2,True,False,
+rubric_advanced_041,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 2, 'rubric_criterion_4': 5, 'rubric_criterion_5': 1}",3.2,True,False,
+rubric_advanced_042,rubric_advanced,1,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 3, 'rubric_criterion_3': 4, 'rubric_criterion_4': 2, 'rubric_criterion_5': 1}",2.2,True,False,
+rubric_advanced_043,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 1, 'rubric_criterion_3': 0, 'rubric_criterion_4': 4, 'rubric_criterion_5': 3}",2.8,True,False,
+rubric_advanced_044,rubric_advanced,1,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 3, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",5.4,True,False,
+rubric_advanced_045,rubric_advanced,1,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 2, 'rubric_criterion_3': 3, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",3.6,True,False,
+rubric_advanced_046,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 9, 'rubric_criterion_3': 6, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_advanced_047,rubric_advanced,1,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.4,True,False,
+rubric_advanced_048,rubric_advanced,1,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 9, 'rubric_criterion_3': 6, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",6.0,True,False,
+rubric_advanced_049,rubric_advanced,1,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 3, 'rubric_criterion_3': 1, 'rubric_criterion_4': 3, 'rubric_criterion_5': 0}",1.8,True,False,
+rubric_basic_000,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.8,True,False,
+rubric_basic_001,rubric_basic,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.4,True,False,
+rubric_basic_002,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_003,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_004,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_005,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_basic_006,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_007,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_008,rubric_basic,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_basic_009,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",9.0,True,False,
+rubric_basic_010,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 10, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 8}",9.0,True,False,
+rubric_basic_011,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_012,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_basic_013,rubric_basic,2,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 10, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_014,rubric_basic,2,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",9.2,True,False,
+rubric_basic_015,rubric_basic,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",6.2,True,False,
+rubric_basic_016,rubric_basic,2,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 10}",9.6,True,False,
+rubric_basic_017,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.8,True,False,
+rubric_basic_018,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_019,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.4,True,False,
+rubric_basic_020,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 10, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.4,True,False,
+rubric_basic_021,rubric_basic,2,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_022,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_023,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.8,True,False,
+rubric_basic_024,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_025,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.8,True,False,
+rubric_basic_026,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_027,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_028,rubric_basic,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_basic_029,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.4,True,False,
+rubric_basic_030,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",6.8,True,False,
+rubric_basic_031,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 10, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 10}",9.2,True,False,
+rubric_basic_032,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_033,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 10}",9.2,True,False,
+rubric_basic_034,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_035,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.8,True,False,
+rubric_basic_036,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_037,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.6,True,False,
+rubric_basic_038,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_basic_039,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_040,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_041,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.6,True,False,
+rubric_basic_042,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.6,True,False,
+rubric_basic_043,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_044,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_045,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_basic_046,rubric_basic,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.4,True,False,
+rubric_basic_047,rubric_basic,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.6,True,False,
+rubric_basic_048,rubric_basic,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_049,rubric_basic,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_intermediate_000,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_intermediate_001,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",5.2,True,False,
+rubric_intermediate_002,rubric_intermediate,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_intermediate_003,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_intermediate_004,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.6,True,False,
+rubric_intermediate_005,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.4,True,False,
+rubric_intermediate_006,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 2}",4.4,True,False,
+rubric_intermediate_007,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.2,True,False,
+rubric_intermediate_008,rubric_intermediate,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 4, 'rubric_criterion_3': 1, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",3.6,True,False,
+rubric_intermediate_009,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",6.8,True,False,
+rubric_intermediate_010,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.2,True,False,
+rubric_intermediate_011,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.0,True,False,
+rubric_intermediate_012,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 3, 'rubric_criterion_4': 4, 'rubric_criterion_5': 4}",4.4,True,False,
+rubric_intermediate_013,rubric_intermediate,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_intermediate_014,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",4.6,True,False,
+rubric_intermediate_015,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.2,True,False,
+rubric_intermediate_016,rubric_intermediate,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 6, 'rubric_criterion_3': 3, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",4.2,True,False,
+rubric_intermediate_017,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 8, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_intermediate_018,rubric_intermediate,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_intermediate_019,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.8,True,False,
+rubric_intermediate_020,rubric_intermediate,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 4}",4.6,True,False,
+rubric_intermediate_021,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",5.4,True,False,
+rubric_intermediate_022,rubric_intermediate,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.4,True,False,
+rubric_intermediate_023,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 7, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",5.8,True,False,
+rubric_intermediate_024,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 3, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 4}",4.6,True,False,
+rubric_intermediate_025,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",5.0,True,False,
+rubric_intermediate_026,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",4.8,True,False,
+rubric_intermediate_027,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 9, 'rubric_criterion_5': 5}",6.0,True,False,
+rubric_intermediate_028,rubric_intermediate,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.6,True,False,
+rubric_intermediate_029,rubric_intermediate,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 10}",8.6,True,False,
+rubric_intermediate_030,rubric_intermediate,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_intermediate_031,rubric_intermediate,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.4,True,False,
+rubric_intermediate_032,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 3}",5.2,True,False,
+rubric_intermediate_033,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",5.6,True,False,
+rubric_intermediate_034,rubric_intermediate,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 4, 'rubric_criterion_5': 7}",5.4,True,False,
+rubric_intermediate_035,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,2,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,2,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 4, 'rubric_criterion_3': 2, 'rubric_criterion_4': 0, 'rubric_criterion_5': 2}",1.8,True,False,
+rubric_advanced_001,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 5, 'rubric_criterion_3': 0, 'rubric_criterion_4': 1, 'rubric_criterion_5': 2}",2.2,True,False,
+rubric_advanced_002,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 8, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.0,True,False,
+rubric_advanced_003,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 1, 'rubric_criterion_3': 4, 'rubric_criterion_4': 1, 'rubric_criterion_5': 3}",2.8,True,False,
+rubric_advanced_004,rubric_advanced,2,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",2.4,True,False,
+rubric_advanced_005,rubric_advanced,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 5, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",6.4,True,False,
+rubric_advanced_006,rubric_advanced,2,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_advanced_007,rubric_advanced,2,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 6, 'rubric_criterion_3': 4, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",3.2,True,False,
+rubric_advanced_008,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 3, 'rubric_criterion_5': 8}",5.8,True,False,
+rubric_advanced_009,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",7.0,True,False,
+rubric_advanced_010,rubric_advanced,2,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 4, 'rubric_criterion_5': 1}",2.2,True,False,
+rubric_advanced_011,rubric_advanced,2,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.6,True,False,
+rubric_advanced_012,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 3, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 2}",4.4,True,False,
+rubric_advanced_013,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 1, 'rubric_criterion_3': 3, 'rubric_criterion_4': 2, 'rubric_criterion_5': 3}",2.4,True,False,
+rubric_advanced_014,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 1, 'rubric_criterion_5': 1}",1.6,True,False,
+rubric_advanced_015,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 9, 'rubric_criterion_5': 5}",6.0,True,False,
+rubric_advanced_016,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 2, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",5.2,True,False,
+rubric_advanced_017,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 2, 'rubric_criterion_3': 3, 'rubric_criterion_4': 2, 'rubric_criterion_5': 1}",2.0,True,False,
+rubric_advanced_018,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 4, 'rubric_criterion_3': 1, 'rubric_criterion_4': 3, 'rubric_criterion_5': 1}",2.2,True,False,
+rubric_advanced_019,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_advanced_020,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_advanced_021,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 4, 'rubric_criterion_4': 6, 'rubric_criterion_5': 3}",3.8,True,False,
+rubric_advanced_022,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 3, 'rubric_criterion_5': 5}",6.0,True,False,
+rubric_advanced_023,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 4, 'rubric_criterion_3': 6, 'rubric_criterion_4': 4, 'rubric_criterion_5': 3}",3.8,True,False,
+rubric_advanced_024,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 1, 'rubric_criterion_3': 1, 'rubric_criterion_4': 2, 'rubric_criterion_5': 1}",1.4,True,False,
+rubric_advanced_025,rubric_advanced,2,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 4, 'rubric_criterion_3': 3, 'rubric_criterion_4': 4, 'rubric_criterion_5': 4}",3.4,True,False,
+rubric_advanced_026,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 10}",8.0,True,False,
+rubric_advanced_027,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 6, 'rubric_criterion_4': 3, 'rubric_criterion_5': 1}",3.8,True,False,
+rubric_advanced_028,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 3, 'rubric_criterion_5': 5}",4.6,True,False,
+rubric_advanced_029,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.2,True,False,
+rubric_advanced_030,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",5.0,True,False,
+rubric_advanced_031,rubric_advanced,2,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 2, 'rubric_criterion_5': 3}",2.0,True,False,
+rubric_advanced_032,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",6.4,True,False,
+rubric_advanced_033,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 9, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",6.8,True,False,
+rubric_advanced_034,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 4, 'rubric_criterion_4': 1, 'rubric_criterion_5': 4}",3.0,True,False,
+rubric_advanced_035,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 9, 'rubric_criterion_3': 6, 'rubric_criterion_4': 3, 'rubric_criterion_5': 6}",6.0,True,False,
+rubric_advanced_036,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",6.0,True,False,
+rubric_advanced_037,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 2, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 3}",4.4,True,False,
+rubric_advanced_038,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 2, 'rubric_criterion_5': 4}",4.0,True,False,
+rubric_advanced_039,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 4, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.4,True,False,
+rubric_advanced_040,rubric_advanced,2,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 9, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",6.4,True,False,
+rubric_advanced_041,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 1, 'rubric_criterion_3': 4, 'rubric_criterion_4': 4, 'rubric_criterion_5': 1}",2.8,True,False,
+rubric_advanced_042,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 5, 'rubric_criterion_4': 2, 'rubric_criterion_5': 1}",2.8,True,False,
+rubric_advanced_043,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 5, 'rubric_criterion_3': 3, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",3.4,True,False,
+rubric_advanced_044,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 6, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.2,True,False,
+rubric_advanced_045,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 5, 'rubric_criterion_4': 3, 'rubric_criterion_5': 5}",4.2,True,False,
+rubric_advanced_046,rubric_advanced,2,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 9, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_047,rubric_advanced,2,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 5, 'rubric_criterion_3': 3, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",5.0,True,False,
+rubric_advanced_048,rubric_advanced,2,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 7, 'rubric_criterion_3': 8, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.4,True,False,
+rubric_advanced_049,rubric_advanced,2,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 3, 'rubric_criterion_5': 4}",3.2,True,False,
+rubric_basic_000,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_001,rubric_basic,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.4,True,False,
+rubric_basic_002,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.0,True,False,
+rubric_basic_003,rubric_basic,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_004,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",8.2,True,False,
+rubric_basic_005,rubric_basic,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",6.0,True,False,
+rubric_basic_006,rubric_basic,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.6,True,False,
+rubric_basic_007,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 10, 'rubric_criterion_3': 9, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_008,rubric_basic,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_basic_009,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 10}",8.8,True,False,
+rubric_basic_010,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 9, 'rubric_criterion_4': 8, 'rubric_criterion_5': 9}",8.6,True,False,
+rubric_basic_011,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 8}",8.4,True,False,
+rubric_basic_012,rubric_basic,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.8,True,False,
+rubric_basic_013,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 10, 'rubric_criterion_4': 10, 'rubric_criterion_5': 10}",9.6,True,False,
+rubric_basic_014,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.0,True,False,
+rubric_basic_015,rubric_basic,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 6, 'rubric_criterion_5': 8}",6.6,True,False,
+rubric_basic_016,rubric_basic,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 9, 'rubric_criterion_3': 9, 'rubric_criterion_4': 10, 'rubric_criterion_5': 9}",9.2,True,False,
+rubric_basic_017,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.6,True,False,
+rubric_basic_018,rubric_basic,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 8, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",7.0,True,False,
+rubric_basic_019,rubric_basic,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 9, 'rubric_criterion_5': 9}",8.4,True,False,
+rubric_basic_020,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,3,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 0, 'rubric_criterion_3': 1, 'rubric_criterion_4': 0, 'rubric_criterion_5': 1}",1.0,True,False,
+rubric_advanced_001,rubric_advanced,3,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 3, 'rubric_criterion_3': 3, 'rubric_criterion_4': 3, 'rubric_criterion_5': 1}",2.4,True,False,
+rubric_advanced_002,rubric_advanced,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 2, 'rubric_criterion_3': 3, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",4.8,True,False,
+rubric_advanced_003,rubric_advanced,3,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 1, 'rubric_criterion_5': 2}",2.4,True,False,
+rubric_advanced_004,rubric_advanced,3,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 2, 'rubric_criterion_5': 2}",1.6,True,False,
+rubric_advanced_005,rubric_advanced,3,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",4.4,True,False,
+rubric_advanced_006,rubric_advanced,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 4, 'rubric_criterion_5': 5}",6.2,True,False,
+rubric_advanced_007,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 2, 'rubric_criterion_3': 6, 'rubric_criterion_4': 4, 'rubric_criterion_5': 4}",4.0,True,False,
+rubric_advanced_008,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.8,True,False,
+rubric_advanced_009,rubric_advanced,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 7, 'rubric_criterion_3': 7, 'rubric_criterion_4': 3, 'rubric_criterion_5': 6}",5.8,True,False,
+rubric_advanced_010,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 0, 'rubric_criterion_3': 4, 'rubric_criterion_4': 6, 'rubric_criterion_5': 7}",4.0,True,False,
+rubric_advanced_011,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",6.4,True,False,
+rubric_advanced_012,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",4.2,True,False,
+rubric_advanced_013,rubric_advanced,3,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 3, 'rubric_criterion_3': 1, 'rubric_criterion_4': 3, 'rubric_criterion_5': 2}",2.2,True,False,
+rubric_advanced_014,rubric_advanced,3,"{'rubric_criterion_1': 1, 'rubric_criterion_2': 5, 'rubric_criterion_3': 3, 'rubric_criterion_4': 0, 'rubric_criterion_5': 5}",2.8,True,False,
+rubric_advanced_015,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 6, 'rubric_criterion_4': 2, 'rubric_criterion_5': 10}",6.0,True,False,
+rubric_advanced_016,rubric_advanced,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_advanced_017,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 2, 'rubric_criterion_3': 2, 'rubric_criterion_4': 4, 'rubric_criterion_5': 6}",3.6,True,False,
+rubric_advanced_018,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 3, 'rubric_criterion_3': 3, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",4.0,True,False,
+rubric_advanced_019,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 9, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_020,rubric_advanced,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 9, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 8}",7.8,True,False,
+rubric_advanced_021,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 2, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 4}",3.8,True,False,
+rubric_advanced_022,rubric_advanced,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 7, 'rubric_criterion_3': 6, 'rubric_criterion_4': 7, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_023,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 2, 'rubric_criterion_3': 3, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",2.8,True,False,
+rubric_advanced_024,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 2, 'rubric_criterion_3': 1, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",2.4,True,False,
+rubric_advanced_025,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 2, 'rubric_criterion_3': 1, 'rubric_criterion_4': 2, 'rubric_criterion_5': 4}",2.4,True,False,
+rubric_advanced_026,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 7, 'rubric_criterion_5': 5}",7.0,True,False,
+rubric_advanced_027,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 4, 'rubric_criterion_3': 1, 'rubric_criterion_4': 6, 'rubric_criterion_5': 2}",3.4,True,False,
+rubric_advanced_028,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 0, 'rubric_criterion_3': 4, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",4.0,True,False,
+rubric_advanced_029,rubric_advanced,3,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 8, 'rubric_criterion_3': 8, 'rubric_criterion_4': 8, 'rubric_criterion_5': 7}",7.2,True,False,
+rubric_advanced_030,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 6, 'rubric_criterion_3': 4, 'rubric_criterion_4': 5, 'rubric_criterion_5': 3}",5.0,True,False,
+rubric_advanced_031,rubric_advanced,3,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 0, 'rubric_criterion_3': 1, 'rubric_criterion_4': 2, 'rubric_criterion_5': 3}",1.6,True,False,
+rubric_advanced_032,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 7, 'rubric_criterion_3': 5, 'rubric_criterion_4': 5, 'rubric_criterion_5': 6}",5.4,True,False,
+rubric_advanced_033,rubric_advanced,3,"{'rubric_criterion_1': 8, 'rubric_criterion_2': 6, 'rubric_criterion_3': 8, 'rubric_criterion_4': 6, 'rubric_criterion_5': 6}",6.8,True,False,
+rubric_advanced_034,rubric_advanced,3,"{'rubric_criterion_1': 4, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 3, 'rubric_criterion_5': 2}",2.8,True,False,
+rubric_advanced_035,rubric_advanced,3,"{'rubric_criterion_1': 9, 'rubric_criterion_2': 5, 'rubric_criterion_3': 7, 'rubric_criterion_4': 5, 'rubric_criterion_5': 7}",6.6,True,False,
+rubric_advanced_036,rubric_advanced,3,"{'rubric_criterion_1': 6, 'rubric_criterion_2': 6, 'rubric_criterion_3': 6, 'rubric_criterion_4': 5, 'rubric_criterion_5': 5}",5.6,True,False,
+rubric_advanced_037,rubric_advanced,3,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 6, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 2}",5.2,True,False,
+rubric_advanced_038,rubric_advanced,3,"{'rubric_criterion_1': 3, 'rubric_criterion_2': 3, 'rubric_criterion_3': 2, 'rubric_criterion_4': 3, 'rubric_criterion_5': 3}",2.8,True,False,
+rubric_advanced_039,rubric_advanced,3,"{'rubric_criterion_1': 7, 'rubric_criterion_2': 5, 'rubric_criterion_3': 5, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.6,True,False,
+rubric_advanced_040,rubric_advanced,3,"{'rubric_criterion_1': 10, 'rubric_criterion_2': 7, 'rubric_criterion_3': 5, 'rubric_criterion_4': 4, 'rubric_criterion_5': 8}",6.8,True,False,
+rubric_advanced_041,rubric_advanced,3,"{'rubric_criterion_1': 5, 'rubric_criterion_2': 4, 'rubric_criterion_3': 5, 'rubric_criterion_4': 1, 'rubric_criterion_5': 5}",4.0,True,False,
+rubric_advanced_042,rubric_advanced,3,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 1, 'rubric_criterion_3': 2, 'rubric_criterion_4': 1, 'rubric_criterion_5': 1}",1.0,True,False,
+rubric_advanced_043,rubric_advanced,3,"{'rubric_criterion_1': 0, 'rubric_criterion_2': 3, 'rubric_criterion_3': 0, 'rubric_criterion_4': 1, 'rubric_criterion_5': 2}",1.2,True,False,
+rubric_advanced_044,rubric_advanced,3,"{'rubric_criterion_1': 2, 'rubric_criterion_2': 9, 'rubric_criterion_3': 7, 'rubric_criterion_4': 6, 'rubric_criterion_5': 5}",5.8,True,False,
+rubric_advanced_045,rubric_advanced,3,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,3,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,3,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,3,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,3,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,4,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,5,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,6,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,7,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,8,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,9,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_000,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_001,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_002,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_003,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_004,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_005,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_006,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_007,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_008,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_009,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_010,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_011,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_012,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_013,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_014,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_015,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_016,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_017,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_018,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_019,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_020,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_021,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_022,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_023,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_024,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_025,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_026,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_027,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_028,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_029,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_030,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_031,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_032,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_033,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_034,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_035,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_036,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_037,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_038,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_039,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_040,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_041,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_042,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_043,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_044,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_045,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_046,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_047,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_048,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_basic_049,rubric_basic,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_000,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_001,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_002,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_003,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_004,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_005,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_006,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_007,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_008,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_009,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_010,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_011,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_012,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_013,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_014,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_015,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_016,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_017,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_018,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_019,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_020,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_021,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_022,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_023,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_024,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_025,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_026,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_027,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_028,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_029,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_030,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_031,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_032,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_033,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_034,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_035,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_036,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_037,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_038,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_039,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_040,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_041,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_042,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_043,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_044,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_045,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_046,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_047,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_048,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_intermediate_049,rubric_intermediate,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_000,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_001,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_002,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_003,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_004,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_005,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_006,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_007,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_008,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_009,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_010,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_011,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_012,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_013,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_014,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_015,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_016,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_017,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_018,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_019,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_020,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_021,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_022,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_023,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_024,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_025,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_026,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_027,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_028,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_029,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_030,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_031,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_032,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_033,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_034,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_035,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_036,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_037,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_038,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_039,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_040,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_041,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_042,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_043,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_044,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_045,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_046,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_047,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_048,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria
+rubric_advanced_049,rubric_advanced,10,,,False,True,Stopped by optimal stopping criteria

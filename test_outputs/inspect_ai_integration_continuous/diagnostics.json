@@ -1,0 +1,1895 @@
+{
+  "manager": "continuous_inference_test",
+  "random_seed": 42,
+  "seed_source": "user_specified",
+  "total_planned_trials": 6000,
+  "total_ran": 1802,
+  "total_skipped": 4198,
+  "efficiency_percent": 69.97,
+  "stopped_samples_count": 112,
+  "stopped_samples": [
+    {
+      "id": "rubric_basic_000",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.087851667718379,
+        "ci_width_normalized": 0.10878516677183789,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_001",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_002",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5532355345189286,
+        "ci_width_normalized": 0.05532355345189286,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_003",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.121596854686409,
+        "ci_width_normalized": 0.1121596854686409,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_004",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_005",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1197380699077524,
+        "ci_width_normalized": 0.11197380699077523,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_006",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1027941505831098,
+        "ci_width_normalized": 0.11027941505831099,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_008",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_009",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_010",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.559325427262122,
+        "ci_width_normalized": 0.055932542726212196,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_011",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1187282639779372,
+        "ci_width_normalized": 0.11187282639779372,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_012",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5533214849589783,
+        "ci_width_normalized": 0.05533214849589783,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_013",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1055792930592485,
+        "ci_width_normalized": 0.11055792930592485,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_014",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0806046000480833,
+        "ci_width_normalized": 0.10806046000480833,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_015",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_018",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5558862892828964,
+        "ci_width_normalized": 0.05558862892828964,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_019",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1110197862256328,
+        "ci_width_normalized": 0.11110197862256328,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_020",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5442695541825415,
+        "ci_width_normalized": 0.05442695541825415,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_021",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_023",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5480363682734986,
+        "ci_width_normalized": 0.05480363682734986,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_024",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_025",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_027",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.103314968806293,
+        "ci_width_normalized": 0.1103314968806293,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_028",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1148408716963276,
+        "ci_width_normalized": 0.11148408716963276,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_029",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5575188599470522,
+        "ci_width_normalized": 0.05575188599470522,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_030",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5442677041737518,
+        "ci_width_normalized": 0.05442677041737518,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_031",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_032",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.103567066535696,
+        "ci_width_normalized": 0.1103567066535696,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_033",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5649497740222262,
+        "ci_width_normalized": 0.056494977402222625,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_034",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5519964768065257,
+        "ci_width_normalized": 0.055199647680652573,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_035",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.095102856682625,
+        "ci_width_normalized": 0.10951028566826251,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_036",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5458800347121802,
+        "ci_width_normalized": 0.05458800347121802,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_037",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5555418543208646,
+        "ci_width_normalized": 0.055554185432086456,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_038",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_039",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.550963721230656,
+        "ci_width_normalized": 0.0550963721230656,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_041",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5462112119367326,
+        "ci_width_normalized": 0.05462112119367326,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_042",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0945185556165855,
+        "ci_width_normalized": 0.10945185556165855,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_043",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1107758448012435,
+        "ci_width_normalized": 0.11107758448012435,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_044",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5615225751256148,
+        "ci_width_normalized": 0.056152257512561476,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_045",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5595839846149318,
+        "ci_width_normalized": 0.055958398461493176,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_046",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5423724272717045,
+        "ci_width_normalized": 0.054237242727170454,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_047",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000018,
+        "ci_width_normalized": 0.10000000000000017,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_048",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5633176811286411,
+        "ci_width_normalized": 0.05633176811286411,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_049",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_000",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5566961439705835,
+        "ci_width_normalized": 0.05566961439705835,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_001",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5534234688960407,
+        "ci_width_normalized": 0.055342346889604065,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_003",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5561719733263413,
+        "ci_width_normalized": 0.05561719733263413,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_004",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5579717218017866,
+        "ci_width_normalized": 0.055797172180178656,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_005",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1151578607641888,
+        "ci_width_normalized": 0.11151578607641888,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_006",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1142510634083633,
+        "ci_width_normalized": 0.11142510634083633,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_008",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5535554063137855,
+        "ci_width_normalized": 0.055355540631378555,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_009",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_010",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5485206807071199,
+        "ci_width_normalized": 0.05485206807071199,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_011",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5541002094669611,
+        "ci_width_normalized": 0.055410020946696115,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_012",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1158602187799813,
+        "ci_width_normalized": 0.11158602187799813,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_013",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5530906635815569,
+        "ci_width_normalized": 0.05530906635815569,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_017",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0941630573091121,
+        "ci_width_normalized": 0.10941630573091121,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_018",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_021",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5510797922225574,
+        "ci_width_normalized": 0.05510797922225574,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_025",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0946006916210846,
+        "ci_width_normalized": 0.10946006916210846,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_027",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5480767008485996,
+        "ci_width_normalized": 0.05480767008485996,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_028",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0,
+        "ci_width_normalized": 0.1,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_034",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1016927939000754,
+        "ci_width_normalized": 0.11016927939000754,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_035",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5539199336945018,
+        "ci_width_normalized": 0.05539199336945018,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_036",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.105418895216034,
+        "ci_width_normalized": 0.1105418895216034,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_037",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0933685587006394,
+        "ci_width_normalized": 0.10933685587006395,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_038",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5444313834121246,
+        "ci_width_normalized": 0.05444313834121246,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_040",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5593330063895436,
+        "ci_width_normalized": 0.05593330063895437,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_043",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5550655845881121,
+        "ci_width_normalized": 0.05550655845881121,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_044",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.102600081571346,
+        "ci_width_normalized": 0.11026000815713459,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_046",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000018,
+        "ci_width_normalized": 0.10000000000000017,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_048",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5493045749475982,
+        "ci_width_normalized": 0.05493045749475982,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_000",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.104896230318269,
+        "ci_width_normalized": 0.1104896230318269,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_001",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5460132031440588,
+        "ci_width_normalized": 0.05460132031440588,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_002",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5435516595170595,
+        "ci_width_normalized": 0.054355165951705954,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_003",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1153094305085314,
+        "ci_width_normalized": 0.11153094305085313,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_008",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5505243694465207,
+        "ci_width_normalized": 0.055052436944652075,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_015",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_016",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0986221931252356,
+        "ci_width_normalized": 0.10986221931252356,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_017",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5446146531134457,
+        "ci_width_normalized": 0.05446146531134457,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_018",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.122975683999862,
+        "ci_width_normalized": 0.1122975683999862,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_021",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5530463450161327,
+        "ci_width_normalized": 0.05530463450161327,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_024",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1028080227810655,
+        "ci_width_normalized": 0.11028080227810655,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_025",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1131462653745872,
+        "ci_width_normalized": 0.11131462653745872,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_028",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5527472952698309,
+        "ci_width_normalized": 0.05527472952698309,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_029",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0958928471624034,
+        "ci_width_normalized": 0.10958928471624034,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_034",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1095218980320123,
+        "ci_width_normalized": 0.11095218980320123,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_035",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 0.5533323243275614,
+        "ci_width_normalized": 0.05533323243275614,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_039",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0000000000000009,
+        "ci_width_normalized": 0.10000000000000009,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_043",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.097087460287299,
+        "ci_width_normalized": 0.1097087460287299,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_045",
+      "epoch": 2,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.0884945354147417,
+        "ci_width_normalized": 0.10884945354147417,
+        "threshold": 0.15,
+        "epochs_used": 2,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_007",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.18247563224271,
+        "ci_width_normalized": 0.11824756322427099,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_016",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.2009527170982768,
+        "ci_width_normalized": 0.12009527170982767,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_017",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1808957160117366,
+        "ci_width_normalized": 0.11808957160117366,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_022",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1735874919786493,
+        "ci_width_normalized": 0.11735874919786493,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_032",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.3708832161616593,
+        "ci_width_normalized": 0.13708832161616594,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_033",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1876522676482013,
+        "ci_width_normalized": 0.11876522676482013,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_005",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.3600358690654115,
+        "ci_width_normalized": 0.13600358690654116,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_023",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1925971026404198,
+        "ci_width_normalized": 0.11925971026404199,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_044",
+      "epoch": 3,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.1861307670564685,
+        "ci_width_normalized": 0.11861307670564684,
+        "threshold": 0.15,
+        "epochs_used": 3,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_002",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.479858565647005,
+        "ci_width_normalized": 0.14798585656470048,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_016",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.4554696750965888,
+        "ci_width_normalized": 0.14554696750965887,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_024",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.2848415019248818,
+        "ci_width_normalized": 0.12848415019248818,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_029",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.3496932497694143,
+        "ci_width_normalized": 0.13496932497694142,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_009",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.4984555843681093,
+        "ci_width_normalized": 0.14984555843681094,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_031",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.4382835022757674,
+        "ci_width_normalized": 0.14382835022757673,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_040",
+      "epoch": 5,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.273351826847831,
+        "ci_width_normalized": 0.1273351826847831,
+        "threshold": 0.15,
+        "epochs_used": 5,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_022",
+      "epoch": 5,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.4382488965475524,
+        "ci_width_normalized": 0.14382488965475523,
+        "threshold": 0.15,
+        "epochs_used": 5,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_046",
+      "epoch": 4,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.3407318133454762,
+        "ci_width_normalized": 0.13407318133454763,
+        "threshold": 0.15,
+        "epochs_used": 4,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_026",
+      "epoch": 7,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.4301582447815875,
+        "ci_width_normalized": 0.14301582447815875,
+        "threshold": 0.15,
+        "epochs_used": 7,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_basic_026",
+      "epoch": 10,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.221550344678242,
+        "ci_width_normalized": 0.1221550344678242,
+        "threshold": 0.15,
+        "epochs_used": 10,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    },
+    {
+      "id": "rubric_intermediate_019",
+      "epoch": 18,
+      "reason": "continuous_bounded_ci_width",
+      "metadata": {
+        "reason": "continuous_bounded_ci_width",
+        "ci_width": 1.491156640214287,
+        "ci_width_normalized": 0.1491156640214287,
+        "threshold": 0.15,
+        "epochs_used": 18,
+        "bounds": {
+          "lower": 0.0,
+          "upper": 10
+        }
+      }
+    }
+  ],
+  "grouping_columns": [
+    "model",
+    "metadata.subtask"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 5,
+  "stopped_samples_per_grouping": {
+    "claude-3-sonnet-rubric_basic": 50,
+    "claude-3-sonnet-rubric_intermediate": 37,
+    "claude-3-sonnet-rubric_advanced": 25
+  },
+  "stopped_groupings": [],
+  "stopped_groupings_count": 0,
+  "decision_counters": {
+    "claude-3-sonnet-rubric_basic": {
+      "completed_samples": 115,
+      "inference_calls": 23,
+      "next_inference_at": 120
+    },
+    "claude-3-sonnet-rubric_intermediate": {
+      "completed_samples": 628,
+      "inference_calls": 125,
+      "next_inference_at": 630
+    },
+    "claude-3-sonnet-rubric_advanced": {
+      "completed_samples": 1059,
+      "inference_calls": 211,
+      "next_inference_at": 1060
+    }
+  },
+  "stabilization_histories": {
+    "claude-3-sonnet-rubric_basic": {
+      "n_samples": 50,
+      "final_ci_width": 0.14526418049235823,
+      "final_slope": -0.0020281643187257427,
+      "n_group_checks": 23,
+      "final_modal_ci_width": null,
+      "final_modal_ci": null,
+      "final_entropy": null,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": null,
+      "final_relative_change": null,
+      "final_stabilization_threshold": null,
+      "ordinal_pathway": null
+    },
+    "claude-3-sonnet-rubric_intermediate": {
+      "n_samples": 50,
+      "final_ci_width": 0.25354692661727657,
+      "final_slope": -0.0004397342173114626,
+      "n_group_checks": 125,
+      "final_modal_ci_width": null,
+      "final_modal_ci": null,
+      "final_entropy": null,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": null,
+      "final_relative_change": null,
+      "final_stabilization_threshold": null,
+      "ordinal_pathway": null
+    },
+    "claude-3-sonnet-rubric_advanced": {
+      "n_samples": 50,
+      "final_ci_width": 0.29250051565805274,
+      "final_slope": -0.0005703678088748456,
+      "n_group_checks": 211,
+      "final_modal_ci_width": null,
+      "final_modal_ci": null,
+      "final_entropy": null,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": null,
+      "final_relative_change": null,
+      "final_stabilization_threshold": null,
+      "ordinal_pathway": null
+    }
+  },
+  "ordinal_glossary": {
+    "modal_ci_narrow_validated": {
+      "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+      "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+      "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+    },
+    "entropy_stabilized": {
+      "description": "Distribution entropy converged, indicating stable ordinal estimates",
+      "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+      "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+    },
+    "continue_insufficient_history": {
+      "description": "Need more epochs to assess stabilization",
+      "interpretation": "Collecting more data to establish convergence pattern",
+      "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+    }
+  }
+}

@@ -469,6 +469,11 @@ class OptimalStoppingManager(EarlyStopping):
         All grouping columns (from EvalSpec or sample metadata) are now in the
         compiled_dataset, so we can extract them directly by looking up the sample.
 
+        Handles grouping column format translation:
+        - 'model', 'task' → direct column lookup
+        - 'metadata.<key>' → looks up column '<key>' (metadata stored without prefix)
+        - 'tag.<name>' → looks up column '<name>' (tags stored without prefix)
+
         Args:
             sample_id: The sample ID to look up
 
@@ -494,17 +499,35 @@ class OptimalStoppingManager(EarlyStopping):
         grouping_values = {}
 
         for col in self.grouping_columns:
-            if col in first_row.index:
-                grouping_values[col] = first_row[col]
+            # Translate grouping column name to actual DataFrame column name
+            actual_col = self._translate_grouping_column(col)
+
+            if actual_col in first_row.index:
+                grouping_values[col] = first_row[actual_col]
             else:
                 # Column not in dataframe - warn and use None
                 trace_message(
                     logger, "OptimalStopping",
-                    f"Grouping column '{col}' not found in compiled_dataset. Using None."
+                    f"Grouping column '{col}' (mapped to '{actual_col}') not found in compiled_dataset. Using None."
                 )
                 grouping_values[col] = None
 
         return grouping_values
+
+    def _translate_grouping_column(self, col: str) -> str:
+        """Translate grouping column name to actual DataFrame column name.
+
+        Args:
+            col: Grouping column name (e.g., 'model', 'metadata.subtask', 'tag.difficulty')
+
+        Returns:
+            Actual DataFrame column name (e.g., 'model', 'subtask', 'difficulty')
+        """
+        if col.startswith('metadata.'):
+            return col[len('metadata.'):]
+        elif col.startswith('tag.'):
+            return col[len('tag.'):]
+        return col
 
     def _build_grouping_name(self, grouping_values: dict[str, Any]) -> str:
         """Build a consistent grouping name from grouping values dictionary.
@@ -986,10 +1009,12 @@ class OptimalStoppingManager(EarlyStopping):
         # Filter to current grouping
         mask = pd.Series([True] * len(self.compiled_dataset))
         for col, val in grouping_values.items():
+            # Translate grouping column name to actual DataFrame column name
+            actual_col = self._translate_grouping_column(col)
             if pd.isna(val):
-                mask &= self.compiled_dataset[col].isna()
+                mask &= self.compiled_dataset[actual_col].isna()
             else:
-                mask &= (self.compiled_dataset[col] == val)
+                mask &= (self.compiled_dataset[actual_col] == val)
 
         grouping_data = self.compiled_dataset[mask]
 

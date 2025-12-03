@@ -1,16 +1,30 @@
 """
-Large dataset test for all three inference pathways with ordered_logistic model.
+Large-scale stress test for OptimalStoppingManager bridge.
 
-Tests:
+This script tests the OptimalStoppingManager bridge with large internally-generated
+datasets (500 samples x 10 epochs per task) across all three inference pathways:
 - Binary pathway (0/1 scoring)
 - Ordinal pathway (0-10 Likert scale) using ordered_logistic + hybrid inference
 - Continuous pathway (0.0-1.0 bounded scores)
 
+PURPOSE:
+This is a large-scale stress test to verify the bridge handles high sample counts
+correctly. It complements test_large_datasets_ordered_logistic.py which uses a
+smaller scale (15 samples x 8 epochs x 2 models).
+
+SCALE:
+- 1 model (test_model)
+- 5 tasks (2 binary, 1 ordinal, 2 continuous)
+- 500 samples per task
+- 10 epochs per sample
+- Total planned trials: 25,000
+
 Key features:
+- Generates datasets internally (no external CSV files required)
 - Uses ordered_logistic model type for ordinal inference (default)
 - Tests hybrid inference mode which combines modal CI + entropy validation
 - Comprehensive logging to verify model selection and inference behavior
-- Verifies fallback behavior if ordered_logistic fails
+- Updated for v0.3.0+ API (removed deprecated parameters)
 
 IMPORTANT: Protocol Usage
 - The EarlyStopping protocol is designed for single-task evaluation
@@ -19,10 +33,14 @@ IMPORTANT: Protocol Usage
 - Therefore, we accumulate results EXTERNALLY in grouping_results and all_trial_data
 - The final "COMPILED DATASET SUMMARY" uses our accumulated data, NOT manager.compiled_dataset
 
-OUTPUT LOGGING:
-- When --output-dir is specified, logs are saved to capture what an inspect_ai user would see
-- Log file: {output_dir}/optstop_logs_{timestamp}.log
-- Contains: Configuration summary, inference calls, stopping decisions, diagnostics
+SAMPLER SELECTION:
+- CPU: PyMC default for ALL score types (binary, ordinal, continuous)
+- GPU: NumPyro for acceleration when available (set gpu_ids=[0])
+
+EXPECTED PERFORMANCE (PyMC default on CPU):
+- Binary tasks: ~6-8 min per grouping (500 samples)
+- Ordinal tasks: ~6-8 hours per grouping (ordered_logistic, 500 samples)
+- Continuous tasks: ~8-10 min per grouping (500 samples)
 """
 
 import asyncio
@@ -30,116 +48,44 @@ import json
 import logging
 import sys
 import time
-from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Dict, List, Optional
 from unittest.mock import Mock
 import numpy as np
 import pandas as pd
+
 from optstop.early_stopping import OptimalStoppingManager
 
+# Configure comprehensive logging
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
 
-class TeeWriter:
-    """Write to both a file and the original stream (stdout/stderr)."""
-
-    def __init__(self, file_path: Path, original_stream):
-        self.file = open(file_path, 'w')
-        self.original = original_stream
-
-    def write(self, text):
-        self.original.write(text)
-        self.file.write(text)
-        self.file.flush()
-
-    def flush(self):
-        self.original.flush()
-        self.file.flush()
-
-    def close(self):
-        self.file.close()
-
-
-class LoggingContext:
-    """Context manager for logging setup and teardown."""
-
-    def __init__(self, output_dir: Optional[Path] = None):
-        self.output_dir = Path(output_dir) if output_dir else None
-        self.file_handler: Optional[logging.FileHandler] = None
-        self.tee_writer: Optional[TeeWriter] = None
-        self.original_stdout = None
-        self.timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    def setup(self) -> 'LoggingContext':
-        """Configure logging to capture output as an inspect_ai user would see it."""
-        # Base format matching inspect_ai style
-        log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-
-        # Configure root logger
-        logging.basicConfig(
-            level=logging.DEBUG,
-            format=log_format,
-            handlers=[logging.StreamHandler(sys.stdout)]
-        )
-
-        # Set specific loggers to appropriate levels (matching what inspect_ai users see)
-        logging.getLogger('optstop').setLevel(logging.INFO)
-        logging.getLogger('optstop.early_stopping').setLevel(logging.INFO)
-        logging.getLogger('optstop.rule').setLevel(logging.INFO)
-        logging.getLogger('optstop.ordinal_model').setLevel(logging.INFO)
-        logging.getLogger('optstop.ordinal_utils').setLevel(logging.INFO)
-        logging.getLogger('optstop.gpu_utils').setLevel(logging.INFO)
-        logging.getLogger('pymc').setLevel(logging.WARNING)
-        logging.getLogger('pytensor').setLevel(logging.WARNING)
-        logging.getLogger('filelock').setLevel(logging.WARNING)
-
-        if self.output_dir:
-            self.output_dir.mkdir(parents=True, exist_ok=True)
-
-            # Set up file handler for logger output
-            log_file = self.output_dir / f'optstop_logs_{self.timestamp}.log'
-            self.file_handler = logging.FileHandler(log_file, mode='w')
-            self.file_handler.setLevel(logging.INFO)
-            self.file_handler.setFormatter(logging.Formatter(log_format))
-
-            # Add file handler to optstop loggers
-            for logger_name in ['optstop', 'optstop.early_stopping', 'optstop.rule',
-                               'optstop.ordinal_model', 'optstop.ordinal_utils',
-                               'optstop.gpu_utils']:
-                logging.getLogger(logger_name).addHandler(self.file_handler)
-
-            # Set up tee for stdout to capture print() output (config summary, etc.)
-            console_file = self.output_dir / f'console_output_{self.timestamp}.log'
-            self.original_stdout = sys.stdout
-            self.tee_writer = TeeWriter(console_file, sys.stdout)
-            sys.stdout = self.tee_writer
-
-            print(f"\n📝 Logger output: {log_file}")
-            print(f"📝 Console output: {console_file}")
-
-        return self
-
-    def teardown(self):
-        """Clean up logging handlers and restore stdout."""
-        # Restore stdout
-        if self.original_stdout:
-            sys.stdout = self.original_stdout
-            if self.tee_writer:
-                self.tee_writer.close()
-
-        # Remove file handler
-        if self.file_handler:
-            self.file_handler.close()
-            for logger_name in ['optstop', 'optstop.early_stopping', 'optstop.rule',
-                               'optstop.ordinal_model', 'optstop.ordinal_utils',
-                               'optstop.gpu_utils']:
-                logging.getLogger(logger_name).removeHandler(self.file_handler)
-
+# Set specific loggers to appropriate levels
+logging.getLogger('optstop').setLevel(logging.INFO)
+logging.getLogger('optstop.early_stopping').setLevel(logging.INFO)
+logging.getLogger('optstop.rule').setLevel(logging.INFO)
+logging.getLogger('optstop.ordinal_model').setLevel(logging.INFO)
+logging.getLogger('optstop.ordinal_utils').setLevel(logging.INFO)
+logging.getLogger('optstop.gpu_utils').setLevel(logging.INFO)
+logging.getLogger('pymc').setLevel(logging.WARNING)
+logging.getLogger('pytensor').setLevel(logging.WARNING)
+logging.getLogger('filelock').setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
 
 def convert_numpy_types(obj: Any) -> Any:
-    """Recursively convert numpy types to native Python types for JSON serialization."""
+    """
+    Recursively convert numpy types to native Python types for JSON serialization.
+
+    This is needed because diagnostics may contain numpy int64/float64 types
+    that aren't JSON serializable.
+    """
     if isinstance(obj, dict):
         return {key: convert_numpy_types(value) for key, value in obj.items()}
     elif isinstance(obj, list):
@@ -155,39 +101,41 @@ def convert_numpy_types(obj: Any) -> Any:
 
 
 class LargeDatasetConfig:
-    """Configuration for large dataset test with all three pathways."""
+    """Configuration for large-scale dataset test with all three pathways.
 
-    # Models to test
-    MODELS = ['model_A', 'model_B']
+    This is a stress test configuration with 500 samples x 10 epochs per task,
+    designed to test performance and stopping behavior at scale.
+    """
 
-    # Tasks with all three scoring types
+    # Single model for large-scale test
+    MODELS = ['test_model']
+
+    # Tasks with all three scoring types (5 tasks like original numpyro test)
     TASKS = {
         # Binary tasks (0/1)
-        'binary_easy': {'type': 'binary', 'base_rate': 0.8},
-        'binary_hard': {'type': 'binary', 'base_rate': 0.5},
-        # Ordinal tasks (0-10) - will use ordered_logistic + hybrid
-        'ordinal_peaked': {'type': 'ordinal', 'max_score': 10, 'mean': 7.0, 'std': 1.5},
-        'ordinal_spread': {'type': 'ordinal', 'max_score': 10, 'mean': 5.0, 'std': 2.5},
+        'math_easy': {'type': 'binary', 'base_rate': 0.85},
+        'math_hard': {'type': 'binary', 'base_rate': 0.45},
+        # Ordinal task (0-10) - will use ordered_logistic + hybrid
+        'coding_medium': {'type': 'ordinal', 'max_score': 10, 'mean': 6.0, 'std': 2.0},
         # Continuous tasks (0.0-1.0)
-        'continuous_high': {'type': 'continuous', 'mean': 0.75, 'std': 0.1},
-        'continuous_mid': {'type': 'continuous', 'mean': 0.5, 'std': 0.15},
+        'creative_writing': {'type': 'continuous', 'mean': 0.70, 'std': 0.12},
+        'reasoning': {'type': 'continuous', 'mean': 0.55, 'std': 0.18},
     }
 
-    # Simulation parameters
-    NUM_SAMPLES = 15  # Samples per task
-    MAX_EPOCHS = 8    # Epochs per sample
+    # Large-scale simulation parameters
+    NUM_SAMPLES = 500  # Samples per task (large scale)
+    MAX_EPOCHS = 10    # Epochs per sample
 
-    # Model performance multipliers
+    # Model performance multiplier (single model)
     MODEL_PERFORMANCE = {
-        'model_A': 1.0,
-        'model_B': 0.9,
+        'test_model': 1.0,
     }
 
 
 class ScoreGenerator:
     """Generate realistic mock scores for all three pathways."""
 
-    def __init__(self, seed=42):
+    def __init__(self, seed: int = 42):
         self.rng = np.random.RandomState(seed)
 
     def generate_score(self, model: str, task: str, epoch: int,
@@ -236,25 +184,36 @@ def print_section(title: str, char: str = "="):
     print(char*80)
 
 
+def create_mock_sample_score(value: float) -> Mock:
+    """Create a mock SampleScore object matching inspect_ai format."""
+    mock_score_obj = Mock()
+    mock_score_obj.value = value
+    mock_sample_score = Mock()
+    mock_sample_score.score = mock_score_obj
+    return mock_sample_score
+
+
 async def run_large_dataset_test(
-    output_dir: Path | None = None,
+    output_dir: Optional[Path] = None,
     random_seed: int = 42,
 ) -> tuple:
-    """Run comprehensive test of all three inference pathways.
+    """
+    Run comprehensive test of all three inference pathways.
 
     Args:
         output_dir: Optional directory to save diagnostics JSON files
         random_seed: Random seed for reproducibility
 
     Returns:
-        Tuple of (manager, grouping_results, accumulated_df, all_stopped_samples, diagnostics)
+        Tuple of (manager, grouping_results)
     """
 
     start_time = time.time()
 
     print_section("LARGE DATASET TEST: ALL THREE INFERENCE PATHWAYS")
     print("Testing: Binary, Ordinal (ordered_logistic + hybrid), Continuous")
-    print(f"\nRandom seed: {random_seed}")
+    print(f"\nVersion: v0.3.0+ (updated API, no deprecated parameters)")
+    print(f"Random seed: {random_seed}")
 
     config = LargeDatasetConfig()
     score_generator = ScoreGenerator(seed=random_seed)
@@ -324,7 +283,7 @@ async def run_large_dataset_test(
 
     # Initialize manager with updated API (v0.3.0+)
     # NOTE: Removed deprecated parameters: score_column, sample_id_column,
-    #       epoch_column, max_workers (these are now internal constants)
+    #       epoch_column, max_workers
     manager = OptimalStoppingManager(
         optstop_params=optstop_params,
         grouping_columns=['model', 'task'],
@@ -334,8 +293,8 @@ async def run_large_dataset_test(
         ordinal_max_score=10,
         ordinal_inference='hybrid',
         ordinal_model_type='ordered_logistic',
-        gpu_ids=None,
-        manager_name='optstop_ordered_logistic_test',
+        gpu_ids=None,  # CPU-only mode (set [0] for GPU)
+        manager_name='optstop_large_scale_test',
         shadow_mode=False,
         random_seed=random_seed,
     )
@@ -437,11 +396,7 @@ async def run_large_dataset_test(
                     )
                     grouping_results[grouping_name]['scores'].append(score)
 
-                    mock_score_obj = Mock()
-                    mock_score_obj.value = score  # _extract_score_value accesses .score.value
-                    mock_sample_score = Mock()
-                    mock_sample_score.score = mock_score_obj
-                    mock_scores = {'scorer': mock_sample_score}
+                    mock_scores = {'scorer': create_mock_sample_score(score)}
 
                     await manager.complete_sample(id=sample_id, epoch=epoch, scores=mock_scores)
 
@@ -469,7 +424,6 @@ async def run_large_dataset_test(
             grouping_results[grouping_name]['inference_time'] = time.time() - grouping_start
 
             # Accumulate stopped_samples BEFORE next start_task resets them
-            # Each stopped sample includes metadata about which grouping it belonged to
             for stopped in manager.stopped_samples:
                 all_stopped_samples.append({
                     'id': stopped.id,
@@ -508,20 +462,18 @@ async def run_large_dataset_test(
     # =========================================================================
     print_section("COMPLETING TASK", "-")
 
-    # Note: complete_task() returns diagnostics for the LAST task only
-    # (since start_task resets state). For multi-task tests, we use our
-    # accumulated data for the summary but still call complete_task()
-    # to verify the protocol interface works correctly.
     diagnostics = await manager.complete_task()
 
-    print("\nDiagnostics from complete_task() (last task only):")
+    print("\nDiagnostics from complete_task():")
     print(f"  Manager: {diagnostics.get('manager', 'N/A')}")
     print(f"  Random seed: {diagnostics.get('random_seed', 'N/A')}")
     print(f"  Seed source: {diagnostics.get('seed_source', 'N/A')}")
-    print(f"  Total planned (last task): {diagnostics.get('total_planned_trials', 'N/A')}")
-    print(f"  Total ran (last task): {diagnostics.get('total_ran', 'N/A')}")
-    print(f"  Total skipped (last task): {diagnostics.get('total_skipped', 'N/A')}")
-    print(f"  Efficiency (last task): {diagnostics.get('efficiency_percent', 'N/A')}%")
+    print(f"  Total planned: {diagnostics.get('total_planned_trials', 'N/A')}")
+    print(f"  Total ran: {diagnostics.get('total_ran', 'N/A')}")
+    print(f"  Total skipped: {diagnostics.get('total_skipped', 'N/A')}")
+    print(f"  Efficiency: {diagnostics.get('efficiency_percent', 'N/A')}%")
+    print(f"  Stopped samples: {diagnostics.get('stopped_samples_count', 'N/A')}")
+    print(f"  Stopped groupings: {diagnostics.get('stopped_groupings', [])}")
 
     # =========================================================================
     # Final Summary
@@ -534,9 +486,9 @@ async def run_large_dataset_test(
     print(f"  Total planned trials: {total_planned}")
     print(f"  Trials run: {total_run}")
     print(f"  Trials stopped: {total_stopped}")
-    savings = 100 * (total_planned - total_run) / total_planned
+    savings = 100 * (total_planned - total_run) / total_planned if total_planned > 0 else 0
     print(f"  Trials saved: {total_planned - total_run} ({savings:.1f}%)")
-    print(f"  Total time: {total_time:.1f}s")
+    print(f"  Total time: {total_time:.1f}s ({total_time/60:.1f} min)")
 
     # Summary by pathway
     print_section("RESULTS BY PATHWAY", "-")
@@ -637,6 +589,12 @@ async def run_large_dataset_test(
         accumulated_df.to_csv(trial_data_path, index=False)
         print(f"\nTrial data saved to: {trial_data_path}")
 
+        # Save full diagnostics
+        diagnostics_path = output_dir / 'diagnostics.json'
+        with open(diagnostics_path, 'w') as f:
+            json.dump(convert_numpy_types(diagnostics), f, indent=2)
+        print(f"Diagnostics saved to: {diagnostics_path}")
+
         # Save grouping results (convert sets to lists for JSON)
         results_for_json = {}
         for k, v in grouping_results.items():
@@ -656,32 +614,14 @@ async def run_large_dataset_test(
             json.dump(convert_numpy_types(all_stopped_samples), f, indent=2)
         print(f"Stopped samples saved to: {stopped_path}")
 
-        # Save complete_task diagnostics (what inspect_ai users receive)
-        diagnostics_path = output_dir / 'diagnostics.json'
-        with open(diagnostics_path, 'w') as f:
-            json.dump(convert_numpy_types(diagnostics), f, indent=2)
-        print(f"Diagnostics saved to: {diagnostics_path}")
-
-        # Print summary of all output files
-        print("\n" + "-"*40)
-        print("OUTPUT FILES SUMMARY")
-        print("-"*40)
-        print("  trial_data.csv        - All trial data (scores, stopped status)")
-        print("  grouping_results.json - Per-grouping statistics")
-        print("  stopped_samples.json  - Details of early-stopped samples")
-        print("  diagnostics.json      - complete_task() output (inspect_ai format)")
-        print("  optstop_logs_*.log    - Logger output (optstop.* module logs)")
-        print("  console_output_*.log  - Console output (config summary, progress)")
-        print("-"*40)
-
     print_section("TEST COMPLETE")
-    print(f"Total execution time: {total_time:.1f}s")
+    print(f"Total execution time: {total_time:.1f}s ({total_time/60:.1f} min)")
 
     return manager, grouping_results, accumulated_df, all_stopped_samples, diagnostics
 
 
-def test_large_datasets_ordered_logistic():
-    """Pytest entry point for the large dataset test."""
+def test_large_datasets_numpyro():
+    """Pytest entry point for the large dataset test (Dirichlet-Multinomial model)."""
     manager, results, accumulated_df, stopped_samples, diagnostics = asyncio.run(run_large_dataset_test())
 
     # Assertions
@@ -708,7 +648,7 @@ def test_large_datasets_ordered_logistic():
         f"Accumulated data mismatch: {len(accumulated_df)} vs {total_from_groupings}"
     )
 
-    # Verify diagnostics structure (from complete_task)
+    # Verify diagnostics structure
     assert 'manager' in diagnostics
     assert 'random_seed' in diagnostics
     assert 'total_planned_trials' in diagnostics
@@ -721,27 +661,21 @@ def test_large_datasets_ordered_logistic():
 
 
 if __name__ == "__main__":
+    # Run the test directly with optional output directory
     import argparse
 
     parser = argparse.ArgumentParser(
-        description='Large dataset test for ordered_logistic model across all inference pathways'
+        description='Large-scale stress test (500 samples x 10 epochs) for OptimalStoppingManager bridge'
     )
     parser.add_argument('--output-dir', type=str, default=None,
-                       help='Directory to save results (trial_data.csv, grouping_results.json, stopped_samples.json, optstop_logs_*.log, console_output_*.log)')
+                       help='Directory to save results (trial_data.csv, grouping_results.json, stopped_samples.json)')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed for reproducibility')
     args = parser.parse_args()
 
-    # Set up logging context - captures both logger output and console print statements
-    logging_ctx = LoggingContext(args.output_dir)
-    logging_ctx.setup()
-
-    try:
-        manager, results, accumulated_df, stopped_samples, diagnostics = asyncio.run(
-            run_large_dataset_test(
-                output_dir=args.output_dir,
-                random_seed=args.seed,
-            )
+    manager, results, accumulated_df, stopped_samples, diagnostics = asyncio.run(
+        run_large_dataset_test(
+            output_dir=args.output_dir,
+            random_seed=args.seed,
         )
-    finally:
-        logging_ctx.teardown()
+    )
