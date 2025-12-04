@@ -542,8 +542,8 @@ def _process_grouping(args):
                 if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
                     if score_type == 'binary':
                         # === BINARY GROUP-LEVEL STOPPING ===
-                        all_successes = np.array([s['successes'] for s in item_summaries])
-                        all_trials = np.array([s['trials'] for s in item_summaries])
+                        all_successes = np.array([s['successes'] for s in item_summaries], dtype=np.int32)
+                        all_trials = np.array([s['trials'] for s in item_summaries], dtype=np.int32)
                         with warnings.catch_warnings():
                             warnings.simplefilter("ignore")
                             with model:

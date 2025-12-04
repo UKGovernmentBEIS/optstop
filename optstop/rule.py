@@ -931,6 +931,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             continuous_tasks = params.get('continuous_tasks', None)
             ordinal_max_score = params.get('ordinal_max_score', 10)
             ordinal_inference = params.get('ordinal_inference', 'modal')
+            ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
             entropy_threshold = params.get('entropy_threshold', 1.5)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
             score_type, bounds = determine_score_type_standalone(
@@ -1045,44 +1046,67 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
                     obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             elif score_type == 'ordinal':
-                # Ordinal hierarchical model (Dirichlet-Multinomial)
+                # === ORDINAL HIERARCHICAL MODEL ===
+                # Two model types available:
+                #   - 'ordered_logistic': Cumulative link model (respects ordinal structure)
+                #   - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
                 n_categories = ordinal_max_score + 1
-                with pm.Model() as ordinal_group_model:
-                    # Group-level: baseline category probabilities
-                    alpha_prior = np.ones(n_categories)
-                    alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
 
-                    # Concentration parameter
-                    kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
+                # Track which model type we actually use (may fall back)
+                actual_model_type = ordinal_model_type
 
-                    # Mutable data containers
-                    n_items_data = pm.Data("n_items", np.array(n_items_total, dtype="int64"))
-                    item_counts_data = pm.Data("item_counts", np.zeros((n_items_total, n_categories), dtype="int64"))
-                    item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
+                if ordinal_model_type == 'ordered_logistic':
+                    # === ORDERED LOGISTIC (Cumulative Link) ===
+                    # Respects ordinal structure via latent scale with identified cutpoints
+                    try:
+                        ordinal_group_model = _create_ordered_logistic_hierarchical(
+                            n_categories=n_categories,
+                            n_items=n_items_total
+                        )
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to create ordered_logistic model for '{grouping_name}': {e}. "
+                            f"Falling back to dirichlet."
+                        )
+                        actual_model_type = 'dirichlet'
 
-                    # Item-level concentrations
-                    alpha_item = alpha_group * kappa
+                if actual_model_type == 'dirichlet':
+                    # === DIRICHLET-MULTINOMIAL ===
+                    # Treats categories as exchangeable (no ordinal structure)
+                    with pm.Model() as ordinal_group_model:
+                        # Group-level: baseline category probabilities
+                        alpha_prior = np.ones(n_categories)
+                        alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
 
-                    # Item-specific probabilities with partial pooling
-                    p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+                        # Concentration parameter
+                        kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
 
-                    # Multinomial likelihood on category counts
-                    obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+                        # Mutable data containers
+                        n_items_data = pm.Data("n_items", np.array(n_items_total, dtype="int64"))
+                        item_counts_data = pm.Data("item_counts", np.zeros((n_items_total, n_categories), dtype="int64"))
+                        item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
 
-                    # Derived quantities for stopping criteria
-                    # Note: Dirichlet samples are on the simplex (sum to 1), so alpha_group
-                    # already represents probabilities. argmax gives the most probable category.
-                    modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
-                    # Note: Normalization is technically redundant but kept for clarity
-                    p_group_normalized = alpha_group / pm.math.sum(alpha_group)
-                    entropy_group = pm.Deterministic(
-                        "entropy_group",
-                        -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
-                    )
+                        # Item-level concentrations
+                        alpha_item = alpha_group * kappa
+
+                        # Item-specific probabilities with partial pooling
+                        p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+
+                        # Multinomial likelihood on category counts
+                        obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+
+                        # Derived quantities for stopping criteria
+                        modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
+                        p_group_normalized = alpha_group / pm.math.sum(alpha_group)
+                        entropy_group = pm.Deterministic(
+                            "entropy_group",
+                            -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
+                        )
 
                 group_ordinal_model_cache['model'] = ordinal_group_model
                 group_ordinal_model_cache['n_items_last'] = n_items_total
                 group_ordinal_model_cache['n_categories_last'] = n_categories
+                group_ordinal_model_cache['model_type'] = actual_model_type
             for item_idx, item_id in enumerate(item_ids):
                 df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
 
@@ -1232,8 +1256,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
                 # Group-level PyMC model refresh (only for binary scoring)
                 if score_type == 'binary' and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
-                    all_successes = np.array([s['successes'] for s in item_summaries])
-                    all_trials = np.array([s['trials'] for s in item_summaries])
+                    all_successes = np.array([s['successes'] for s in item_summaries], dtype=np.int32)
+                    all_trials = np.array([s['trials'] for s in item_summaries], dtype=np.int32)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         with model:
@@ -1670,8 +1694,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
             else:
                 # === ORDINAL SCORING LOGIC ===
-                from .ordinal_utils import (
-                    _ordinal_ci_adaptive,
+                from .ordinal_utils import _ordinal_ci_adaptive
+                from .ordinal_model import (
                     _ordinal_entropy_ci_adaptive,
                     _ordinal_hybrid_stopping_criterion
                 )
@@ -1762,8 +1786,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
             if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
                 if score_type == 'binary':
                     # === BINARY GROUP-LEVEL STOPPING ===
-                    all_successes = np.array([s['successes'] for s in item_summaries])
-                    all_trials = np.array([s['trials'] for s in item_summaries])
+                    all_successes = np.array([s['successes'] for s in item_summaries], dtype=np.int32)
+                    all_trials = np.array([s['trials'] for s in item_summaries], dtype=np.int32)
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
                         with model:
