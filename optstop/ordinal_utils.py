@@ -366,6 +366,84 @@ def determine_score_type(
         return 'binary', {'lower': 0.0, 'upper': 1.0}
 
 
+def determine_score_type_standalone(
+    grouping_name: str,
+    ordinal_tasks: Optional[list] = None,
+    continuous_tasks: Optional[list] = None,
+    upper_bound: float = 1.0
+) -> Tuple[str, Dict[str, float]]:
+    """
+    Determine score type for standalone functions (no in-function aggregation).
+
+    This function is designed for standalone optstop functions (optimal_stopping_posthoc,
+    optimal_stopping_live, convergence_posthoc) where users provide pre-computed scores
+    in the DataFrame. Unlike `determine_score_type` which handles bridge aggregation,
+    this function uses explicit `continuous_tasks` patterns to identify continuous data.
+
+    Score Type Priority:
+    1. If matches continuous_tasks → 'continuous_bounded' (or 'continuous_01' if upper_bound <= 1)
+    2. If matches ordinal_tasks → 'ordinal' (discrete categories)
+    3. Default → 'binary' (discrete 0/1)
+
+    Args:
+        grouping_name: String identifier for the grouping (e.g., "subject1-task_name")
+        ordinal_tasks: List of substrings to match for ordinal (discrete) scoring.
+            If None, ordinal detection is disabled.
+        continuous_tasks: List of substrings to match for continuous bounded scoring.
+            Use this when scores are pre-aggregated floats (e.g., mean of multiple raters).
+            If None, continuous detection is disabled.
+        upper_bound: Upper bound for score range. Use ordinal_max_score for ordinal/continuous.
+
+    Returns:
+        Tuple of (score_type, bounds_dict):
+        - score_type: One of 'binary', 'ordinal', 'continuous_01', 'continuous_bounded'
+        - bounds_dict: Dictionary with keys 'lower' and 'upper'
+
+    Examples:
+        >>> # Default binary
+        >>> determine_score_type_standalone("subject1-accuracy")
+        ('binary', {'lower': 0.0, 'upper': 1.0})
+
+        >>> # Discrete ordinal (0-10 scale)
+        >>> determine_score_type_standalone("subject1-likert", ordinal_tasks=['likert'], upper_bound=10.0)
+        ('ordinal', {'lower': 0.0, 'upper': 10.0})
+
+        >>> # Pre-aggregated continuous scores (e.g., mean of ratings)
+        >>> determine_score_type_standalone("subject1-mean_rating", continuous_tasks=['mean_'], upper_bound=10.0)
+        ('continuous_bounded', {'lower': 0.0, 'upper': 10.0})
+
+        >>> # Continuous 0-1 (e.g., mean of binary scores)
+        >>> determine_score_type_standalone("subject1-mean_accuracy", continuous_tasks=['mean_'])
+        ('continuous_01', {'lower': 0.0, 'upper': 1.0})
+    """
+    logger = logging.getLogger('optstop.ordinal_utils')
+
+    # Handle None or non-string grouping_name gracefully
+    if grouping_name is None:
+        grouping_name_str = ""
+    else:
+        grouping_name_str = str(grouping_name)
+    grouping_name_lower = grouping_name_str.lower()
+
+    # Priority 1: Check for continuous_tasks match
+    if continuous_tasks is not None and len(continuous_tasks) > 0:
+        for continuous_substring in continuous_tasks:
+            if continuous_substring.lower() in grouping_name_lower:
+                if upper_bound <= 1.0:
+                    return 'continuous_01', {'lower': 0.0, 'upper': 1.0}
+                else:
+                    return 'continuous_bounded', {'lower': 0.0, 'upper': upper_bound}
+
+    # Priority 2: Check for ordinal_tasks match
+    if ordinal_tasks is not None and len(ordinal_tasks) > 0:
+        for ordinal_substring in ordinal_tasks:
+            if ordinal_substring.lower() in grouping_name_lower:
+                return 'ordinal', {'lower': 0.0, 'upper': upper_bound}
+
+    # Priority 3: Default to binary
+    return 'binary', {'lower': 0.0, 'upper': 1.0}
+
+
 def counts_to_scores(counts: np.ndarray) -> np.ndarray:
     """
     Reconstruct individual scores from a category count vector.

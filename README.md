@@ -203,7 +203,7 @@ print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
 | `min_samples_per_grouping` | 5 | Minimum samples before first analysis |
 | `ordinal_tasks` | None | List of task names using ordinal scoring |
 | `ordinal_max_score` | 10 | Maximum score for ordinal tasks |
-| `ordinal_inference` | 'hybrid' | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
+| `ordinal_inference` | 'hybrid' | Ordinal inference mode: 'modal', 'entropy', 'hybrid' (bridge default: 'hybrid'; standalone function default: 'modal') |
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
 | `max_workers` | None | Max parallel workers (auto if None) |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
@@ -707,7 +707,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
 | `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |
 | `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale)                 |
-| `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid' (RECOMMENDED)           |
+| `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid'                         |
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
 | `entropy_threshold`      | 1.5       | All          | Threshold for entropy validation in hybrid mode (prevents false peaks)    |
 
@@ -997,7 +997,7 @@ The package provides functions for adaptive optimal stopping, allowing you to de
   - `draws` & `tune`: Use at least 1000 for real analyses; lower values are for testing only.
   - `delta_item` & `delta_cap`: 0.05 for high precision, 0.1 for faster but less precise stopping.
   - `CI_delta`: 0.0002 for stable CI slope; increase for earlier stopping.
-  - `conservatism`: 2 is typical; increase for more caution in low-performance scenarios.
+  - `conservatism`: 5 is the default; increase for more caution in low-performance scenarios.
 - **Reproducibility:**
   - Set a random seed (e.g., `np.random.seed(42)`) for reproducible results.
 - **Logging:**

@@ -1,0 +1,271 @@
+{
+  "manager": "inspect_ai_integration_test",
+  "random_seed": 42,
+  "seed_source": "user_specified",
+  "total_planned_trials": 6000,
+  "total_ran": 5696,
+  "total_skipped": 304,
+  "efficiency_percent": 5.07,
+  "stopped_samples_count": 19,
+  "stopped_samples": [
+    {
+      "id": "arithmetic_basic_018",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14776913427968663,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_006",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1462399604396949,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_011",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1491122453238084,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_023",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14872772836431747,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_017",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1479249938525491,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_013",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1497606302744543,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_029",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14989773012272956,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_042",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14691180615312627,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_045",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14955423858093098,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "algebra_intermediate_008",
+      "epoch": 15,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14902452859302118,
+        "threshold": 0.15,
+        "epochs_used": 15
+      }
+    },
+    {
+      "id": "arithmetic_basic_003",
+      "epoch": 28,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14655103142594894,
+        "threshold": 0.15,
+        "epochs_used": 28
+      }
+    },
+    {
+      "id": "arithmetic_basic_004",
+      "epoch": 28,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1485893942220714,
+        "threshold": 0.15,
+        "epochs_used": 28
+      }
+    },
+    {
+      "id": "arithmetic_basic_027",
+      "epoch": 28,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1490589571901143,
+        "threshold": 0.15,
+        "epochs_used": 28
+      }
+    },
+    {
+      "id": "arithmetic_basic_001",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.1495223746819867,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    },
+    {
+      "id": "arithmetic_basic_010",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14896223631350436,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    },
+    {
+      "id": "arithmetic_basic_015",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14957886985023083,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    },
+    {
+      "id": "arithmetic_basic_028",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14982960251739819,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    },
+    {
+      "id": "arithmetic_basic_020",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.149427178358296,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    },
+    {
+      "id": "arithmetic_basic_025",
+      "epoch": 37,
+      "reason": "ci_width",
+      "metadata": {
+        "reason": "ci_width",
+        "ci_width": 0.14963323602631684,
+        "threshold": 0.15,
+        "epochs_used": 37
+      }
+    }
+  ],
+  "grouping_columns": [
+    "model",
+    "metadata.subtask"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 5,
+  "stopped_samples_per_grouping": {
+    "claude-3-sonnet-arithmetic_basic": 18,
+    "claude-3-sonnet-algebra_intermediate": 1,
+    "claude-3-sonnet-calculus_advanced": 0
+  },
+  "stopped_groupings": [],
+  "stopped_groupings_count": 0,
+  "decision_counters": {
+    "claude-3-sonnet-arithmetic_basic": {
+      "completed_samples": 1721,
+      "inference_calls": 344,
+      "next_inference_at": 1725
+    },
+    "claude-3-sonnet-algebra_intermediate": {
+      "completed_samples": 1975,
+      "inference_calls": 395,
+      "next_inference_at": 1980
+    },
+    "claude-3-sonnet-calculus_advanced": {
+      "completed_samples": 2000,
+      "inference_calls": 400,
+      "next_inference_at": 2005
+    }
+  },
+  "stabilization_histories": {
+    "claude-3-sonnet-arithmetic_basic": {
+      "n_samples": 50,
+      "final_ci_width": 0.1688338671756704,
+      "final_slope": -0.0004130427667163311,
+      "n_group_checks": 344
+    },
+    "claude-3-sonnet-algebra_intermediate": {
+      "n_samples": 50,
+      "final_ci_width": 0.20430604488634685,
+      "final_slope": 0.0012794588513396295,
+      "n_group_checks": 395
+    },
+    "claude-3-sonnet-calculus_advanced": {
+      "n_samples": 50,
+      "final_ci_width": 0.22369584188011554,
+      "final_slope": 0.0001361100216690582,
+      "n_group_checks": 400
+    }
+  }
+}

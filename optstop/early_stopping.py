@@ -1273,11 +1273,14 @@ class OptimalStoppingManager(EarlyStopping):
             'n_group_checks': len(history.get('ci_width_history', [])),
         }
 
-        # Only include ordinal-specific fields if this grouping uses ordinal inference
-        # A grouping uses ordinal if ordinal_tasks is set AND the task part of the grouping
-        # matches one of the ordinal_tasks (case-insensitive, matching determine_score_type logic)
+        # Only include ordinal-specific fields if this grouping uses DISCRETE ordinal inference
+        # A grouping uses discrete ordinal if:
+        # 1. ordinal_tasks is set AND the task matches, AND
+        # 2. score_agg is NOT used (aggregation reroutes to continuous_bounded inference)
+        # This matches the routing logic in ordinal_utils.determine_score_type()
         is_ordinal_grouping = False
-        if self.ordinal_tasks:
+        is_aggregated = self.score_agg in ['mean', 'median']
+        if self.ordinal_tasks and not is_aggregated:
             # Use case-insensitive matching to match routing logic in ordinal_utils.determine_score_type()
             grouping_name_lower = grouping_name.lower()
             for task in self.ordinal_tasks:
@@ -1371,7 +1374,9 @@ class OptimalStoppingManager(EarlyStopping):
         }
 
         # Add glossary for ordinal stopping reasons
-        if self.ordinal_tasks:
+        # Only include if using discrete ordinal inference (not aggregated to continuous)
+        is_aggregated = self.score_agg in ['mean', 'median']
+        if self.ordinal_tasks and not is_aggregated:
             metadata['ordinal_glossary'] = {
                 'modal_ci_narrow_validated': {
                     'description': 'Bootstrap modal confidence interval was narrow and validated by low entropy',

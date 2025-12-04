@@ -852,10 +852,12 @@ def _ordinal_hybrid_stopping_criterion(
     if len(entropy_history) < min_epochs_for_stabilization:
         diagnostics = {
             'pathway': 0,
+            'modal_ci': (float(modal_lo), float(modal_hi)),
             'modal_width': float(modal_width),
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_diag['entropy_median']),
+            'entropy_threshold': float(entropy_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization
         }
@@ -876,10 +878,12 @@ def _ordinal_hybrid_stopping_criterion(
     if relative_change < stabilization_threshold:
         diagnostics = {
             'pathway': 2,
+            'modal_ci': (float(modal_lo), float(modal_hi)),
             'modal_width': float(modal_width),
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_diag['entropy_median']),
+            'entropy_threshold': float(entropy_threshold),
             'width_history': [float(w) for w in recent_widths],
             'relative_change': float(relative_change),
             'stabilization_threshold': float(stabilization_threshold)
@@ -893,10 +897,12 @@ def _ordinal_hybrid_stopping_criterion(
     # Continue collecting data
     diagnostics = {
         'pathway': 0,
+        'modal_ci': (float(modal_lo), float(modal_hi)),
         'modal_width': float(modal_width),
         'entropy_ci': (float(entropy_lo), float(entropy_hi)),
         'entropy_width': float(entropy_width),
         'entropy_median': float(entropy_diag['entropy_median']),
+        'entropy_threshold': float(entropy_threshold),
         'width_history': [float(w) for w in recent_widths],
         'relative_change': float(relative_change),
         'learning': True
@@ -1057,10 +1063,12 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         diagnostics = {
             'pathway': 0,
             'inference_type': 'hierarchical',
+            'modal_ci': (float(modal_lo), float(modal_hi)),
             'modal_width': float(modal_width),
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
+            'entropy_threshold': float(entropy_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization,
             'n_items': n_items,
@@ -1083,10 +1091,12 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         diagnostics = {
             'pathway': 2,
             'inference_type': 'hierarchical',
+            'modal_ci': (float(modal_lo), float(modal_hi)),
             'modal_width': float(modal_width),
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
+            'entropy_threshold': float(entropy_threshold),
             'width_history': [float(w) for w in recent_widths],
             'relative_change': float(relative_change),
             'stabilization_threshold': float(stabilization_threshold),
@@ -1099,10 +1109,12 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     diagnostics = {
         'pathway': 0,
         'inference_type': 'hierarchical',
+        'modal_ci': (float(modal_lo), float(modal_hi)),
         'modal_width': float(modal_width),
         'entropy_ci': (float(entropy_lo), float(entropy_hi)),
         'entropy_width': float(entropy_width),
         'entropy_median': float(entropy_median),
+        'entropy_threshold': float(entropy_threshold),
         'width_history': [float(w) for w in recent_widths],
         'relative_change': float(relative_change),
         'n_items': n_items,

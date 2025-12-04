@@ -33,7 +33,8 @@ from . import cleanup_utils
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
     validate_ordinal_scores,
-    determine_score_type
+    determine_score_type,
+    determine_score_type_standalone
 )
 
 # Suppress PyMC logging and warnings
@@ -241,15 +242,22 @@ def _process_grouping(args):
         item_seqs = params.get('item_seqs', 20)
         epoch_seqs = params.get('epoch_seqs', 20)
 
-        # Ordinal-specific parameters
+        # Ordinal and continuous-specific parameters
         ordinal_tasks = params.get('ordinal_tasks', None)
+        continuous_tasks = params.get('continuous_tasks', None)
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
+        ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
         entropy_threshold = params.get('entropy_threshold', 1.5)
 
         # Determine score type for this grouping
         grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
-        score_type = determine_score_type(grouping_name, ordinal_tasks)
+        score_type, bounds = determine_score_type_standalone(
+            grouping_name,
+            ordinal_tasks=ordinal_tasks,
+            continuous_tasks=continuous_tasks,
+            upper_bound=ordinal_max_score
+        )
 
         logger.info(f"Processing convergence for grouping {pid} ('{grouping_name}') with {score_type} scoring" +
                    (f" (inference: {ordinal_inference})" if score_type == 'ordinal' else ""))
@@ -774,7 +782,7 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
 # Removed _configure_multiprocessing_environment to prevent race conditions
 # Worker processes now handle their own environment setup via initializers
 
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', entropy_threshold: float = 1.5):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 1.5):
     """
     Post-hoc convergence analysis, parallelized across groupings.
 
@@ -794,6 +802,15 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
       - ordinal_tasks: List of substrings to identify ordinal groupings (e.g., ['confidence', 'rating']). If None, all groupings use binary scoring.
       - ordinal_max_score: Maximum score for ordinal data (e.g., 10 for 0-10 scale). Default: 10.
       - ordinal_inference: Inference method for ordinal data: 'modal', 'entropy', or 'hybrid' (recommended). Default: 'modal'.
+      - ordinal_model_type: Hierarchical model type for ordinal data (default: 'ordered_logistic')
+          * 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
+          * 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
+          Falls back to 'dirichlet' if ordered_logistic sampling fails.
+      - continuous_tasks: List of substrings to identify continuous bounded groupings (default: None)
+          * If None: Continuous inference is not used
+          * If provided: Tasks whose grouping name contains any substring use Beta distribution inference
+          * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
+          * Priority: continuous_tasks > ordinal_tasks > binary (default)
       - entropy_threshold: Threshold for entropy validation in hybrid mode (prevents false peaks). Default: 1.5.
 
     Returns a DataFrame of convergence statistics.
@@ -855,16 +872,24 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     if ordinal_inference not in ['modal', 'entropy', 'hybrid']:
         raise ValueError(f"ordinal_inference must be 'modal', 'entropy', or 'hybrid', got '{ordinal_inference}'")
 
-    # Add ordinal parameters to params dict for worker processes
-    if ordinal_tasks is not None:
-        params_with_context['ordinal_tasks'] = ordinal_tasks
-        params_with_context['ordinal_max_score'] = ordinal_max_score
-        params_with_context['ordinal_inference'] = ordinal_inference
-        params_with_context['entropy_threshold'] = entropy_threshold
+    # Add score type parameters to params dict for worker processes
+    # These are always set so workers can use determine_score_type_standalone
+    params_with_context['ordinal_tasks'] = ordinal_tasks
+    params_with_context['continuous_tasks'] = continuous_tasks
+    params_with_context['ordinal_max_score'] = ordinal_max_score
+    params_with_context['ordinal_inference'] = ordinal_inference
+    params_with_context['ordinal_model_type'] = ordinal_model_type
+    params_with_context['entropy_threshold'] = entropy_threshold
 
-        # Validate ordinal scores upfront for all ordinal groupings
+    # Validate ordinal scores upfront for all ordinal groupings
+    if ordinal_tasks is not None:
         for grouping_name in df['grouping'].unique():
-            score_type = determine_score_type(grouping_name, ordinal_tasks)
+            score_type, bounds = determine_score_type_standalone(
+                grouping_name,
+                ordinal_tasks=ordinal_tasks,
+                continuous_tasks=continuous_tasks,
+                upper_bound=ordinal_max_score
+            )
             if score_type == 'ordinal':
                 grouping_data = df[df['grouping'] == grouping_name]
                 validate_ordinal_scores(
@@ -873,6 +898,8 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
                     grouping_name
                 )
                 logger.info(f"Validated ordinal scores for grouping '{grouping_name}' (using {ordinal_inference} inference)")
+            elif score_type in ('continuous_bounded', 'continuous_01'):
+                logger.info(f"Grouping '{grouping_name}' will use continuous bounded inference (Beta distribution)")
 
     args_list = [(pid, df_part, params_with_context, score_column) for pid, df_part in groupings]
 

@@ -44,6 +44,7 @@ from .ordinal_utils import (
     _ordinal_ci_adaptive,
     validate_ordinal_scores,
     determine_score_type,
+    determine_score_type_standalone,
     counts_to_scores,
     aggregate_item_counts,
     _ordinal_ci_hierarchical_modal,
@@ -927,15 +928,15 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
             # Determine score type for this grouping
             ordinal_tasks = params.get('ordinal_tasks', None)
+            continuous_tasks = params.get('continuous_tasks', None)
             ordinal_max_score = params.get('ordinal_max_score', 10)
             ordinal_inference = params.get('ordinal_inference', 'modal')
             entropy_threshold = params.get('entropy_threshold', 1.5)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
-            is_aggregated = params.get('is_aggregated', False)
-            score_type, bounds = determine_score_type(
+            score_type, bounds = determine_score_type_standalone(
                 grouping_name,
-                ordinal_tasks,
-                is_aggregated=is_aggregated,
+                ordinal_tasks=ordinal_tasks,
+                continuous_tasks=continuous_tasks,
                 upper_bound=ordinal_max_score
             )
 
@@ -1500,18 +1501,17 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
         # Extract ordinal parameters
         ordinal_tasks = params.get('ordinal_tasks', None)
+        continuous_tasks = params.get('continuous_tasks', None)
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
         entropy_threshold = params.get('entropy_threshold', 1.5)
 
         # Determine score type for this grouping
-        from .ordinal_utils import determine_score_type
-        is_aggregated = params.get('is_aggregated', False)
-        score_type, bounds = determine_score_type(
+        score_type, bounds = determine_score_type_standalone(
             grouping,
-            ordinal_tasks,
-            is_aggregated=is_aggregated,
+            ordinal_tasks=ordinal_tasks,
+            continuous_tasks=continuous_tasks,
             upper_bound=ordinal_max_score
         )
         # logger.info(f"Grouping '{grouping}' identified as {score_type.upper()}")  # Verbose
@@ -1915,6 +1915,7 @@ def optimal_stopping_posthoc(
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
+    continuous_tasks: Optional[List[str]] = None,
     entropy_threshold: float = 1.5,
     gpu_ids: Optional[List[int]] = None,
     max_workers: Optional[int] = None
@@ -1947,6 +1948,12 @@ def optimal_stopping_posthoc(
           * 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
           * 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
           * Falls back to 'dirichlet' if ordered_logistic sampling fails
+      - continuous_tasks: List of task/grouping name substrings that use continuous bounded scoring (default: None)
+          * If None: Continuous inference is not used
+          * If provided: Tasks whose grouping name contains any substring use Beta distribution inference
+          * Example: ['mean_score', 'aggregated'] → groupings containing these strings use continuous inference
+          * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
+          * Priority: continuous_tasks > ordinal_tasks > binary (default)
       - entropy_threshold: Threshold for entropy CI width when using entropy inference (default: 1.5)
           * Only used for pure 'entropy' mode (not 'hybrid')
           * Lower values → more aggressive stopping
@@ -2000,21 +2007,22 @@ def optimal_stopping_posthoc(
     if ordinal_inference not in ['modal', 'entropy', 'hybrid']:
         raise ValueError(f"ordinal_inference must be 'modal', 'entropy', or 'hybrid', got '{ordinal_inference}'")
 
-    # Add ordinal parameters to params dict for worker processes
-    if ordinal_tasks is not None:
-        params_with_context['ordinal_tasks'] = ordinal_tasks
-        params_with_context['ordinal_max_score'] = ordinal_max_score
-        params_with_context['ordinal_inference'] = ordinal_inference
-        params_with_context['ordinal_model_type'] = ordinal_model_type
-        params_with_context['entropy_threshold'] = entropy_threshold
+    # Add score type parameters to params dict for worker processes
+    # These are always set so workers can use determine_score_type_standalone
+    params_with_context['ordinal_tasks'] = ordinal_tasks
+    params_with_context['continuous_tasks'] = continuous_tasks
+    params_with_context['ordinal_max_score'] = ordinal_max_score
+    params_with_context['ordinal_inference'] = ordinal_inference
+    params_with_context['ordinal_model_type'] = ordinal_model_type
+    params_with_context['entropy_threshold'] = entropy_threshold
 
-        # Validate ordinal scores upfront for all ordinal groupings
+    # Validate ordinal scores upfront for all ordinal groupings
+    if ordinal_tasks is not None:
         for grouping_name in df['grouping'].unique():
-            is_aggregated = params_with_context.get('is_aggregated', False)
-            score_type, bounds = determine_score_type(
+            score_type, bounds = determine_score_type_standalone(
                 grouping_name,
-                ordinal_tasks,
-                is_aggregated=is_aggregated,
+                ordinal_tasks=ordinal_tasks,
+                continuous_tasks=continuous_tasks,
                 upper_bound=ordinal_max_score
             )
             if score_type == 'ordinal':
@@ -2025,6 +2033,8 @@ def optimal_stopping_posthoc(
                     grouping_name
                 )
                 logger.info(f"Validated ordinal scores for grouping '{grouping_name}' (using {ordinal_inference} inference)")
+            elif score_type in ('continuous_bounded', 'continuous_01'):
+                logger.info(f"Grouping '{grouping_name}' will use continuous bounded inference (Beta distribution)")
 
     args_list = [(pid, df_part, params_with_context, score_column) for pid, df_part in groupings]
 
@@ -3163,7 +3173,7 @@ def optimal_stopping_live_single(
     }
 
 
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
 
@@ -3190,6 +3200,11 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             - 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
             - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
             Falls back to 'dirichlet' if ordered_logistic sampling fails.
+        continuous_tasks: List of substrings to identify continuous bounded groupings. If a grouping name
+            contains any of these substrings (case-insensitive), it will be treated as continuous bounded.
+            If None, continuous inference is not used. Example: ['mean_score', 'aggregated']
+            Scores must be pre-aggregated floats in [0, ordinal_max_score] range.
+            Priority: continuous_tasks > ordinal_tasks > binary (default)
         entropy_threshold: Threshold for entropy validation in hybrid mode (default: 1.5).
             Used to detect false peaks: if entropy > threshold, modal CI narrow is rejected as false peak.
             Typical values: 1.0 for 5-point scale, 1.5 for 11-point scale, 2.0 for 21-point scale.
@@ -3242,41 +3257,35 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         # Validate and configure GPU settings
         validated_gpu_ids, validated_max_workers = gpu_utils.validate_gpu_configuration(gpu_ids, max_workers)
 
-        # Add ordinal parameters to params dict for worker propagation
+        # Add score type parameters to params dict for worker propagation
         params_with_context = params.copy()
         params_with_context['ordinal_tasks'] = ordinal_tasks
+        params_with_context['continuous_tasks'] = continuous_tasks
         params_with_context['ordinal_max_score'] = ordinal_max_score
         params_with_context['ordinal_inference'] = ordinal_inference
         params_with_context['ordinal_model_type'] = ordinal_model_type
         params_with_context['entropy_threshold'] = entropy_threshold
 
-        # Validate ordinal scores upfront if ordinal tasks specified
-        if ordinal_tasks:
-            logger.info(f"Ordinal task patterns: {ordinal_tasks}")
-            logger.info(f"Ordinal max score: {ordinal_max_score}")
-            logger.info(f"Ordinal inference mode: {ordinal_inference}")
-            logger.info(f"Entropy threshold: {entropy_threshold}")
-
-            # Determine which groupings are ordinal
-            ordinal_groupings = set()
-            for grouping in df['grouping'].unique():
-                if any(pattern.lower() in grouping.lower() for pattern in ordinal_tasks):
-                    ordinal_groupings.add(grouping)
-
-            if ordinal_groupings:
-                logger.info(f"Identified {len(ordinal_groupings)} ordinal groupings")
-                # Validate ordinal scores for ordinal groupings
-                from .ordinal_utils import validate_ordinal_scores
-                for grouping in ordinal_groupings:
-                    df_grouping = df[df['grouping'] == grouping]
-                    validate_ordinal_scores(
-                        df_grouping[score_column].values,
-                        ordinal_max_score,
-                        grouping_name=grouping
-                    )
-                    logger.info(f"Grouping '{grouping}' identified as ORDINAL (contains pattern from {ordinal_tasks})")
+        # Validate ordinal scores upfront and log score type routing
+        for grouping in df['grouping'].unique():
+            score_type, bounds = determine_score_type_standalone(
+                grouping,
+                ordinal_tasks=ordinal_tasks,
+                continuous_tasks=continuous_tasks,
+                upper_bound=ordinal_max_score
+            )
+            if score_type == 'ordinal':
+                df_grouping = df[df['grouping'] == grouping]
+                validate_ordinal_scores(
+                    df_grouping[score_column].values,
+                    ordinal_max_score,
+                    grouping_name=grouping
+                )
+                logger.info(f"Grouping '{grouping}' identified as ORDINAL (using {ordinal_inference} inference)")
+            elif score_type in ('continuous_bounded', 'continuous_01'):
+                logger.info(f"Grouping '{grouping}' identified as CONTINUOUS BOUNDED (Beta distribution)")
             else:
-                logger.info("No groupings matched ordinal patterns - all will be treated as binary")
+                logger.info(f"Grouping '{grouping}' identified as BINARY")
 
         # Environment configuration is now handled by worker initializers only
         # Remove global configuration to prevent race conditions

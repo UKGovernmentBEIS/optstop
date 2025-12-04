@@ -1,7 +1,7 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.3.0+
-**Last Updated:** 2025-12-02
+**Version:** 0.2.1+
+**Last Updated:** 2025-12-04
 **Status:** Production Ready (Phase 1-3 Complete)
 **Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
@@ -1799,6 +1799,6 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2025-12-02
+**Last Updated:** 2025-12-04
 **Document Version:** 1.2
 **Phase:** Production Ready (Phase 1-3 Complete)

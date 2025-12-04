@@ -1,0 +1,151 @@
+{
+  "manager": "ordinal_inference_test",
+  "random_seed": 42,
+  "seed_source": "user_specified",
+  "total_planned_trials": 1500,
+  "total_ran": 360,
+  "total_skipped": 1140,
+  "efficiency_percent": 76.0,
+  "stopped_samples_count": 2,
+  "stopped_samples": [
+    {
+      "id": "rubric_basic_023",
+      "epoch": 2,
+      "reason": "modal_ci_narrow_validated",
+      "metadata": {
+        "reason": "modal_ci_narrow_validated",
+        "epochs_used": 2,
+        "diagnostics": {
+          "pathway": 1,
+          "modal_ci": [
+            0.9646446609406726,
+            1.0
+          ],
+          "modal_width": 0.07071067811865475,
+          "entropy_median": 1.3606801822353378,
+          "entropy_threshold": 1.5,
+          "threshold": 0.15,
+          "entropy_epochs": 0,
+          "validated": true
+        }
+      }
+    },
+    {
+      "id": "rubric_advanced_026",
+      "epoch": 2,
+      "reason": "modal_ci_narrow_validated",
+      "metadata": {
+        "reason": "modal_ci_narrow_validated",
+        "epochs_used": 2,
+        "diagnostics": {
+          "pathway": 1,
+          "modal_ci": [
+            0.0,
+            0.035355339059327376
+          ],
+          "modal_width": 0.1414213562373095,
+          "entropy_median": 1.4018637509714438,
+          "entropy_threshold": 1.5,
+          "threshold": 0.15,
+          "entropy_epochs": 0,
+          "validated": true
+        }
+      }
+    }
+  ],
+  "grouping_columns": [
+    "model",
+    "metadata.subtask"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 5,
+  "stopped_samples_per_grouping": {
+    "claude-3-sonnet-rubric_basic": 1,
+    "claude-3-sonnet-rubric_intermediate": 0,
+    "claude-3-sonnet-rubric_advanced": 1
+  },
+  "stopped_groupings": [
+    "claude-3-sonnet-rubric_intermediate",
+    "claude-3-sonnet-rubric_basic",
+    "claude-3-sonnet-rubric_advanced"
+  ],
+  "stopped_groupings_count": 3,
+  "decision_counters": {
+    "claude-3-sonnet-rubric_basic": {
+      "completed_samples": 80,
+      "inference_calls": 16,
+      "next_inference_at": 85
+    },
+    "claude-3-sonnet-rubric_intermediate": {
+      "completed_samples": 55,
+      "inference_calls": 11,
+      "next_inference_at": 60
+    },
+    "claude-3-sonnet-rubric_advanced": {
+      "completed_samples": 225,
+      "inference_calls": 45,
+      "next_inference_at": 230
+    }
+  },
+  "stabilization_histories": {
+    "claude-3-sonnet-rubric_basic": {
+      "n_samples": 50,
+      "final_ci_width": 0.10000000000000009,
+      "final_slope": null,
+      "n_group_checks": 16,
+      "final_modal_ci_width": 0.10000000000000009,
+      "final_modal_ci": null,
+      "final_entropy": 1.1110378812747097,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": 0.1328903506905883,
+      "final_relative_change": 0.0015496782404286178,
+      "final_stabilization_threshold": 0.002,
+      "ordinal_pathway": 2
+    },
+    "claude-3-sonnet-rubric_intermediate": {
+      "n_samples": 50,
+      "final_ci_width": 0.19999999999999996,
+      "final_slope": null,
+      "n_group_checks": 11,
+      "final_modal_ci_width": 0.19999999999999996,
+      "final_modal_ci": null,
+      "final_entropy": 1.2570473741982773,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": 0.12983425985681651,
+      "final_relative_change": 0.0013554859074564837,
+      "final_stabilization_threshold": 0.002,
+      "ordinal_pathway": 2
+    },
+    "claude-3-sonnet-rubric_advanced": {
+      "n_samples": 50,
+      "final_ci_width": 0.2,
+      "final_slope": null,
+      "n_group_checks": 45,
+      "final_modal_ci_width": 0.2,
+      "final_modal_ci": null,
+      "final_entropy": 1.3714779427397907,
+      "final_entropy_threshold": null,
+      "final_entropy_ci_width": 0.05085056083184436,
+      "final_relative_change": 0.0007629600661467877,
+      "final_stabilization_threshold": 0.002,
+      "ordinal_pathway": 2
+    }
+  },
+  "ordinal_glossary": {
+    "modal_ci_narrow_validated": {
+      "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+      "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+      "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+    },
+    "entropy_stabilized": {
+      "description": "Distribution entropy converged, indicating stable ordinal estimates",
+      "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+      "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+    },
+    "continue_insufficient_history": {
+      "description": "Need more epochs to assess stabilization",
+      "interpretation": "Collecting more data to establish convergence pattern",
+      "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+    }
+  }
+}

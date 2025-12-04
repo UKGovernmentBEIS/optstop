@@ -63,6 +63,8 @@ def main():
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
+        parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
@@ -99,6 +101,11 @@ def main():
         if args.ordinal_tasks:
             ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
 
+        # Parse continuous_tasks if provided
+        continuous_tasks = None
+        if args.continuous_tasks:
+            continuous_tasks = [task.strip() for task in args.continuous_tasks.split(',')]
+
         # Parse grouping_columns
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         pruned_df, summary = optimal_stopping_posthoc(
@@ -109,6 +116,8 @@ def main():
             ordinal_tasks=ordinal_tasks,
             ordinal_max_score=args.ordinal_max_score,
             ordinal_inference=args.ordinal_inference,
+            ordinal_model_type=args.ordinal_model_type,
+            continuous_tasks=continuous_tasks,
             entropy_threshold=args.entropy_threshold
         )
         pruned_df.to_csv(args.output, index=False)
@@ -162,6 +171,8 @@ def main_live():
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
+        parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
@@ -198,6 +209,11 @@ def main_live():
         if args.ordinal_tasks:
             ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
 
+        # Parse continuous_tasks if provided
+        continuous_tasks = None
+        if args.continuous_tasks:
+            continuous_tasks = [task.strip() for task in args.continuous_tasks.split(',')]
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = optimal_stopping_live(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
@@ -205,6 +221,8 @@ def main_live():
             ordinal_tasks=ordinal_tasks,
             ordinal_max_score=args.ordinal_max_score,
             ordinal_inference=args.ordinal_inference,
+            ordinal_model_type=args.ordinal_model_type,
+            continuous_tasks=continuous_tasks,
             entropy_threshold=args.entropy_threshold
         )
         print("Sample IDs to stop:", result['stop_sample_ids'])
@@ -260,6 +278,8 @@ def main_convergence():
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
+        parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
+        parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=1.5, help='Entropy threshold for false peak detection in hybrid mode (default: 1.5)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
@@ -298,6 +318,11 @@ def main_convergence():
         if args.ordinal_tasks:
             ordinal_tasks = [task.strip() for task in args.ordinal_tasks.split(',')]
 
+        # Parse continuous_tasks if provided
+        continuous_tasks = None
+        if args.continuous_tasks:
+            continuous_tasks = [task.strip() for task in args.continuous_tasks.split(',')]
+
         grouping_columns = [col.strip() for col in args.grouping_columns.split(',')] if ',' in args.grouping_columns else args.grouping_columns.strip()
         result = convergence_posthoc(
             df, params, grouping_columns, args.sample_id_column, args.epoch_column, args.score_column,
@@ -307,6 +332,8 @@ def main_convergence():
             ordinal_tasks=ordinal_tasks,
             ordinal_max_score=args.ordinal_max_score,
             ordinal_inference=args.ordinal_inference,
+            ordinal_model_type=args.ordinal_model_type,
+            continuous_tasks=continuous_tasks,
             entropy_threshold=args.entropy_threshold
         )
         result.to_csv(args.output, index=False)
