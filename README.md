@@ -149,7 +149,7 @@ OptimalStoppingManager(
 )
 ```
 
-**⚠️ Performance Note for Ordinal Discrete Tasks:**
+**Performance Note for Ordinal Discrete Tasks:**
 Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive.
 
 **Typical per-inference timing (CPU, ~100 completed trials):**
@@ -249,7 +249,7 @@ for sample in diagnostics['stopped_samples']:
 
 ### Compatibility
 
-- **optstop version**: 0.2.1+ (reproducibility features require 0.2.1+)
+- **optstop version**: 0.3.0+
 - **inspect_ai version**: 0.3.0+
 - **Python version**: 3.10+
 
@@ -404,9 +404,10 @@ Posthoc and live optimal stopping also benefit from vectorization (~5-20% faster
 ### Overview
 - **Binary scoring**: Traditional 0/1 success/failure data (default)
 - **Ordinal scoring**: Likert scale data (e.g., confidence ratings, difficulty ratings on 0-10 scale)
-- **Mixed datasets**: Seamlessly handle both binary and ordinal groupings in the same analysis
+- **Continuous bounded scoring**: Pre-aggregated mean scores in [0, 1] range (e.g., average accuracy across sub-items)
+- **Mixed datasets**: Seamlessly handle binary, ordinal, and continuous groupings in the same analysis
 
-### Ordinal Parameters
+### Score Type Parameters
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
@@ -415,6 +416,7 @@ Posthoc and live optimal stopping also benefit from vectorization (~5-20% faster
 | `ordinal_inference` | str | 'modal' | Inference method: `'modal'`, `'entropy'`, or `'hybrid'` (recommended) |
 | `ordinal_model_type` | str | 'ordered_logistic' | Hierarchical model type: `'ordered_logistic'` or `'dirichlet'` |
 | `entropy_threshold` | float | 1.5 | Threshold for entropy validation in hybrid mode (prevents false peaks) |
+| `continuous_tasks` | List[str] or None | None | Substrings to identify continuous bounded groupings (e.g., `['mean_score', 'avg_rating']`) |
 
 ### Model Types
 
@@ -527,30 +529,74 @@ print(result['stop_sample_ids'])  # Item IDs that reached stopping criteria
 print(result['stop_task'])        # Groupings that reached stopping criteria
 ```
 
+### Example Usage: Continuous Bounded Scoring
+
+For tasks with pre-aggregated mean scores in the [0, 1] range (e.g., average accuracy across multiple sub-items):
+
+```python
+import pandas as pd
+from optstop import optimal_stopping_posthoc
+
+# Dataset with continuous bounded scores (pre-aggregated means)
+df = pd.DataFrame({
+    'model': ['gpt-4']*20 + ['claude']*20,
+    'task': ['qa_accuracy']*10 + ['summary_quality']*10 + ['qa_accuracy']*10 + ['summary_quality']*10,
+    'item_id': list(range(5))*8,
+    'epoch': [1,2]*20,
+    'score': [0.85, 0.82, 0.91, 0.78, 0.88] * 4 + [0.72, 0.75, 0.68, 0.81, 0.77] * 4  # Mean scores in [0,1]
+})
+
+params = {
+    'delta_item': 0.10,
+    'delta_cap': 0.05,
+    'cred_level': 0.95,
+}
+
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['model', 'task'],
+    sample_id_column='item_id',
+    epoch_column='epoch',
+    score_column='score',
+
+    # Continuous bounded parameters:
+    continuous_tasks=['accuracy', 'quality'],  # Substrings to identify continuous groupings
+)
+```
+
+**When to use continuous bounded scoring:**
+- Scores are already aggregated means (e.g., accuracy averaged across sub-items)
+- Scores are naturally in the [0, 1] range
+- You want fast inference (~5-6 seconds per analysis vs ~7-8 minutes for ordinal)
+
 ### How It Works
 
-1. **Automatic Detection**: The package uses substring matching to identify ordinal groupings
-   - Example: If `ordinal_tasks=['confidence']`, any grouping containing "confidence" (case-insensitive) uses ordinal scoring
-   - All other groupings use binary scoring
+1. **Automatic Detection**: The package uses substring matching to identify score types
+   - `ordinal_tasks=['confidence']`: Any grouping containing "confidence" (case-insensitive) uses ordinal scoring
+   - `continuous_tasks=['accuracy']`: Any grouping containing "accuracy" (case-insensitive) uses continuous bounded scoring
+   - All other groupings use binary scoring (default)
 
-2. **Score Validation**: Ordinal scores are validated to be in range [0, `ordinal_max_score`]
+2. **Score Validation**:
+   - Ordinal scores are validated to be in range [0, `ordinal_max_score`]
+   - Continuous scores are validated to be in range [0, 1]
+   - Binary scores are validated to be 0 or 1
 
 3. **Independent Processing**: Each grouping is processed with the correct scoring method (no cross-contamination)
 
-4. **False Peak Detection**: In hybrid mode, `entropy_threshold` prevents premature stopping on diffuse data
+4. **False Peak Detection**: In hybrid mode for ordinal scoring, `entropy_threshold` prevents premature stopping on diffuse data
 
-### Ordinal Support Status
+### Score Type Support Status
 
-| Function | Ordinal Support | Notes |
-|----------|----------------|-------|
-| `optimal_stopping_posthoc` | ✅ Full support | All inference modes available |
-| `optimal_stopping_live` | ✅ Full support | All inference modes available |
-| `convergence_posthoc` | ✅ Full support | All inference modes available |
+| Function | Binary | Ordinal | Continuous Bounded | Notes |
+|----------|--------|---------|-------------------|-------|
+| `optimal_stopping_posthoc` | Yes | Yes | Yes | All inference modes available |
+| `optimal_stopping_live` | Yes | Yes | Yes | All inference modes available |
+| `convergence_posthoc` | Yes | Yes | Yes | All inference modes available |
 
-### CLI Usage with Ordinal Data
+### CLI Usage with Ordinal and Continuous Data
 
 ```bash
-# Post-hoc mode
+# Post-hoc mode with ordinal scoring
 optstop-posthoc --csv data.csv --output pruned.csv \
   --grouping_columns student,task \
   --sample_id_column item_id \
@@ -561,16 +607,23 @@ optstop-posthoc --csv data.csv --output pruned.csv \
   --ordinal_inference hybrid \
   --entropy_threshold 1.5
 
-# Live mode
+# Live mode with continuous bounded scoring
 optstop-live --csv current_data.csv \
-  --grouping_columns student,task \
+  --grouping_columns model,task \
   --sample_id_column item_id \
   --epoch_column trial_num \
   --score_column score \
-  --ordinal_tasks confidence,rating \
+  --continuous_tasks accuracy,quality
+
+# Mixed: ordinal + continuous in same dataset
+optstop-posthoc --csv mixed_data.csv --output pruned.csv \
+  --grouping_columns model,task \
+  --sample_id_column item_id \
+  --epoch_column trial_num \
+  --score_column score \
+  --ordinal_tasks confidence \
   --ordinal_max_score 10 \
-  --ordinal_inference hybrid \
-  --entropy_threshold 1.5
+  --continuous_tasks accuracy
 ```
 
 ## Installation
@@ -710,6 +763,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid'                         |
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
 | `entropy_threshold`      | 1.5       | All          | Threshold for entropy validation in hybrid mode (prevents false peaks)    |
+| `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
 
 ### Example: Setting Parameters
 
@@ -1331,6 +1385,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 
 ### 2. Live Optimal Stopping
 **Command:**
@@ -1364,6 +1419,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
 ### 3. Convergence Analysis
@@ -1401,6 +1457,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 

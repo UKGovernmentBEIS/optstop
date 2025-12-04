@@ -1,8 +1,8 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.2.1+
+**Version:** 0.3.0
 **Last Updated:** 2025-12-04
-**Status:** Production Ready (Phase 1-3 Complete)
+**Status:** Production Ready
 **Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
 ---
@@ -72,7 +72,7 @@ The computational cost of early stopping inference varies dramatically based on 
 
 ---
 
-### 2. **MCMC Sampling Parameters** ⚠️ CRITICAL
+### 2. **MCMC Sampling Parameters (Critical)**
 
 The `draws` and `tune` parameters have **linear impact** on inference time:
 
@@ -105,7 +105,7 @@ optstop_params = {
 
 ---
 
-### 3. **Numpyro/JAX CPU Backend** 🚀
+### 3. **Numpyro/JAX CPU Backend**
 
 For **ordinal inference**, optstop automatically uses [numpyro](https://num.pyro.ai/) (JAX-based) for **~2× speedup** on CPU sampling:
 
@@ -129,7 +129,7 @@ Check logs for: `"Configured sampling for CPU: numpyro (JAX/numpyro CPU backend)
 
 ---
 
-### 4. **Reanalysis Interval vs. Inference Time** 🔴 CRITICAL
+### 4. **Reanalysis Interval vs. Inference Time (Critical)**
 
 **Rule:** `inference_time` must be **less than** time between inference triggers.
 
@@ -146,24 +146,24 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 - Time between any grouping hitting threshold: ~25 minutes
 
 **If inference takes 60 minutes:**
-- ❌ Queue backs up (60min >> 25min)
-- ❌ Stopping decisions arrive too late
-- ❌ 0% efficiency (all trials complete before first inference finishes)
+- Queue backs up (60min >> 25min)
+- Stopping decisions arrive too late
+- 0% efficiency (all trials complete before first inference finishes)
 
 **If inference takes 3 minutes:**
-- ✅ No bottleneck (3min << 25min)
-- ✅ Stopping decisions arrive in time
-- ✅ 40-60% efficiency achieved
+- No bottleneck (3min << 25min)
+- Stopping decisions arrive in time
+- 40-60% efficiency achieved
 
 ---
 
-### 5. **Ordinal Inference Mode Selection** ⚠️ CRITICAL
+### 5. **Ordinal Inference Mode Selection (Critical)**
 
 | Mode | Speed | Use Case | Performance |
 |------|-------|----------|-------------|
-| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | ✅ **RECOMMENDED for production** |
-| **entropy** | ~60min | Diffuse distributions (spread across many categories) | ⚠️ Slow, use only when needed |
-| **hybrid** | ~60min | Auto-selects modal or entropy | 🔴 **AVOID for large-scale** |
+| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended for production** |
+| **entropy** | ~60min | Diffuse distributions (spread across many categories) | Slow, use only when needed |
+| **hybrid** | ~60min | Auto-selects modal or entropy | **Avoid for large-scale** |
 
 **Why hybrid is slow:**
 - Computes BOTH modal (fast) AND entropy (slow) every time
@@ -191,7 +191,7 @@ ordinal_inference='hybrid'  # Safe but slow
 - Hybrid: Catches all cases but 100-1000× slower
 - For most LLM evaluations, modal is sufficient (models are typically consistent or consistently inconsistent)
 
-**🔧 GPU Recommendation for Ordinal Tasks:**
+**GPU Recommendation for Ordinal Tasks:**
 If your evaluation trials complete quickly (< 5 minutes per trial), ordinal inference may become a bottleneck. **GPU acceleration is strongly recommended** for ordinal discrete tasks, providing a typical **2-4× speedup** for MCMC sampling:
 
 ```python
@@ -369,10 +369,10 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 
 **Advanced parameters (performance-critical):**
 - `draws` (int, default: 6000): Number of MCMC samples
-  - ⚠️ **Performance impact:** Linear scaling with inference time
+  - **Performance impact:** Linear scaling with inference time
   - **Recommended production:** 300-500 (60-120× faster than default!)
 - `tune` (int, default: 6000): Number of MCMC tuning steps
-  - ⚠️ **Performance impact:** Linear scaling with inference time
+  - **Performance impact:** Linear scaling with inference time
   - **Recommended production:** 300-500
 - `chains` (int, default: 4): Number of MCMC chains
   - **Recommended production:** 2 (2× faster)
@@ -386,7 +386,7 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - **Higher values** = more aggressive (stop with LESS stability)
   - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
 
-**⚠️ CRITICAL:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values are sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
+**Important:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values are sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
 
 **Example (production-optimized):**
 ```python
@@ -455,7 +455,7 @@ Aggregate multiple scores using the specified method.
 
 **Use when:** You have multiple scorers and want to combine them.
 
-**⚠️ CRITICAL ROUTING BEHAVIOR:**
+**Important routing behavior:**
 - If `score_agg in ['mean', 'median']`: Routes to **continuous bounded** inference (hierarchical Beta model)
 - If `score_agg is None`: Routes to **discrete** inference (binary or ordinal, depending on `ordinal_tasks`)
 
@@ -498,7 +498,7 @@ Minimum number of completed samples before running first inference for a groupin
 #### `ordinal_tasks: Optional[list[str]] = None`
 List of substrings to identify ordinal scoring tasks.
 
-**⚠️ CRITICAL ROUTING BEHAVIOR:**
+**Important routing behavior:**
 - Tasks matching these substrings use **ordinal discrete** inference
 - Tasks not matching use **binary discrete** inference (if no `score_agg`)
 - Matching is case-insensitive substring match
@@ -528,7 +528,7 @@ Inference mode for ordinal tasks.
 - `'entropy'`: Conservative (~60+ min with defaults), full Bayesian entropy-based stopping. Best for diffuse distributions.
 - `'hybrid'` (default): Automatically selects modal or entropy based on distribution characteristics (~60+ min with defaults).
 
-**⚠️ PERFORMANCE WARNING:**
+**Performance warning:**
 - **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
 - With default settings (draws=6000, tune=6000): ~60-120 minutes per inference call
 - With optimized settings (draws=300, tune=300, chains=2): ~3-5 minutes per inference call
@@ -551,7 +551,7 @@ ordinal_inference='entropy'  # Very slow, use only when modal fails
 - **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
 - **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
 
-**⚠️ GPU Recommendation for Fast Trials:**
+**GPU Recommendation for Fast Trials:**
 Ordinal discrete inference is significantly slower than binary/continuous pathways. Typical per-inference timing on CPU (~100 completed trials): **~7-8 minutes** for ordinal vs **~3-6 seconds** for binary/continuous. If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck preventing stopping decisions from arriving in time.
 
 **For fast ordinal evaluations, GPU acceleration is strongly recommended (2-4× speedup):**
@@ -663,8 +663,8 @@ Random seed for MCMC sampling reproducibility.
 **Key features:**
 - Seed is **always logged** at manager initialization:
   ```
-  INFO:optstop.early_stopping:🎲 Random seed: 1614538249 (auto_generated)
-  INFO:optstop.early_stopping:🎲 Random seed: 42 (user_specified)
+  INFO:optstop.early_stopping:Random seed: 1614538249 (auto_generated)
+  INFO:optstop.early_stopping:Random seed: 42 (user_specified)
   ```
 - Seed is **included in configuration summary** printed at task start
 - Seed is **included in diagnostics** returned by `complete_task()`:
@@ -770,11 +770,11 @@ manager_replay = OptimalStoppingManager(
 
 | Factor | Impact | Notes |
 |--------|--------|-------|
-| `random_seed` | ✅ Controlled | Same seed = same MCMC sequence |
-| `draws`, `tune` | ✅ Controlled | Part of configuration |
-| MCMC backend | ⚠️ Varies | PyMC vs numpyro produce different results |
-| Hardware | ⚠️ Varies | GPU vs CPU may differ slightly |
-| Library versions | ⚠️ Varies | PyMC/numpyro updates may affect results |
+| `random_seed` | Controlled | Same seed = same MCMC sequence |
+| `draws`, `tune` | Controlled | Part of configuration |
+| MCMC backend | Varies | PyMC vs numpyro produce different results |
+| Hardware | Varies | GPU vs CPU may differ slightly |
+| Library versions | Varies | PyMC/numpyro updates may affect results |
 
 ---
 
@@ -1370,14 +1370,14 @@ manager = OptimalStoppingManager(
 **Problem:** Adding/removing `score_agg` changes routing completely.
 
 ```python
-# ❌ WRONG: Intended binary discrete, but routes to continuous
+# Wrong: Intended binary discrete, but routes to continuous
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
-    score_agg='mean',  # ← Oops! Routes to continuous bounded
+    score_agg='mean',  # Routes to continuous bounded (unintended)
 )
 
-# ✅ CORRECT: Binary discrete
+# Correct: Binary discrete
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
@@ -1403,7 +1403,7 @@ manager = OptimalStoppingManager(
 **Problem:** Too many grouping columns with too few samples.
 
 ```python
-# ❌ BAD: 100 samples, 50 groupings = 2 samples per grouping
+# Bad: 100 samples, 50 groupings = 2 samples per grouping
 grouping_columns=['model', 'task', 'metadata.difficulty', 'tag.category']
 ```
 
@@ -1414,12 +1414,12 @@ grouping_columns=['model', 'task', 'metadata.difficulty', 'tag.category']
 **Problem:** Specifying both `score_choice` and `score_agg`.
 
 ```python
-# ❌ WRONG: These are mutually exclusive
+# Wrong: These are mutually exclusive
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
     score_choice='accuracy',
-    score_agg='mean',  # ← Error: mutually exclusive
+    score_agg='mean',  # Error: mutually exclusive
 )
 ```
 
@@ -1430,14 +1430,14 @@ manager = OptimalStoppingManager(
 **Problem:** Ordinal scores (1-5) treated as binary, causing validation errors.
 
 ```python
-# ❌ WRONG: Scores are 1-5, but treated as binary (expects 0 or 1)
+# Wrong: Scores are 1-5, but treated as binary (expects 0 or 1)
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
     # Missing: ordinal_tasks parameter
 )
 
-# ✅ CORRECT: Mark as ordinal
+# Correct: Mark as ordinal
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
@@ -1452,7 +1452,7 @@ manager = OptimalStoppingManager(
 
 **Solution:** Always check logs for warnings:
 ```
-⚠️ Invalid score for sample_id=123, epoch=2: Binary task has score > 1 (5.0)
+WARNING: Invalid score for sample_id=123, epoch=2: Binary task has score > 1 (5.0)
 ```
 
 ### 7. Using Shadow Mode in Production
@@ -1460,14 +1460,14 @@ manager = OptimalStoppingManager(
 **Problem:** Forgetting to disable shadow mode, running all trials.
 
 ```python
-# ❌ WRONG: Shadow mode still enabled
+# Wrong: Shadow mode still enabled
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
-    shadow_mode=True,  # ← All trials run, no efficiency gain
+    shadow_mode=True,  # All trials run, no efficiency gain
 )
 
-# ✅ CORRECT: Disable for production
+# Correct: Disable for production
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
@@ -1695,7 +1695,7 @@ reanalysis_interval=5  # Down from 10
 **Symptoms:** Warnings in logs about invalid scores.
 
 ```
-⚠️ Invalid score for sample_id=123: Binary task has score > 1 (5.0)
+WARNING: Invalid score for sample_id=123: Binary task has score > 1 (5.0)
 ```
 
 **Possible causes:**
@@ -1750,26 +1750,26 @@ gpu_ids=[0]
 ## Version History
 
 ### v0.3.0 (Current)
-- ✅ `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')
-- ✅ Ordered Logistic (cumulative link) model as default for ordinal inference
-- ✅ ~3× faster ordinal inference vs Dirichlet-Multinomial
-- ✅ Automatic fallback to Dirichlet if Ordered Logistic sampling fails
-- ✅ Adaptive cutpoint priors scaling with number of categories
-- ✅ Full parameter recovery validation for Ordered Logistic
+- `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')
+- Ordered Logistic (cumulative link) model as default for ordinal inference
+- ~3× faster ordinal inference vs Dirichlet-Multinomial
+- Automatic fallback to Dirichlet if Ordered Logistic sampling fails
+- Adaptive cutpoint priors scaling with number of categories
+- Full parameter recovery validation for Ordered Logistic
 
 ### v0.2.1
-- ✅ `random_seed` parameter for MCMC reproducibility
-- ✅ `entropy_stabilization_threshold` parameter for ordinal tuning
-- ✅ Numpyro/JAX integration for ordinal inference (~2× CPU speedup)
-- ✅ Seed logging and diagnostics tracking
-- ✅ Removed redundant np.random.seed() calls (cleaner seed propagation)
+- `random_seed` parameter for MCMC reproducibility
+- `entropy_stabilization_threshold` parameter for ordinal tuning
+- Numpyro/JAX integration for ordinal inference (~2× CPU speedup)
+- Seed logging and diagnostics tracking
+- Removed redundant np.random.seed() calls (cleaner seed propagation)
 
 ### v0.2.0
-- ✅ Complete Phase 1 testing (15/15 tests passing)
-- ✅ Binary discrete, ordinal discrete, continuous bounded validated
-- ✅ Multi-grouping independence confirmed
-- ✅ Shadow mode working
-- ✅ Process cleanup verified
+- Complete Phase 1 testing (15/15 tests passing)
+- Binary discrete, ordinal discrete, continuous bounded validated
+- Multi-grouping independence confirmed
+- Shadow mode working
+- Process cleanup verified
 
 ### Future Releases
 - Advanced scenarios (mixed groupings, edge cases)
@@ -1793,8 +1793,6 @@ gpu_ids=[0]
 ## Support and Feedback
 
 For issues, questions, or feedback:
-- **GitHub Issues:** https://github.com/anthropics/optstop/issues
-- **Documentation:** https://github.com/anthropics/optstop
 - **inspect_ai Documentation:** https://inspect.aisi.org.uk/
 
 ---

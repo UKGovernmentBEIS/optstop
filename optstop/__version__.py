@@ -5,20 +5,20 @@ This module provides version information for the optstop package and its compone
 """
 
 # Package version (semantic versioning: MAJOR.MINOR.PATCH)
-__version__ = "0.2.1"
+__version__ = "0.3.0"
 
 # Version as tuple for programmatic comparison
-__version_info__ = (0, 2, 1)
+__version_info__ = (0, 3, 0)
 
 # Component versions for transparency
-__core_version__ = "0.2.1"  # Core optstop algorithms (posthoc, live, convergence)
-__bridge_version__ = "0.2.1"  # inspect_ai bridge (OptimalStoppingManager)
+__core_version__ = "0.3.0"  # Core optstop algorithms (posthoc, live, convergence)
+__bridge_version__ = "0.3.0"  # inspect_ai bridge (OptimalStoppingManager)
 
 # Minimum compatible inspect_ai version
 __min_inspect_ai_version__ = "0.3.0"
 
 # Release metadata
-__release_date__ = "2025-11-29"
+__release_date__ = "2025-12-04"
 __status__ = "beta"  # Options: alpha, beta, stable
 
 
