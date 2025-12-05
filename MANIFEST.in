@@ -6,15 +6,16 @@ include CHANGELOG.md
 include CONTRIBUTING.md
 include LICENSE
 
+# Include API documentation
+include BRIDGE_API_REFERENCE.md
+include early_stopping_api.md
+
 # Exclude development and testing artifacts
 exclude *.log
 exclude .coverage
 exclude .pytest_cache
 
-# Exclude development documentation folder
-prune Q4_Development_Files
-
-# Exclude test outputs and data (if not needed in distribution)
+# Exclude test outputs and data (not needed in distribution)
 prune test_outputs
 prune test_data
 
