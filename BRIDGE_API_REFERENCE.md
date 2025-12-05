@@ -199,86 +199,12 @@ manager = OptimalStoppingManager(
 )
 ```
 
-**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring. Ultimately, choice should be based on the users assessment of score importance and expected variability - high priority scores with high variance - or extremely low expected performance should typically be chosen.
+**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring. 
+Ultimately, choice should be based on the users assessment of score importance and expected variability - high priority scores with high variance (or extremely low expected performance) should typically be chosen.
 
 ---
 
-### 6. **Configuration Decision Tree**
-
-```
-Are you using ordinal scoring?
-│
-├─ NO → Use default settings (PyMC default)
-│        Expected: <1min per inference
-│
-└─ YES → How many samples?
-         │
-         ├─ <50 samples
-         │  └─ Use: ordinal_inference='hybrid'
-         │          draws=300, tune=300, chains=2
-         │          Expected: 3-5min per inference
-         │
-         └─ ≥50 samples
-            └─ Use: ordinal_inference='modal'
-                    draws=300, tune=300, chains=2
-                    Expected: <1min per inference
-
-                    If stopping fails (wide CIs forever):
-                    → Distribution is truly diffuse
-                    → Consider: Are ordinal scores appropriate?
-                    → Or: Accept longer runtimes with hybrid mode
-```
-
----
-
-### 7. **Recommended Production Settings**
-
-#### Small Scale (< 100 samples)
-```python
-optstop_params = {
-    'delta_item': 0.15,
-    'delta_cap': 0.10,
-    'draws': 500,      # Moderate
-    'tune': 500,
-    'chains': 2,
-}
-ordinal_inference='hybrid'  # Can afford hybrid
-reanalysis_interval=10
-```
-**Expected:** ~5-10 min per inference
-
-#### Large Scale (100-1000 samples)
-```python
-optstop_params = {
-    'delta_item': 0.15,
-    'delta_cap': 0.10,
-    'draws': 300,      # Reduced for speed
-    'tune': 300,
-    'chains': 2,
-}
-ordinal_inference='modal'  # Fast mode only
-reanalysis_interval=25     # Less frequent checks
-```
-**Expected:** ~0.6-2.5 min per inference (numpyro for ordinal)
-
-#### Very Large Scale (>1000 samples)
-```python
-optstop_params = {
-    'delta_item': 0.20,      # More aggressive
-    'delta_cap': 0.15,
-    'draws': 200,            # Minimal
-    'tune': 200,
-    'chains': 2,
-}
-ordinal_inference='modal'
-reanalysis_interval=50      # Infrequent checks
-min_samples_per_grouping=20 # Wait for more data
-```
-**Expected:** ~0.5-1.5 min per inference (numpyro for ordinal)
-
----
-
-### 8. **Performance Monitoring**
+### 6. **Performance Monitoring**
 
 **Check inference times in logs:**
 ```
@@ -312,12 +238,12 @@ INFO - Inference completed in 2.3 minutes
 
 ---
 
-### 9. **Common Performance Issues**
+### 7. **Common Performance Issues**
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
 | All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode |
-| Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce to draws=300, tune=300, chains=2 |
+| Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce draws, tune, and chains - but monitor changes in convergence warnings. |
 | "Inference still running" after task complete | Queue backed up | Check inference_time < reanalysis_interval × trial_duration |
 | Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune slightly (500/500) |
 
@@ -365,10 +291,10 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 **Advanced parameters (performance-critical):**
 - `draws` (int, default: 6000): Number of MCMC samples
   - **Performance impact:** Linear scaling with inference time
-  - **Recommended production:** 300-500 (60-120× faster than default!)
+  - **Recommended production:** 1000-2000
 - `tune` (int, default: 6000): Number of MCMC tuning steps
   - **Performance impact:** Linear scaling with inference time
-  - **Recommended production:** 300-500
+  - **Recommended production:** 1000-2000
 - `chains` (int, default: 4): Number of MCMC chains
   - **Recommended production:** 2 (2× faster)
 - `cores` (int, default: 4): Number of CPU cores for sampling
@@ -390,9 +316,9 @@ optstop_params = {
     'delta_cap': 0.10,       # Require tighter CI for groupings (conservative)
     'cred_level': 0.95,      # 95% confidence intervals
     'conservatism': 5,       # Standard conservatism
-    'draws': 300,            # ← 60× faster than default!
-    'tune': 300,             # ← Production recommended
-    'chains': 2,             # ← 2× faster than default
+    'draws': 1000,            # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
+    'tune': 1000,             # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
+    'chains': 4,             # ← Could drop lower to increase speed.
 }
 ```
 
