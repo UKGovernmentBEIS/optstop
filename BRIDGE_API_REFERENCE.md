@@ -74,30 +74,28 @@ Discrete ordinal inference is a far more complex, intensive process, hence the r
 The `draws` and `tune` parameters have **linear impact** on inference time:
 
 ```python
-# Default (very slow)
+# Default 
 optstop_params = {
     'draws': 6000,    # 6000 MCMC samples
     'tune': 6000,     # 6000 tuning steps
+    'chains': 4,
 }
-# Total: 12,000 iterations per inference
+# Total: 12,000 iterations per inference. This is extremely conservative (e.g., maximising ensured convergence likelihood)
 
-# Recommended for production (60× faster!)
+# Recommended for production (1000-3000 samples/tunes)
 optstop_params = {
-    'draws': 300,     # 300 MCMC samples
-    'tune': 300,      # 300 tuning steps
-    'chains': 2,      # 2 chains (down from 4)
+    'draws': 1000,     # EXACT NUMBER SUBJECT TO INITIAL TESTING (how much can live use in production bear...)
+    'tune': 1000,      # EXACT NUMBER SUBJECT TO INITIAL TESTING
+    'chains': 4, 
 }
-# Total: 600 iterations, 2 chains = 60× speedup!
+
 ```
 
 **Impact on ordinal hybrid:**
 - draws=6000, tune=6000: ~60-120 minutes per inference call
-- draws=300, tune=300, chains=2: ~3-5 minutes per inference call
-- **Speedup: 12-24×**
 
 **Quality trade-off:**
-- Fewer iterations → wider credible intervals (more conservative stopping)
-- For early stopping decisions, moderate precision is sufficient
+- Need to assess carefully about adequate precision vs speed.
 - Validate convergence: check R-hat < 1.01, ESS > 400
 
 ---
@@ -174,7 +172,7 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 | Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
 | Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
 
-**Recommendation:**
+**Recommendation [UP TO HERE IN MY (TOBY) EDITING]:**
 ```python
 # For production with >50 samples
 ordinal_inference='modal'  # Fast, works for 80-90% of cases
@@ -205,7 +203,7 @@ manager = OptimalStoppingManager(
 
 ---
 
-### 6. **Configuration Decision Tree [UP TO HERE IN MY (TOBY) EDITING]**
+### 6. **Configuration Decision Tree**
 
 ```
 Are you using ordinal scoring?
