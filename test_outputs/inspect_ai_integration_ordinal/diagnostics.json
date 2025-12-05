@@ -66,8 +66,8 @@
   },
   "stopped_groupings": [
     "claude-3-sonnet-rubric_intermediate",
-    "claude-3-sonnet-rubric_basic",
-    "claude-3-sonnet-rubric_advanced"
+    "claude-3-sonnet-rubric_advanced",
+    "claude-3-sonnet-rubric_basic"
   ],
   "stopped_groupings_count": 3,
   "decision_counters": {
@@ -94,9 +94,12 @@
       "final_slope": null,
       "n_group_checks": 16,
       "final_modal_ci_width": 0.10000000000000009,
-      "final_modal_ci": null,
+      "final_modal_ci": [
+        0.7,
+        0.8
+      ],
       "final_entropy": 1.1110378812747097,
-      "final_entropy_threshold": null,
+      "final_entropy_threshold": 1.5,
       "final_entropy_ci_width": 0.1328903506905883,
       "final_relative_change": 0.0015496782404286178,
       "final_stabilization_threshold": 0.002,
@@ -108,9 +111,12 @@
       "final_slope": null,
       "n_group_checks": 11,
       "final_modal_ci_width": 0.19999999999999996,
-      "final_modal_ci": null,
+      "final_modal_ci": [
+        0.5,
+        0.7
+      ],
       "final_entropy": 1.2570473741982773,
-      "final_entropy_threshold": null,
+      "final_entropy_threshold": 1.5,
       "final_entropy_ci_width": 0.12983425985681651,
       "final_relative_change": 0.0013554859074564837,
       "final_stabilization_threshold": 0.002,
@@ -122,9 +128,12 @@
       "final_slope": null,
       "n_group_checks": 45,
       "final_modal_ci_width": 0.2,
-      "final_modal_ci": null,
+      "final_modal_ci": [
+        0.3,
+        0.5
+      ],
       "final_entropy": 1.3714779427397907,
-      "final_entropy_threshold": null,
+      "final_entropy_threshold": 1.5,
       "final_entropy_ci_width": 0.05085056083184436,
       "final_relative_change": 0.0007629600661467877,
       "final_stabilization_threshold": 0.002,

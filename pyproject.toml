@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optstop"
-version = "0.1.1"
+version = "0.3.0"
 description = "Adaptive optimal stopping rule algorithms for efficient data collection and analysis"
 authors = [
     { name = "Toby D. Pilditch, PhD" }
 ]
 license = { text = "MIT" }
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 dependencies = [
     "numpy",
     "pandas",
@@ -20,10 +20,14 @@ dependencies = [
     "statsmodels",
     "matplotlib",
     "tqdm",
-    "numba"
+    "numba",
+    "pydantic>=2.0"
 ]
 
 [project.optional-dependencies]
+inspect = [
+    "inspect-ai>=0.3.0"
+]
 gpu = [
     "jax[cuda12_pip] ; sys_platform != 'darwin'",
     "jax[metal] ; sys_platform == 'darwin'",
@@ -33,6 +37,14 @@ gpu = [
 performance = [
     "jax>=0.4.0",
     "numpyro>=0.13.0"
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0"
 ]
 
 [project.scripts]

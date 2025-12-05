@@ -18,9 +18,10 @@ VALIDITY & LIMITATIONS:
 - ✗ Does NOT provide: Full probability distribution over categories
 - ✗ Does NOT provide: P(Score ≥ threshold) statements
 
-FUTURE ENHANCEMENT:
-For full categorical inference (P(Score = k) for all k), implement hierarchical
-OrderedLogistic regression. See GitHub issue #XXX for planned implementation.
+FULL CATEGORICAL INFERENCE:
+For full categorical inference (P(Score = k) for all k), use the hierarchical
+OrderedLogistic model implemented in ordinal_model.py. This provides entropy-based
+stopping criteria and is used by the 'entropy' and 'hybrid' inference modes.
 
 References:
     Rubin, D. B. (1981). The Bayesian Bootstrap. The Annals of Statistics, 9(1), 130-134.
