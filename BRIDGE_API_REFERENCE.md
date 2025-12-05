@@ -43,12 +43,9 @@ Use `OptimalStoppingManager` when:
 - Running expensive LLM evaluations with multiple epochs per sample
 - You want to save API costs and computation time
 - Statistical validity and confidence are important
-- You have at least 10-20 samples per grouping
+- To see benefit, using early stopping when you have at least 10 samples per grouping is sensible, but the process can still be run on smaller setups (e.g., <10 samples, single epoch evals) - it is just less likely to find early stopping points. The run will progress as normal.
 
-Do not use when:
-- Running single-epoch evaluations (no opportunity to stop early)
-- You have very few samples (< 5 per grouping)
-- You need exact reproducibility of trial counts (stopping decisions are data-dependent)
+Note: Although logs and randomisation seeds allow for transparency and a degree of reproducability, early stopping decisions are still data-dependent, so do not use if you need EXACT reproducibility.
 
 ---
 
@@ -64,11 +61,11 @@ The computational cost of early stopping inference varies dramatically based on 
 |---------|--------------|-----------|
 | **Binary** | ~26s | MCMC Binomial model |
 | **Continuous** | ~9s | MCMC Beta model (aggregated) |
-| **Ordinal (modal)** | ~0.1s | Bootstrap (fast!) |
-| **Ordinal (entropy)** | ~60+ min | MCMC OrderedLogistic (slow!) |
-| **Ordinal (hybrid)** | ~60+ min | BOTH modal + entropy (slowest) |
+| **Ordinal (modal)** | ~0.1s | Bootstrap |
+| **Ordinal (entropy)** | ~5 min | MCMC OrderedLogistic |
+| **Ordinal (hybrid)** | ~5 min | BOTH modal + entropy |
 
-**Key insight:** Ordinal hybrid mode runs BOTH modal and entropy inference on every call, making it 100-1000× slower than other pathways!
+Discrete ordinal inference is a far more complex, intensive process, hence the ramp up in time taken. If you are seeking to run a task in which you want ordinal discrete scoring, then it is important to consider the trade-off between expected time taken per trial, and frequency of early stopping inference checkec (see Ordinal Stopping Mode Selection below).
 
 ---
 
@@ -188,8 +185,8 @@ ordinal_inference='hybrid'  # Safe but slow
 
 **Trade-off:**
 - Modal: May not stop for truly diffuse distributions (stays wide forever)
-- Hybrid: Catches all cases but 100-1000× slower
-- For most LLM evaluations, modal is sufficient (models are typically consistent or consistently inconsistent)
+- Hybrid: Catches all cases but many times slower
+- For most LLM evaluations, modal may be sufficient (models are typically consistent or consistently inconsistent), but hybrid is the more conservative (particularly recommended for new evals).
 
 **GPU Recommendation for Ordinal Tasks:**
 If your evaluation trials complete quickly (< 5 minutes per trial), ordinal inference may become a bottleneck. **GPU acceleration is strongly recommended** for ordinal discrete tasks, providing a typical **2-4× speedup** for MCMC sampling:
@@ -204,11 +201,11 @@ manager = OptimalStoppingManager(
 )
 ```
 
-**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
+**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring. Ultimately, choice should be based on the users assessment of score importance and expected variability - high priority scores with high variance - or extremely low expected performance should typically be chosen.
 
 ---
 
-### 6. **Configuration Decision Tree**
+### 6. **Configuration Decision Tree [UP TO HERE IN MY (TOBY) EDITING]**
 
 ```
 Are you using ordinal scoring?
