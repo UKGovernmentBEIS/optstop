@@ -415,7 +415,7 @@ class OptimalStoppingManager(EarlyStopping):
             print(f"  • {label}: {value}")
 
         # Inference Control
-        print("\n⚙️  Inference Control:")
+        print("\n  Inference Control:")
         print(f"  • Reanalysis interval: every {self.reanalysis_interval} completed samples")
         print(f"  • Min samples per grouping: {self.min_samples_per_grouping}")
         if self.shadow_mode:
@@ -424,7 +424,7 @@ class OptimalStoppingManager(EarlyStopping):
             print("  • Shadow mode: Disabled (normal stopping behavior)")
 
         # Score Extraction Configuration
-        print("\n📊 Score Extraction:")
+        print("\n Score Extraction:")
         if self.score_choice is not None:
             print(f"  • Mode: Extract specific score by key")
             print(f"  • Score key: '{self.score_choice}'")
@@ -435,7 +435,7 @@ class OptimalStoppingManager(EarlyStopping):
             print("  • Mode: Default (use first score from dict)")
 
         # Ordinal Configuration
-        print("\n📈 Ordinal Scoring Configuration:")
+        print("\n Ordinal Scoring Configuration:")
         if self.ordinal_tasks:
             print(f"  • Ordinal tasks: {', '.join(self.ordinal_tasks)}")
             print(f"  • Max ordinal score: {self.ordinal_max_score}")
@@ -444,7 +444,7 @@ class OptimalStoppingManager(EarlyStopping):
             print("  • Ordinal tasks: None (binary scoring only)")
 
         # GPU Configuration
-        print("\n🖥️  Hardware Configuration:")
+        print("\n Hardware Configuration:")
         if self.gpu_ids and len(self.gpu_ids) > 0:
             print(f"  • GPU IDs: {self.gpu_ids}")
             # Check actual GPU availability
@@ -457,7 +457,7 @@ class OptimalStoppingManager(EarlyStopping):
             print("  • GPU: Disabled (CPU-only mode)")
 
         # Reproducibility Configuration
-        print("\n🎲 Reproducibility:")
+        print("\n Reproducibility:")
         print(f"  • Random seed: {self.random_seed}")
         print(f"  • Seed source: {self._seed_source}")
 
