@@ -91,8 +91,9 @@ optstop_params = {
 
 ```
 
-**Impact on ordinal hybrid:**
-- draws=6000, tune=6000: ~60-120 minutes per inference call
+**Impact on performance:**
+- draws=6000, tune=6000:
+    - Leads to an approximate 6x linear increase vs 1000 draw/tune. Inconsequential for binary, continuous, and ordinal (modal) inference pathways. However, for the recommended ordinal (hybrid) inference call (on CPU), this could raise inference time to ~1 hour on CPU. Lowering to 1000 draw/tune and using GPU resources could lower this to ~3 minutes per inference.
 
 **Quality trade-off:**
 - Need to assess carefully about adequate precision vs speed.
@@ -100,31 +101,7 @@ optstop_params = {
 
 ---
 
-### 3. **Numpyro/JAX CPU Backend**
-
-For **ordinal inference**, optstop automatically uses [numpyro](https://num.pyro.ai/) (JAX-based) for **~2× speedup** on CPU sampling:
-
-**Installation:**
-```bash
-pip install numpyro jax jaxlib
-```
-
-**Automatic detection**, zero configuration required.
-
-**Current sampling strategy:**
-- **Binary/Continuous**: PyMC default (fastest for adaptive collection)
-- **Ordinal**: Numpyro/JAX CPU backend (~2× faster than PyMC default)
-
-**Performance impact (ordinal):**
-- PyMC default: ~1.15 min per MCMC call
-- Numpyro/JAX: ~0.61 min per MCMC call (~1.9× faster)
-
-**Verification:**
-Check logs for: `"Configured sampling for CPU: numpyro (JAX/numpyro CPU backend)"`
-
----
-
-### 4. **Reanalysis Interval vs. Inference Time (Critical)**
+### 3. **Reanalysis Interval vs. Inference Time (Critical)**
 
 **Rule:** `inference_time` must be **less than** time between inference triggers.
 
@@ -152,13 +129,13 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 
 ---
 
-### 5. **Ordinal Inference Mode Selection (Critical)**
+### 4. **Ordinal Inference Mode Selection (Critical)**
 
 | Mode | Speed | Use Case | Performance |
 |------|-------|----------|-------------|
-| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended for production** |
-| **entropy** | ~60min | Diffuse distributions (spread across many categories) | Slow, use only when needed |
-| **hybrid** | ~60min | Auto-selects modal or entropy | **Avoid for large-scale** |
+| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended only when confident of ordinal distribution regularity. Hybrid more conservative.** |
+| **entropy** | ~60min | Diffuse distributions (spread across many categories) | **Review bottleneck considerations** |
+| **hybrid** | ~60min | Copmbines modal and entropy | **Review bottleneck considerations** |
 
 **Why hybrid is slow:**
 - Computes BOTH modal (fast) AND entropy (slow) every time
@@ -172,19 +149,10 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 | Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
 | Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
 
-**Recommendation [UP TO HERE IN MY (TOBY) EDITING]:**
-```python
-# For production with >50 samples
-ordinal_inference='modal'  # Fast, works for 80-90% of cases
-
-# For research/small-scale (<50 samples)
-ordinal_inference='hybrid'  # Safe but slow
-```
-
 **Trade-off:**
 - Modal: May not stop for truly diffuse distributions (stays wide forever)
 - Hybrid: Catches all cases but many times slower
-- For most LLM evaluations, modal may be sufficient (models are typically consistent or consistently inconsistent), but hybrid is the more conservative (particularly recommended for new evals).
+- For most LLM evaluations, modal may be sufficient (models are typically consistent or consistently inconsistent), but hybrid is the more conservative and *strongly recommended* (particularly recommended for new evals).
 
 **GPU Recommendation for Ordinal Tasks:**
 If your evaluation trials complete quickly (< 5 minutes per trial), ordinal inference may become a bottleneck. **GPU acceleration is strongly recommended** for ordinal discrete tasks, providing a typical **2-4× speedup** for MCMC sampling:
@@ -204,7 +172,7 @@ Ultimately, choice should be based on the users assessment of score importance a
 
 ---
 
-### 6. **Performance Monitoring**
+### 5. **Performance Monitoring**
 
 **Check inference times in logs:**
 ```
@@ -214,31 +182,29 @@ INFO - Inference completed in 2.3 minutes
 
 **If inference is too slow:**
 
-1. **Check MCMC parameters:**
-   - Reduce draws/tune (300/300 recommended)
-   - Reduce chains (2 recommended)
+1. **Utilise GPU resources:**
+   - See guidelines above.
 
-2. **Check ordinal mode:**
-   - Switch from hybrid → modal
+2. **Check MCMC parameters:**
+   - Reduce draws/tune (1000/1000 recommended)
+   - Reduce chains (4 recommended)
+   - May be able to halve both, but will need to watch logs for valid convergence.
 
-3. **Install numpyro (for ordinal):**
-   ```bash
-   pip install numpyro jax jaxlib
-   ```
-   Verify in logs: `"Configured sampling for CPU: numpyro"`
+3. **Check for bottleneck:**
+   - Is `inference_time > time_between_triggers`?
+   - If yes: **critical** - queue backs up, stopping fails
+   - Solution: Reduce inference time or increase reanalysis_interval
 
 4. **Increase reanalysis_interval:**
    - More time between inferences
    - Trade-off: May miss early stopping opportunities
 
-5. **Check for bottleneck:**
-   - Is `inference_time > time_between_triggers`?
-   - If yes: **critical** - queue backs up, stopping fails
-   - Solution: Reduce inference time or increase reanalysis_interval
+5. **Check ordinal mode:**
+   - Switch from hybrid → modal. Only do this if you can be confident of ordinal distribution regularity in all groupings of interest.
 
 ---
 
-### 7. **Common Performance Issues**
+### 6. **Example Performance Issues**
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
@@ -302,12 +268,12 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `CI_delta` (float, default: 0.00005): Slope threshold for CI stabilization
 - `stab_window` (int, default: 10): Window size for stabilization assessment
 - `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
-  - 0.002 = 0.2% relative change required to declare convergence
+  - **Recommended production:** 0.001 = 0.1% relative change required to declare convergence
   - **Lower values** = more conservative (require MORE stability before stopping)
   - **Higher values** = more aggressive (stop with LESS stability)
   - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
 
-**Important:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values are sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
+**Important:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values may be sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
 
 **Example (production-optimized):**
 ```python
@@ -341,14 +307,14 @@ grouping_columns=['model']
 # Stop by model × task independently
 grouping_columns=['model', 'task']
 
-# Stop by model × difficulty level
+# Stop by model × subtask or sample metadata (e.g., difficulty level)
 grouping_columns=['model', 'metadata.difficulty']
 
 # Stop by model × category tag
 grouping_columns=['model', 'tag.category']
 ```
 
-**Important:** More granular groupings = more targeted stopping but require more data per grouping.
+**Important:** More granular groupings = more targeted stopping but require more data per grouping. Although this is handled naturally by algorithm, implication for the provision of sufficient samples and epochs lies with the eval creator. *Note: Other optstop package functions can assist in computing required sample sizes and epoch ranges, based on historical data.*
 
 ---
 

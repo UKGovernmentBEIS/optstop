@@ -1,11 +1,11 @@
 {
-  "manager": "optstop_numpyro_test",
+  "manager": "optstop_large_scale_test",
   "random_seed": 42,
   "seed_source": "user_specified",
-  "total_planned_trials": 120,
-  "total_ran": 120,
-  "total_skipped": 0,
-  "efficiency_percent": 0.0,
+  "total_planned_trials": 5000,
+  "total_ran": 365,
+  "total_skipped": 4635,
+  "efficiency_percent": 92.7,
   "stopped_samples_count": 0,
   "stopped_samples": [],
   "grouping_columns": [
@@ -15,121 +15,57 @@
   "reanalysis_interval": 5,
   "min_samples_per_grouping": 8,
   "stopped_samples_per_grouping": {
-    "model_B-continuous_mid": 0
+    "test_model-reasoning": 0
   },
-  "stopped_groupings": [],
-  "stopped_groupings_count": 0,
+  "stopped_groupings": [
+    "test_model-reasoning"
+  ],
+  "stopped_groupings_count": 1,
   "decision_counters": {
-    "model_B-continuous_mid": {
-      "completed_samples": 120,
-      "inference_calls": 24,
-      "next_inference_at": 125
+    "test_model-reasoning": {
+      "completed_samples": 365,
+      "inference_calls": 73,
+      "next_inference_at": 370
     }
   },
   "stabilization_histories": {
-    "model_A-binary_easy": {
-      "n_samples": 15,
-      "final_ci_width": 0.1272655666728848,
-      "final_slope": -0.0048580012551535275,
-      "n_group_checks": 23
+    "test_model-math_easy": {
+      "n_samples": 500,
+      "final_ci_width": 0.17273136067248762,
+      "final_slope": 1.4839114207907508e-05,
+      "n_group_checks": 160
     },
-    "model_A-binary_hard": {
-      "n_samples": 15,
-      "final_ci_width": 0.34438347901131405,
-      "final_slope": -0.012211314548391961,
-      "n_group_checks": 23
+    "test_model-math_hard": {
+      "n_samples": 475,
+      "final_ci_width": 0.6756379015217604,
+      "final_slope": 3.505728756345574e-05,
+      "n_group_checks": 94
     },
-    "model_A-ordinal_peaked": {
-      "n_samples": 15,
-      "final_ci_width": 0.20000000000000007,
+    "test_model-coding_medium": {
+      "n_samples": 475,
+      "final_ci_width": 0.09999999999999998,
       "final_slope": null,
-      "n_group_checks": 23,
-      "final_modal_ci_width": 0.20000000000000007,
+      "n_group_checks": 94,
+      "final_modal_ci_width": 0.09999999999999998,
       "final_modal_ci": null,
-      "final_entropy": 1.1749160326436265,
+      "final_entropy": 1.2686164255582133,
       "final_entropy_threshold": null,
-      "final_entropy_ci_width": 0.11151259028064686,
-      "final_relative_change": 0.021333710970859614,
-      "final_stabilization_threshold": null,
-      "ordinal_pathway": "hybrid_hierarchical"
-    },
-    "model_A-ordinal_spread": {
-      "n_samples": 15,
-      "final_ci_width": 0.19999999999999996,
-      "final_slope": null,
-      "n_group_checks": 23,
-      "final_modal_ci_width": 0.19999999999999996,
-      "final_modal_ci": null,
-      "final_entropy": 1.3375300495415559,
-      "final_entropy_threshold": null,
-      "final_entropy_ci_width": 0.075729050353047,
-      "final_relative_change": 0.13834165466524329,
-      "final_stabilization_threshold": null,
-      "ordinal_pathway": "hybrid_hierarchical"
-    },
-    "model_A-continuous_high": {
-      "n_samples": 15,
-      "final_ci_width": 0.25170470599200145,
-      "final_slope": -0.0015358795824289009,
-      "n_group_checks": 23
-    },
-    "model_A-continuous_mid": {
-      "n_samples": 15,
-      "final_ci_width": 0.25976820977795195,
-      "final_slope": -0.006375239672733568,
-      "n_group_checks": 23
-    },
-    "model_B-binary_easy": {
-      "n_samples": 15,
-      "final_ci_width": 0.31754381160156375,
-      "final_slope": -0.005453392661560982,
-      "n_group_checks": 23
-    },
-    "model_B-binary_hard": {
-      "n_samples": 15,
-      "final_ci_width": 0.4732190487600897,
-      "final_slope": -0.0026061985622783104,
-      "n_group_checks": 23
-    },
-    "model_B-ordinal_peaked": {
-      "n_samples": 15,
-      "final_ci_width": 0.20000000000000007,
-      "final_slope": null,
-      "n_group_checks": 14,
-      "final_modal_ci_width": 0.20000000000000007,
-      "final_modal_ci": null,
-      "final_entropy": 1.2160022401836996,
-      "final_entropy_threshold": null,
-      "final_entropy_ci_width": 0.12014519727067263,
-      "final_relative_change": 0.0012485930482090584,
+      "final_entropy_ci_width": 0.06020400311768204,
+      "final_relative_change": 0.0014382097427677,
       "final_stabilization_threshold": 0.002,
       "ordinal_pathway": 2
     },
-    "model_B-ordinal_spread": {
-      "n_samples": 15,
-      "final_ci_width": 0.19999999999999996,
-      "final_slope": null,
-      "n_group_checks": 19,
-      "final_modal_ci_width": 0.19999999999999996,
-      "final_modal_ci": null,
-      "final_entropy": 1.3465326716700563,
-      "final_entropy_threshold": null,
-      "final_entropy_ci_width": 0.08209014045752938,
-      "final_relative_change": 0.00105946099727845,
-      "final_stabilization_threshold": 0.002,
-      "ordinal_pathway": 2
+    "test_model-creative_writing": {
+      "n_samples": 370,
+      "final_ci_width": 0.0478619892085977,
+      "final_slope": -8.143536939569048e-06,
+      "n_group_checks": 73
     },
-    "model_B-continuous_high": {
-      "n_samples": 15,
-      "final_ci_width": 0.23327793586094892,
-      "final_slope": -0.006929804052941725,
-      "n_group_checks": 23
-    },
-    "model_B-continuous_mid": {
-      "n_samples": 15,
-      "final_ci_width": 0.2842613233495782,
-      "final_slope": -0.006450810509036476,
-      "n_group_checks": 23
+    "test_model-reasoning": {
+      "n_samples": 365,
+      "final_ci_width": 0.039242729601343423,
+      "final_slope": -0.0003339462232526863,
+      "n_group_checks": 72
     }
   },
   "ordinal_glossary": {
