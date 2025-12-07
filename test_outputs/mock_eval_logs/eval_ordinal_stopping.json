@@ -1,0 +1,1927 @@
+{
+  "version": 2,
+  "status": "success",
+  "eval": {
+    "eval_set_id": null,
+    "eval_id": "5f8e8928-c357-487e-bb05-316bf9269473",
+    "run_id": "63bb1b14-bdb0-49ed-a643-5ad86582b497",
+    "created": "2025-12-07T17:57:02.324614+00:00",
+    "task": "ordinal_rating",
+    "task_id": "b5c86887-f4ef-4ff4-84f3-f26092609a3a",
+    "task_version": 1,
+    "task_file": "tasks/ordinal_rating.py",
+    "task_display_name": "ordinal_rating",
+    "task_registry_name": "ordinal_rating",
+    "task_attribs": {},
+    "task_args": {},
+    "task_args_passed": {},
+    "solver": "generate",
+    "solver_args": null,
+    "tags": [
+      "early_stopping_demo"
+    ],
+    "dataset": {
+      "name": "ordinal_rating_dataset",
+      "location": "datasets/ordinal_rating.jsonl",
+      "samples": 50,
+      "sample_ids": null,
+      "shuffled": false
+    },
+    "sandbox": null,
+    "model": "anthropic/claude-3-sonnet",
+    "model_generate_config": {
+      "max_tokens": 1024,
+      "temperature": 0.0
+    },
+    "model_base_url": null,
+    "model_args": {},
+    "model_roles": null,
+    "config": {
+      "limit": null,
+      "sample_id": null,
+      "sample_shuffle": null,
+      "epochs": 20,
+      "epochs_reducer": null,
+      "approval": null,
+      "fail_on_error": null,
+      "continue_on_fail": null,
+      "retry_on_error": null,
+      "message_limit": null,
+      "token_limit": null,
+      "time_limit": null,
+      "working_limit": null,
+      "max_samples": null,
+      "max_tasks": null,
+      "max_subprocesses": null,
+      "max_sandboxes": null,
+      "sandbox_cleanup": null,
+      "log_samples": true,
+      "log_realtime": null,
+      "log_images": true,
+      "log_buffer": null,
+      "log_shared": null,
+      "score_display": null
+    },
+    "revision": null,
+    "packages": {
+      "inspect_ai": "0.3.152",
+      "optstop": "0.3.0"
+    },
+    "metadata": {
+      "score_type": "ordinal",
+      "early_stopping_enabled": true
+    },
+    "scorers": [
+      {
+        "name": "accuracy",
+        "options": null,
+        "metrics": null,
+        "metadata": null
+      }
+    ],
+    "metrics": null
+  },
+  "plan": {
+    "name": "plan",
+    "steps": [
+      {
+        "solver": "generate",
+        "params": {}
+      }
+    ],
+    "finish": null,
+    "config": {
+      "max_tokens": 1024,
+      "temperature": 0.0
+    }
+  },
+  "results": {
+    "total_samples": 1000,
+    "completed_samples": 20,
+    "scores": [
+      {
+        "name": "accuracy",
+        "scorer": "accuracy",
+        "reducer": null,
+        "scored_samples": 20,
+        "unscored_samples": 980,
+        "params": {},
+        "metrics": {
+          "mean": {
+            "name": "mean",
+            "value": 3.0,
+            "params": {},
+            "metadata": null
+          }
+        },
+        "metadata": null
+      }
+    ],
+    "metadata": {
+      "manager": "mock_ordinal_rating",
+      "random_seed": 44,
+      "seed_source": "user_specified",
+      "total_planned_trials": 1000,
+      "total_ran": 20,
+      "total_skipped": 980,
+      "efficiency_percent": 98.0,
+      "stopped_samples_count": 0,
+      "stopped_samples": [],
+      "grouping_columns": [
+        "model",
+        "task"
+      ],
+      "reanalysis_interval": 5,
+      "min_samples_per_grouping": 5,
+      "stopped_samples_per_grouping": {
+        "anthropic/claude-3-sonnet-ordinal_rating": 0
+      },
+      "stopped_groupings": [
+        "anthropic/claude-3-sonnet-ordinal_rating"
+      ],
+      "stopped_groupings_count": 1,
+      "decision_counters": {
+        "anthropic/claude-3-sonnet-ordinal_rating": {
+          "completed_samples": 20,
+          "inference_calls": 4,
+          "next_inference_at": 25
+        }
+      },
+      "stabilization_histories": {
+        "anthropic/claude-3-sonnet-ordinal_rating": {
+          "n_samples": 20,
+          "final_ci_width": 0.044721359549995794,
+          "final_slope": null,
+          "n_group_checks": 4,
+          "final_modal_ci_width": 0.044721359549995794,
+          "final_modal_ci": [
+            0.5776393202250021,
+            0.6223606797749979
+          ],
+          "final_entropy": null,
+          "final_entropy_threshold": null,
+          "final_entropy_ci_width": null,
+          "final_relative_change": null,
+          "final_stabilization_threshold": null,
+          "ordinal_pathway": "modal_hierarchical"
+        }
+      },
+      "ordinal_glossary": {
+        "modal_ci_narrow_validated": {
+          "description": "Bootstrap modal confidence interval was narrow and validated by low entropy",
+          "interpretation": "Distribution is peaked (most responses in same category) with high certainty",
+          "metrics": "modal_width < threshold AND entropy < entropy_threshold"
+        },
+        "entropy_stabilized": {
+          "description": "Distribution entropy converged, indicating stable ordinal estimates",
+          "interpretation": "Additional data provides diminishing returns (entropy not changing)",
+          "metrics": "relative_change < stabilization_threshold (default 0.002 = 0.2%)"
+        },
+        "continue_insufficient_history": {
+          "description": "Need more epochs to assess stabilization",
+          "interpretation": "Collecting more data to establish convergence pattern",
+          "metrics": "epochs_tracked < min_epochs_for_stabilization (default 3)"
+        }
+      },
+      "early_stopping": "<circular_reference>"
+    }
+  },
+  "stats": {
+    "started_at": "2025-12-07T17:57:02.324614+00:00",
+    "completed_at": "2025-12-07T17:57:25.233981+00:00",
+    "model_usage": {
+      "anthropic/claude-3-sonnet": {
+        "input_tokens": 10000,
+        "output_tokens": 5000,
+        "total_tokens": 15000,
+        "cache_write_tokens": null,
+        "cache_read_tokens": null,
+        "reasoning_tokens": null
+      }
+    }
+  },
+  "error": null,
+  "samples": [
+    {
+      "id": "sample_0000",
+      "epoch": 1,
+      "input": "Question sample_0000 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "52cda669-1e01-485a-9f93-28bdccc4c047",
+          "role": "user",
+          "content": "Question sample_0000 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "f090e158-718d-40fa-816a-854da2050802",
+          "role": "assistant",
+          "content": "Model response for sample_0000",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "ee431cdf-c205-4a3b-a372-1193e16c8935",
+              "role": "assistant",
+              "content": "Model response for sample_0000",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0000",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "d5606dc6-a6bb-4045-9730-115b7c9b060a",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0001",
+      "epoch": 1,
+      "input": "Question sample_0001 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "86890303-a058-4974-b2c0-71ca822e498d",
+          "role": "user",
+          "content": "Question sample_0001 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "c3d1af52-8530-4c3f-b6ed-a9aa549d2f29",
+          "role": "assistant",
+          "content": "Model response for sample_0001",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "e0591a2b-13d3-4bde-92c9-27053cf00b17",
+              "role": "assistant",
+              "content": "Model response for sample_0001",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0001",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "861a4f5e-f799-4645-ac54-52692c28b17b",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0002",
+      "epoch": 1,
+      "input": "Question sample_0002 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "2af9307a-13a5-4623-9ac1-6a16bda47c66",
+          "role": "user",
+          "content": "Question sample_0002 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "0913f65b-6169-49b6-a268-22bc47e04a08",
+          "role": "assistant",
+          "content": "Model response for sample_0002",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "5a70ed49-442e-4901-855f-aed91e957fd1",
+              "role": "assistant",
+              "content": "Model response for sample_0002",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0002",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "f40af643-dfa3-418b-b0e4-fc5c4f4156ce",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0003",
+      "epoch": 1,
+      "input": "Question sample_0003 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "f97b56d7-df71-4de5-ba54-d26f7fda32e3",
+          "role": "user",
+          "content": "Question sample_0003 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "7f555610-b272-4bf3-bd51-46b52a688daf",
+          "role": "assistant",
+          "content": "Model response for sample_0003",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "5ba38ee0-c933-4024-823a-a3956ad64946",
+              "role": "assistant",
+              "content": "Model response for sample_0003",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0003",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "d680c0fc-e49b-4341-b02c-737508f1f2b2",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0004",
+      "epoch": 1,
+      "input": "Question sample_0004 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "9b605ac1-ea9a-40fc-8ef2-22306dff939e",
+          "role": "user",
+          "content": "Question sample_0004 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "b88da6c8-47cd-4060-8685-913de2f12045",
+          "role": "assistant",
+          "content": "Model response for sample_0004",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "bf29332c-cdd8-4002-8ac0-fa4ef3cc8d1c",
+              "role": "assistant",
+              "content": "Model response for sample_0004",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0004",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "d137c7cf-eb56-4150-a01c-9b55b6ac5fc2",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0005",
+      "epoch": 1,
+      "input": "Question sample_0005 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "5fe2bb42-0a23-48c5-bce6-bf7e859f25c5",
+          "role": "user",
+          "content": "Question sample_0005 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "bf95f5a7-29c3-4867-b207-fb6aa13ea104",
+          "role": "assistant",
+          "content": "Model response for sample_0005",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "1666961c-78b6-4b53-9717-9bea1eca69b8",
+              "role": "assistant",
+              "content": "Model response for sample_0005",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0005",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 4.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "046491ba-6c19-456f-8ff3-45f1bc2882ce",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0006",
+      "epoch": 1,
+      "input": "Question sample_0006 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "9175578c-0c4a-4e08-b515-42d294659146",
+          "role": "user",
+          "content": "Question sample_0006 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "75385ecc-554f-448b-8500-fdfa04416736",
+          "role": "assistant",
+          "content": "Model response for sample_0006",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "10290702-6818-42e2-87d8-89b5fb811f85",
+              "role": "assistant",
+              "content": "Model response for sample_0006",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0006",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 2.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "09393036-8945-48cc-a2eb-653e5f479411",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0007",
+      "epoch": 1,
+      "input": "Question sample_0007 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "baf96b8f-1bd8-49d5-a5a7-59def03daf28",
+          "role": "user",
+          "content": "Question sample_0007 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "da222041-92e2-4458-85a8-aa8f6cba1876",
+          "role": "assistant",
+          "content": "Model response for sample_0007",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "0492989d-47fb-42e1-aa7b-b5a936de605e",
+              "role": "assistant",
+              "content": "Model response for sample_0007",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0007",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "f9d7d86b-f396-4f95-aef0-9160ba910d48",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0008",
+      "epoch": 1,
+      "input": "Question sample_0008 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "edf76f6d-094e-4445-bec6-1b4b8fde9829",
+          "role": "user",
+          "content": "Question sample_0008 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "67241adb-a2ec-4f2c-9981-bdab20317dc3",
+          "role": "assistant",
+          "content": "Model response for sample_0008",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "e97eb641-a7f1-4e8c-8328-9b922ccb37e8",
+              "role": "assistant",
+              "content": "Model response for sample_0008",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0008",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 4.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "8677a0dc-7dc8-4486-985e-d99d675917bf",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0009",
+      "epoch": 1,
+      "input": "Question sample_0009 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "d3fbb575-7cf7-4986-910e-e2e2a883d6d9",
+          "role": "user",
+          "content": "Question sample_0009 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "bf8300d7-2b45-4d99-b92f-3b7bc06fa774",
+          "role": "assistant",
+          "content": "Model response for sample_0009",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "97b87db1-e358-4c03-9c49-c8a9d1ec2956",
+              "role": "assistant",
+              "content": "Model response for sample_0009",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0009",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "bc62ac04-ec9d-48bd-a338-56f9b6fa35d2",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0010",
+      "epoch": 1,
+      "input": "Question sample_0010 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "5de974ff-7d50-4df2-aa33-a646332687d7",
+          "role": "user",
+          "content": "Question sample_0010 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "f8af3263-9c2d-439c-85d3-f8c929a2da83",
+          "role": "assistant",
+          "content": "Model response for sample_0010",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "a01eb2e3-02fc-441c-a4aa-4ea698b87e5f",
+              "role": "assistant",
+              "content": "Model response for sample_0010",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0010",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "a1daacff-efd8-48d6-8b69-18e706215998",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0011",
+      "epoch": 1,
+      "input": "Question sample_0011 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "cbe5e7a8-927c-4b80-841b-247f830d0068",
+          "role": "user",
+          "content": "Question sample_0011 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "8a4f0776-630f-4be7-8a7d-ae33ef732253",
+          "role": "assistant",
+          "content": "Model response for sample_0011",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "1240eb2c-ed8b-4bde-ac4b-2b61f02329f3",
+              "role": "assistant",
+              "content": "Model response for sample_0011",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0011",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "bf8e28c8-040d-42db-b956-4368baa40966",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0012",
+      "epoch": 1,
+      "input": "Question sample_0012 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "7fe5144d-7924-45db-9f2f-4e170f91e720",
+          "role": "user",
+          "content": "Question sample_0012 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "08034dbc-24e6-499d-93e9-8f86a1b5340b",
+          "role": "assistant",
+          "content": "Model response for sample_0012",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "e2be440e-e0db-4e39-8fee-3fc4968e8941",
+              "role": "assistant",
+              "content": "Model response for sample_0012",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0012",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "da0da140-5916-46f5-8231-6f883a044e27",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0013",
+      "epoch": 1,
+      "input": "Question sample_0013 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "2e7fa79b-1939-45b9-8d34-214821586add",
+          "role": "user",
+          "content": "Question sample_0013 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "3e7b7f36-8c8d-4f1e-a5e0-f81c712c0973",
+          "role": "assistant",
+          "content": "Model response for sample_0013",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "6f6ed74e-b102-4535-8ed5-4cddcbdacf45",
+              "role": "assistant",
+              "content": "Model response for sample_0013",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0013",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "9503b5b9-db99-4142-9b9d-340343134284",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0014",
+      "epoch": 1,
+      "input": "Question sample_0014 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "8f57bd3e-4eee-4fb8-bc2e-0f60b79cb202",
+          "role": "user",
+          "content": "Question sample_0014 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "2792728a-2159-478b-a94c-c3ed7418f406",
+          "role": "assistant",
+          "content": "Model response for sample_0014",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "0759b231-34d0-45cf-a451-ea25b499f1b4",
+              "role": "assistant",
+              "content": "Model response for sample_0014",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0014",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "80a48cb7-b20a-45f2-adcf-507938f7ff98",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0015",
+      "epoch": 1,
+      "input": "Question sample_0015 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "54802fb0-a629-403e-abf3-c379fb0fa1d5",
+          "role": "user",
+          "content": "Question sample_0015 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "a25a9037-e057-4abc-914f-ec010738b298",
+          "role": "assistant",
+          "content": "Model response for sample_0015",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "bf6bf217-3f3f-4be2-89d5-496b4854fae8",
+              "role": "assistant",
+              "content": "Model response for sample_0015",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0015",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 2.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "30f95607-b90d-436f-87a5-73ad778e0bf5",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0016",
+      "epoch": 1,
+      "input": "Question sample_0016 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "dd1ed3e3-bb9a-4298-97fe-ecd90b0415b5",
+          "role": "user",
+          "content": "Question sample_0016 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "909d9f11-c794-400d-80e0-47a9ddc5ba52",
+          "role": "assistant",
+          "content": "Model response for sample_0016",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "4d09a0f8-3edc-47dc-8fcf-b73fd57a5068",
+              "role": "assistant",
+              "content": "Model response for sample_0016",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0016",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 2.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "cb247fd4-2f9a-49ca-b92f-9312f815eac6",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0017",
+      "epoch": 1,
+      "input": "Question sample_0017 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "931ff46b-11de-464b-bf31-5a378e3929dd",
+          "role": "user",
+          "content": "Question sample_0017 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "bac973a8-bd84-47ce-a3f4-bab9fd200c29",
+          "role": "assistant",
+          "content": "Model response for sample_0017",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "c1f004bb-d4d3-461c-81a0-2b5631c9d97e",
+              "role": "assistant",
+              "content": "Model response for sample_0017",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0017",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 4.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "a4c44ae2-4170-43bf-9b18-07db12c00e63",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0018",
+      "epoch": 1,
+      "input": "Question sample_0018 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "7e3a6698-e476-47a8-b800-32f784ad1819",
+          "role": "user",
+          "content": "Question sample_0018 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "e87d371c-ef8c-40d4-90f8-efbf1906bae0",
+          "role": "assistant",
+          "content": "Model response for sample_0018",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "94816bfc-1a45-42f4-87bd-63885c7674d7",
+              "role": "assistant",
+              "content": "Model response for sample_0018",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0018",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "c701edf4-768d-4226-92b5-bc16321eb550",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    },
+    {
+      "id": "sample_0019",
+      "epoch": 1,
+      "input": "Question sample_0019 epoch 1",
+      "choices": null,
+      "target": "correct_answer",
+      "sandbox": null,
+      "files": null,
+      "setup": null,
+      "messages": [
+        {
+          "id": "08d65c92-f37b-4173-a156-d279c6bb2f6e",
+          "role": "user",
+          "content": "Question sample_0019 epoch 1",
+          "source": "input",
+          "metadata": null
+        },
+        {
+          "id": "d4a50491-65c3-4724-ab5c-d1628723a729",
+          "role": "assistant",
+          "content": "Model response for sample_0019",
+          "source": "generate",
+          "metadata": null
+        }
+      ],
+      "output": {
+        "model": "anthropic/claude-3-sonnet",
+        "choices": [
+          {
+            "message": {
+              "id": "1affc7a1-4cb2-49f5-95af-0c3b7e4ebe75",
+              "role": "assistant",
+              "content": "Model response for sample_0019",
+              "source": "generate",
+              "metadata": null,
+              "tool_calls": null
+            },
+            "stop_reason": "stop",
+            "logprobs": null
+          }
+        ],
+        "completion": "Model response for sample_0019",
+        "usage": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        },
+        "time": 0.5,
+        "metadata": null,
+        "error": null
+      },
+      "scores": {
+        "accuracy": {
+          "value": 3.0,
+          "answer": null,
+          "explanation": null,
+          "metadata": null,
+          "history": []
+        }
+      },
+      "metadata": {
+        "task": "ordinal_rating"
+      },
+      "store": {},
+      "events": [],
+      "model_usage": {
+        "anthropic/claude-3-sonnet": {
+          "input_tokens": 100,
+          "output_tokens": 50,
+          "total_tokens": 150,
+          "cache_write_tokens": null,
+          "cache_read_tokens": null,
+          "reasoning_tokens": null
+        }
+      },
+      "total_time": 1.0,
+      "working_time": 0.8,
+      "uuid": "4786b241-d3cb-47cd-843c-21029b70eefa",
+      "error": null,
+      "error_retries": null,
+      "attachments": {},
+      "limit": null
+    }
+  ],
+  "reductions": null
+}
