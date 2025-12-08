@@ -135,7 +135,7 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 |------|-------|----------|-------------|
 | **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended only when confident of ordinal distribution regularity. Hybrid more conservative.** |
 | **entropy** | ~60min | Diffuse distributions (spread across many categories) | **Review bottleneck considerations** |
-| **hybrid** | ~60min | Copmbines modal and entropy | **Review bottleneck considerations** |
+| **hybrid** | ~60min | Combines modal and entropy | **Review bottleneck considerations** |
 
 **Why hybrid is slow:**
 - Computes BOTH modal (fast) AND entropy (slow) every time
@@ -325,7 +325,7 @@ grouping_columns=['model', 'tag.category']
 #### `score_choice: Optional[str] = None`
 Extract a specific score by key name from the scores dictionary.
 
-**Use when:** You have multiple scorers but only want to use one for stopping decisions.
+**Use when:** You have multiple scorers but only want to use one for stopping decisions. Note that the choice of which score should be based on expected required sampling and percieved importance. For example, if you care about all 3 scores per trial, then your score_choice should be based on the lowest performing (or highest variance) among them. As the chosen score is the *sole basis for stopping* in this case, you should pick conservatively.
 
 **Example:**
 ```python
@@ -417,29 +417,16 @@ Inference mode for ordinal tasks.
 
 **Performance warning:**
 - **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
-- With default settings (draws=6000, tune=6000): ~60-120 minutes per inference call
-- With optimized settings (draws=300, tune=300, chains=2): ~3-5 minutes per inference call
-- **Modal mode** uses bootstrap: ~0.1 seconds per inference call (always fast!)
-
-**Recommendation by use case:**
-```python
-# Production with >50 samples (RECOMMENDED)
-ordinal_inference='modal'  # Fast, works for 80-90% of cases
-
-# Small-scale research (<50 samples)
-ordinal_inference='hybrid'  # Safe but slow
-# MUST use draws=300, tune=300, chains=2 to avoid hours-long inference!
-
-# Known diffuse distributions only
-ordinal_inference='entropy'  # Very slow, use only when modal fails
-```
+- With default settings (draws=6000, tune=6000), no GPU: ~60 minutes per inference call
+- With substantially reduced inference settings (draws=500, tune=500, chains=2) & GPU enabled: ~2 minutes per inference call
+- **Modal mode** uses bootstrap: ~0.1 seconds per inference call (always fast!), but riskier unless ordinal distributions can reasonably be expected to always peak unimodally.
 
 **Trade-offs:**
 - **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
 - **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
 
 **GPU Recommendation for Fast Trials:**
-Ordinal discrete inference is significantly slower than binary/continuous pathways. Typical per-inference timing on CPU (~100 completed trials): **~7-8 minutes** for ordinal vs **~3-6 seconds** for binary/continuous. If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck preventing stopping decisions from arriving in time.
+Ordinal discrete inference is significantly slower than binary/continuous pathways. If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck preventing stopping decisions from arriving in time.
 
 **For fast ordinal evaluations, GPU acceleration is strongly recommended (2-4× speedup):**
 ```python
@@ -469,7 +456,7 @@ Statistical model for ordinal inference.
 |--------|-----------------|----------------------|
 | Category structure | Ordered (ordinal) | Exchangeable (nominal) |
 | Neighboring shrinkage | Natural via latent scale | None |
-| Performance | ~3× faster | Slower |
+| Performance | Similar | Similar |
 | Sparse categories | May struggle | Handles well |
 | Best for | Peaked/unimodal distributions | Bimodal/unusual distributions |
 
@@ -596,7 +583,7 @@ manager = OptimalStoppingManager(
 
 ### Overview
 
-As of v0.2.1, OptimalStoppingManager provides comprehensive reproducibility support:
+As of v0.2.1, OptimalStoppingManager provides reproducibility support:
 
 1. **Random seed control:** Specify `random_seed` parameter or let system auto-generate
 2. **Seed logging:** All seeds are logged immediately, even auto-generated ones
