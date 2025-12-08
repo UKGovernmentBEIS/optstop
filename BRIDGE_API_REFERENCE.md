@@ -10,10 +10,10 @@
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Performance Considerations](#performance-considerations)
-3. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
-4. [Initialization Parameters](#initialization-parameters)
-5. [Reproducibility](#reproducibility)
+2. [Quick Start](#quick-start)
+3. [Performance Considerations](#performance-considerations)
+4. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
+5. [Initialization Parameters](#initialization-parameters)
 6. [Routing Logic](#routing-logic)
 7. [Configuration Patterns](#configuration-patterns)
 8. [Protocol Methods](#protocol-methods)
@@ -45,7 +45,38 @@ Use `OptimalStoppingManager` when:
 - Statistical validity and confidence are important
 - To see benefit, using early stopping when you have at least 10 samples per grouping is sensible, but the process can still be run on smaller setups (e.g., <10 samples, single epoch evals) - it is just less likely to find early stopping points. The run will progress as normal.
 
-Note: Although logs and randomisation seeds allow for transparency and a degree of reproducability, early stopping decisions are still data-dependent, so do not use if you need EXACT reproducibility.
+Note: Although logs and randomisation seeds allow for transparency and a degree of reproducibility, early stopping decisions are still data-dependent, so do not use if you need EXACT reproducibility.
+
+---
+
+## Quick Start
+
+Minimal working example for binary scoring evaluation:
+
+```python
+from optstop.early_stopping import OptimalStoppingManager
+from inspect_ai import eval
+
+# Configure optimal stopping
+manager = OptimalStoppingManager(
+    optstop_params={
+        'delta_item': 0.15,  # Max CI width for samples
+        'delta_cap': 0.10,   # Max CI width for groupings
+    },
+    grouping_columns=['model', 'task'],
+)
+
+# Run evaluation with early stopping
+log = eval(task, model="openai/gpt-4", epochs=10, early_stopping=manager)
+
+# Check results
+diagnostics = log.results.early_stopping.metadata
+print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+print(f"Trials run: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
+```
+
+For detailed configuration options, see [Initialization Parameters](#initialization-parameters).
+For performance tuning (especially ordinal scoring), see [Performance Considerations](#performance-considerations).
 
 ---
 
@@ -59,13 +90,15 @@ The computational cost of early stopping inference varies dramatically based on 
 
 | Pathway | Typical Time | Complexity |
 |---------|--------------|-----------|
-| **Binary** | ~26s | MCMC Binomial model |
-| **Continuous** | ~9s | MCMC Beta model (aggregated) |
+| **Binary** | ~3-4s | MCMC Binomial model |
+| **Continuous** | ~5-6s | MCMC Beta model (aggregated) |
 | **Ordinal (modal)** | ~0.1s | Bootstrap |
 | **Ordinal (entropy)** | ~5 min | MCMC OrderedLogistic |
 | **Ordinal (hybrid)** | ~5 min | BOTH modal + entropy |
 
-Discrete ordinal inference is a far more complex, intensive process, hence the ramp up in time taken. If you are seeking to run a task in which you want ordinal discrete scoring, then it is important to consider the trade-off between expected time taken per trial, and frequency of early stopping inference checkec (see Ordinal Stopping Mode Selection below).
+*Note: Timings assume ~100 completed trials per inference call with reduced MCMC settings (draws=1000, tune=1000). Times scale with data size and MCMC parameters.*
+
+Discrete ordinal inference is a far more complex, intensive process, hence the ramp up in time taken. If you are seeking to run a task in which you want ordinal discrete scoring, then it is important to consider the trade-off between expected time taken per trial, and frequency of early stopping inference checked (see Ordinal Stopping Mode Selection below).
 
 ---
 
@@ -167,8 +200,8 @@ manager = OptimalStoppingManager(
 )
 ```
 
-**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring. 
-Ultimately, choice should be based on the users assessment of score importance and expected variability - high priority scores with high variance (or extremely low expected performance) should typically be chosen.
+**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring.
+Ultimately, choice should be based on the user's assessment of score importance and expected variability - high priority scores with high variance (or extremely low expected performance) should typically be chosen.
 
 ---
 
@@ -314,7 +347,7 @@ grouping_columns=['model', 'metadata.difficulty']
 grouping_columns=['model', 'tag.category']
 ```
 
-**Important:** More granular groupings = more targeted stopping but require more data per grouping. Although this is handled naturally by algorithm, implication for the provision of sufficient samples and epochs lies with the eval creator. *Note: Other optstop package functions can assist in computing required sample sizes and epoch ranges, based on historical data.*
+**Important:** More granular groupings = more targeted stopping but require more data per grouping. Ensure at least 20-30 samples per unique grouping combination (see [Best Practices §3](#3-choose-appropriate-grouping-granularity)). *Note: Other optstop package functions can assist in computing required sample sizes and epoch ranges, based on historical data.*
 
 ---
 
@@ -325,7 +358,7 @@ grouping_columns=['model', 'tag.category']
 #### `score_choice: Optional[str] = None`
 Extract a specific score by key name from the scores dictionary.
 
-**Use when:** You have multiple scorers but only want to use one for stopping decisions. Note that the choice of which score should be based on expected required sampling and percieved importance. For example, if you care about all 3 scores per trial, then your score_choice should be based on the lowest performing (or highest variance) among them. As the chosen score is the *sole basis for stopping* in this case, you should pick conservatively.
+**Use when:** You have multiple scorers but only want to use one for stopping decisions. Note that the choice of which score should be based on expected required sampling and perceived importance. For example, if you care about all 3 scores per trial, then your score_choice should be based on the lowest performing (or highest variance) among them. As the chosen score is the *sole basis for stopping* in this case, you should pick conservatively.
 
 **Example:**
 ```python
@@ -344,6 +377,7 @@ Aggregate multiple scores using the specified method.
 
 **Important routing behavior:**
 - If `score_agg in ['mean', 'median']`: Routes to **continuous bounded** inference (hierarchical Beta model)
+- If `score_agg in ['mode', 'max']`: Routes to **discrete** inference (binary or ordinal), as these produce discrete values
 - If `score_agg is None`: Routes to **discrete** inference (binary or ordinal, depending on `ordinal_tasks`)
 
 **Example:**
@@ -403,7 +437,15 @@ ordinal_tasks=['rating', 'confidence', 'difficulty']
 **Leave as None** if you only have binary (0/1) scoring.
 
 #### `ordinal_max_score: int = 10`
-Maximum value for ordinal scores (e.g., 10 for 0-10 scale, 5 for 1-5 scale).
+Maximum value for ordinal scores. Scores are expected to be **0-indexed**, i.e., in the range [0, ordinal_max_score].
+
+**Examples:**
+- For a 0-10 scale: `ordinal_max_score=10` (scores: 0, 1, 2, ..., 10)
+- For a 0-5 scale: `ordinal_max_score=5` (scores: 0, 1, 2, 3, 4, 5)
+
+**Important:** If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), you should either:
+1. Transform scores to 0-indexed before passing to the manager (subtract 1), or
+2. Contact the developer to discuss support for 1-indexed ordinal scales.
 
 **Used for:** Score validation and normalization.
 
@@ -425,23 +467,7 @@ Inference mode for ordinal tasks.
 - **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
 - **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
 
-**GPU Recommendation for Fast Trials:**
-Ordinal discrete inference is significantly slower than binary/continuous pathways. If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck preventing stopping decisions from arriving in time.
-
-**For fast ordinal evaluations, GPU acceleration is strongly recommended (2-4× speedup):**
-```python
-manager = OptimalStoppingManager(
-    optstop_params=params,
-    grouping_columns=['model', 'task'],
-    ordinal_tasks=['rating'],
-    ordinal_inference='hybrid',
-    gpu_ids=[0]  # ← Enable GPU for ordinal inference (2-4× faster)
-)
-```
-
-**Alternative:** If GPU is unavailable, consider using `score_agg='mean'` or `score_agg='median'` to aggregate ordinal scores into continuous values, which routes to the much faster continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
-
-**See:** [Performance Considerations - Ordinal Inference Mode Selection](#5-ordinal-inference-mode-selection--critical) for detailed analysis.
+**Performance Note:** Ordinal discrete inference is significantly slower than binary/continuous pathways. For fast-completing trials (< 5 minutes), GPU acceleration is strongly recommended. See [Performance Considerations - Ordinal Inference Mode Selection](#4-ordinal-inference-mode-selection-critical) for detailed guidance on GPU setup, alternative approaches, and bottleneck analysis.
 
 #### `ordinal_model_type: str = 'ordered_logistic'`
 Statistical model for ordinal inference.
@@ -579,79 +605,6 @@ manager = OptimalStoppingManager(
 
 ---
 
-## Reproducibility
-
-### Overview
-
-As of v0.2.1, OptimalStoppingManager provides reproducibility support:
-
-1. **Random seed control:** Specify `random_seed` parameter or let system auto-generate
-2. **Seed logging:** All seeds are logged immediately, even auto-generated ones
-3. **Diagnostics inclusion:** Seed appears in `complete_task()` output for tracking
-
-### Ensuring Reproducible Results
-
-```python
-# Step 1: Run with explicit seed
-manager = OptimalStoppingManager(
-    optstop_params={'draws': 500, 'tune': 500},
-    grouping_columns=['model', 'task'],
-    random_seed=42
-)
-
-log1 = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
-
-# Step 2: Run again with same seed
-manager2 = OptimalStoppingManager(
-    optstop_params={'draws': 500, 'tune': 500},
-    grouping_columns=['model', 'task'],
-    random_seed=42  # Same seed
-)
-
-log2 = eval(task, model="gpt-4", epochs=10, early_stopping=manager2)
-
-# Results should be identical
-assert log1.early_stopping['efficiency_percent'] == log2.early_stopping['efficiency_percent']
-```
-
-### Tracking Seeds from Auto-Generated Runs
-
-```python
-# Run without specifying seed
-manager = OptimalStoppingManager(
-    optstop_params={'draws': 500, 'tune': 500},
-    grouping_columns=['model', 'task'],
-    # No random_seed - will auto-generate
-)
-
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
-
-# Retrieve the seed that was used
-used_seed = log.early_stopping['random_seed']
-seed_source = log.early_stopping['seed_source']  # "auto_generated"
-
-print(f"Run used seed: {used_seed}")
-
-# To reproduce this exact run later:
-manager_replay = OptimalStoppingManager(
-    optstop_params={'draws': 500, 'tune': 500},
-    grouping_columns=['model', 'task'],
-    random_seed=used_seed  # Use the captured seed
-)
-```
-
-### Factors Affecting Reproducibility
-
-| Factor | Impact | Notes |
-|--------|--------|-------|
-| `random_seed` | Controlled | Same seed = same MCMC sequence |
-| `draws`, `tune` | Controlled | Part of configuration |
-| MCMC backend | Varies | PyMC vs numpyro produce different results |
-| Hardware | Varies | GPU vs CPU may differ slightly |
-| Library versions | Varies | PyMC/numpyro updates may affect results |
-
----
-
 ## Routing Logic
 
 The manager automatically routes to different inference algorithms based on configuration:
@@ -785,7 +738,7 @@ log = eval(
 
 ### Pattern 3: Ordinal Rating Tasks
 
-**Use case:** Tasks with ordinal scores (e.g., 1-5 star ratings).
+**Use case:** Tasks with ordinal scores (e.g., 0-5 rating scale).
 
 ```python
 manager = OptimalStoppingManager(
@@ -795,7 +748,7 @@ manager = OptimalStoppingManager(
     },
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating', 'confidence'],  # Mark ordinal tasks
-    ordinal_max_score=5,                     # 1-5 scale
+    ordinal_max_score=5,                     # 0-5 scale (scores: 0,1,2,3,4,5)
     ordinal_inference='hybrid',              # Auto-select inference mode
     reanalysis_interval=10,
 )
@@ -857,8 +810,9 @@ manager = OptimalStoppingManager(
 log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 
 # Check potential efficiency gains
-print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
-print(f"Would have stopped: {log.early_stopping.stopped_samples_count} samples")
+diagnostics = log.results.early_stopping.metadata
+print(f"Would have saved: {diagnostics['efficiency_percent']}%")
+print(f"Would have stopped: {diagnostics['stopped_samples_count']} samples")
 ```
 
 ### Pattern 7: Custom Metadata Grouping
@@ -969,7 +923,7 @@ Called once at the end of evaluation to generate final diagnostics.
 - Compiles stopped samples information
 - Returns comprehensive metadata dictionary
 
-**User action:** Access diagnostics from `log.early_stopping` after evaluation
+**User action:** Access diagnostics from `log.results.early_stopping.metadata` after evaluation
 
 ---
 
@@ -1095,17 +1049,28 @@ from inspect_ai import eval
 
 log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 
-# Access diagnostics
-diagnostics = log.early_stopping
+# Access early stopping summary (EarlyStoppingSummary object)
+early_stopping = log.results.early_stopping
+
+# Access manager name and early stops list
+print(f"Manager: {early_stopping.manager}")
+print(f"Early stops: {len(early_stopping.early_stops)}")
+
+# Access detailed diagnostics from metadata dict
+diagnostics = early_stopping.metadata
 
 print(f"Efficiency: {diagnostics['efficiency_percent']}%")
 print(f"Trials saved: {diagnostics['total_skipped']} / {diagnostics['total_planned_trials']}")
 
-# Iterate through stopped samples
+# Iterate through stopped samples (from metadata)
 for sample in diagnostics['stopped_samples']:
     print(f"Sample {sample['id']} stopped at epoch {sample['epoch']}")
     print(f"  Reason: {sample['reason']}")
-    print(f"  CI width: {sample['metadata']['ci_width']:.4f}")
+
+# Alternatively, iterate through EarlyStop objects
+for early_stop in early_stopping.early_stops:
+    print(f"Sample {early_stop.id} stopped at epoch {early_stop.epoch}")
+    print(f"  Reason: {early_stop.reason}")
 
 # Check per-grouping efficiency
 for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
@@ -1151,7 +1116,7 @@ shadow_manager = OptimalStoppingManager(
 )
 
 log = eval(task, model="gpt-4", epochs=10, early_stopping=shadow_manager)
-print(f"Potential efficiency: {log.early_stopping.efficiency_percent}%")
+print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
 
 # If efficiency looks good, run without shadow mode
 production_manager = OptimalStoppingManager(
@@ -1199,7 +1164,7 @@ log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 
 # Save diagnostics for analysis
 with open('stopping_diagnostics.json', 'w') as f:
-    json.dump(log.early_stopping, f, indent=2)
+    json.dump(log.results.early_stopping.metadata, f, indent=2)
 
 # Track over multiple runs
 # Analyze: which groupings stop? At what thresholds? What's the efficiency trend?
@@ -1281,7 +1246,7 @@ manager = OptimalStoppingManager(
 grouping_columns=['model', 'task', 'metadata.difficulty', 'tag.category']
 ```
 
-**Solution:** Ensure at least 20+ samples per unique grouping combination.
+**Solution:** See [Best Practices §3](#3-choose-appropriate-grouping-granularity) for guidance on grouping granularity.
 
 ### 4. Conflicting Score Parameters
 
@@ -1399,9 +1364,10 @@ log = eval(
 )
 
 # Check results
-print(f"Efficiency: {log.early_stopping.efficiency_percent}%")
-print(f"Trials: {log.early_stopping.total_ran} / {log.early_stopping.total_planned_trials}")
-print(f"Stopped samples: {log.early_stopping.stopped_samples_count}")
+diagnostics = log.results.early_stopping.metadata
+print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+print(f"Trials: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
+print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
 ```
 
 ### Example 2: Multi-Model Comparison with Shadow Mode
@@ -1425,7 +1391,7 @@ log_shadow = eval(
     early_stopping=shadow_manager
 )
 
-print(f"Potential efficiency: {log_shadow.early_stopping.efficiency_percent}%")
+print(f"Potential efficiency: {log_shadow.results.early_stopping.metadata['efficiency_percent']}%")
 
 # If good, run without shadow mode
 production_manager = OptimalStoppingManager(
@@ -1445,14 +1411,14 @@ log_production = eval(
     early_stopping=production_manager
 )
 
-print(f"Actual efficiency: {log_production.early_stopping.efficiency_percent}%")
+print(f"Actual efficiency: {log_production.results.early_stopping.metadata['efficiency_percent']}%")
 ```
 
 ### Example 3: Ordinal Rating with Custom Metadata Grouping
 
 ```python
 # Samples have metadata: {'difficulty': 'easy'/'medium'/'hard'}
-# Scorer returns 1-5 star ratings
+# Scorer returns 0-5 ordinal ratings
 
 manager = OptimalStoppingManager(
     optstop_params={
@@ -1461,7 +1427,7 @@ manager = OptimalStoppingManager(
     },
     grouping_columns=['model', 'metadata.difficulty'],
     ordinal_tasks=['rating'],
-    ordinal_max_score=5,
+    ordinal_max_score=5,  # 0-5 scale
     ordinal_inference='hybrid',
     reanalysis_interval=8,
     min_samples_per_grouping=10,  # More data for ordinal
@@ -1475,7 +1441,8 @@ log = eval(
 )
 
 # Analyze per difficulty level
-for grouping, count in log.early_stopping.stopped_samples_per_grouping.items():
+diagnostics = log.results.early_stopping.metadata
+for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
     print(f"{grouping}: {count} samples stopped")
 ```
 
@@ -1604,20 +1571,10 @@ manager = OptimalStoppingManager(
 2. Frequent reanalysis interval
 3. CPU-only inference (no GPU)
 
-**Solution:**
-```python
-# Reduce MCMC samples (less accurate, faster)
-optstop_params = {
-    'draws': 3000,  # Down from 6000
-    'tune': 3000,   # Down from 6000
-}
-
-# Reduce reanalysis frequency
-reanalysis_interval=15  # Up from 10
-
-# Enable GPU if available
-gpu_ids=[0]
-```
+**Solution:** See [Performance Considerations](#performance-considerations) for detailed guidance. Quick fixes:
+- Reduce `draws`/`tune` to 1000-2000
+- Increase `reanalysis_interval`
+- Enable GPU with `gpu_ids=[0]` (2-4× speedup for ordinal inference)
 
 ---
 
