@@ -91,8 +91,9 @@ log = eval(
 )
 
 # Check efficiency gains
-print(f"Efficiency: {log.early_stopping.efficiency_percent}%")
-print(f"Stopped samples: {log.early_stopping.stopped_samples_count}")
+diagnostics = log.results.early_stopping.metadata
+print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
 ```
 
 ### Key Features
@@ -137,42 +138,35 @@ OptimalStoppingManager(
 
 #### 3. Ordinal Scoring Support
 
-For tasks with ordinal ratings (e.g., 1-5 stars, 0-10 confidence):
+For tasks with ordinal ratings (e.g., 0-5 scale, 0-10 scale):
 
 ```python
 OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
     ordinal_tasks=['confidence', 'rating'],  # Tasks with ordinal scores
-    ordinal_max_score=10,                    # Maximum score value
+    ordinal_max_score=10,                    # 0-10 scale (scores: 0,1,2,...,10)
     ordinal_inference='hybrid'               # Recommended: balances speed/safety
 )
 ```
 
+**Note:** Ordinal scores are expected to be **0-indexed** (range [0, ordinal_max_score]). If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), transform them to 0-indexed before use, or contact the developer.
+
 **Performance Note for Ordinal Discrete Tasks:**
-Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive.
-
-**Typical per-inference timing (CPU, ~100 completed trials):**
-| Pathway | Time per Inference | Notes |
-|---------|-------------------|-------|
-| Binary discrete | ~3-4 seconds | Fast, suitable for real-time stopping |
-| Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
-| Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
-
-**GPU Recommendation:** If your ordinal-scored evaluation trials complete quickly (e.g., < 5 minutes per trial), the inference time may become a bottleneck. In these cases, **GPU acceleration is strongly recommended** to ensure stopping decisions arrive in time. GPU acceleration typically provides a **2-4× speedup** for MCMC sampling:
+Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive (~7-8 minutes per inference on CPU vs ~3-4 seconds for binary). For fast-completing evaluation trials, **GPU acceleration is strongly recommended** (2-4× speedup). See [GPU Acceleration](#gpu-acceleration) for setup details.
 
 ```python
-# For fast ordinal evaluations, enable GPU
+# Enable GPU for ordinal evaluations
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating'],
     ordinal_inference='hybrid',
-    gpu_ids=[0]  # Enable GPU acceleration (2-4× faster)
+    gpu_ids=[0]  # 2-4× faster
 )
 ```
 
-Alternatively, if GPU is unavailable, consider using `score_agg='mean'` to aggregate ordinal scores into continuous values, which routes to the much faster continuous bounded pathway (~6 seconds vs ~8 minutes per inference).
+**Alternative:** If GPU is unavailable, use `score_agg='mean'` to aggregate ordinal scores into continuous values (~6 seconds per inference).
 
 #### 4. Shadow Mode for A/B Testing
 
@@ -187,7 +181,7 @@ manager = OptimalStoppingManager(
 )
 
 # After evaluation, check what would have stopped
-print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
+print(f"Would have saved: {log.results.early_stopping.metadata['efficiency_percent']}%")
 ```
 
 ### Configuration Parameters
@@ -196,20 +190,22 @@ print(f"Would have saved: {log.early_stopping.efficiency_percent}%")
 |-----------|---------|-------------|
 | `optstop_params` | Required | Dictionary of stopping parameters (delta_item, delta_cap, etc.) |
 | `grouping_columns` | Required | List of columns for grouping decisions |
-| `score_column` | 'score' | Column name for scores in compiled dataset |
-| `sample_id_column` | 'sample_id' | Column name for sample IDs |
-| `epoch_column` | 'epoch' | Column name for epoch numbers |
 | `reanalysis_interval` | 10 | Run inference every N completed samples |
 | `min_samples_per_grouping` | 5 | Minimum samples before first analysis |
 | `ordinal_tasks` | None | List of task names using ordinal scoring |
 | `ordinal_max_score` | 10 | Maximum score for ordinal tasks |
-| `ordinal_inference` | 'hybrid' | Ordinal inference mode: 'modal', 'entropy', 'hybrid' (bridge default: 'hybrid'; standalone function default: 'modal') |
+| `ordinal_inference` | See note | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
-| `max_workers` | None | Max parallel workers (auto if None) |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
 | `score_choice` | None | Extract specific score by key name |
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
 | `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
+
+**Note on `ordinal_inference` defaults:**
+- **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` — prioritizes safety in automated evaluation contexts where stopping decisions have real cost implications.
+- **Standalone functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, CLI)**: Defaults to `'modal'` — prioritizes speed for interactive/exploratory analysis where users can iterate quickly.
+
+Both modes are valid; choose based on your use case. Use `'hybrid'` when accuracy is critical, `'modal'` when speed matters more.
 
 **Additional `optstop_params` options:**
 | Key | Default | Description |
@@ -223,7 +219,7 @@ After evaluation, `complete_task()` returns comprehensive diagnostics:
 ```python
 log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 
-diagnostics = log.early_stopping
+diagnostics = log.results.early_stopping.metadata
 
 print(f"Total planned trials: {diagnostics['total_planned_trials']}")
 print(f"Trials run: {diagnostics['total_ran']}")
@@ -268,20 +264,10 @@ if optstop.check_inspect_ai_compatibility("0.3.5"):
 
 ### Documentation
 
-- **Full bridge documentation**: See `BRIDGE_USAGE_GUIDE.md` (coming soon)
 - **API reference**: See [`BRIDGE_API_REFERENCE.md`](BRIDGE_API_REFERENCE.md) - Complete parameter documentation and configuration guide
 - **Testing summary**: See `BRIDGE_TESTING_SUMMARY.md` - Phase 1 testing results and validation
 - **Version strategy**: See `VERSION_STRATEGY.md`
 - **Development roadmap**: See `BRIDGE_TESTING_AND_DEVELOPMENT_ROADMAP.md`
-
-### Example Evaluations
-
-Coming soon in `examples/inspect_ai/`:
-- Basic binary evaluation
-- Ordinal rating tasks
-- Multi-model comparisons
-- Custom score aggregation
-- Shadow mode A/B testing
 
 ### Troubleshooting
 
@@ -665,15 +651,7 @@ For GPU acceleration (requires NVIDIA GPU with CUDA support):
 pip install .[gpu]
 ```
 
-Or install JAX with GPU support manually:
-```bash
-pip install .
-pip install -U "jax[cuda12_pip]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-```
-
-**GPU behavior:**
-- All inference types (binary, continuous, ordinal) use numpyro on GPU
-- Provides 2-4× speedup for typical workloads
+See [GPU Acceleration](#gpu-acceleration) for detailed setup instructions, manual JAX installation, and performance benefits.
 
 ### Combined Installation
 Install multiple extras at once:
@@ -703,6 +681,51 @@ This includes testing tools (pytest, pytest-asyncio), code formatting (black), l
 | `pip install .` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ⚠ Slower (PyMC default) | Basic usage, no ordinal tasks |
 | `pip install .[performance]` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ✓ Fast (numpyro, 2-3× faster) | **Recommended for ordinal tasks** |
 | `pip install .[gpu]` | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | GPU hardware available |
+
+## Minimal Working Example
+
+Here is a minimal example to get started with optimal stopping (standalone usage):
+
+```python
+import pandas as pd
+from optstop.rule import configure_optstop_logging
+from optstop import optimal_stopping_posthoc
+
+# Configure logging
+configure_optstop_logging('optstop_example.log')
+
+# Create a minimal DataFrame
+# Required columns: specify your own column names for grouping, sample ID, epoch, and score
+df = pd.DataFrame({
+    'subject': [1, 1, 1, 1],
+    'task': [1, 1, 1, 1],
+    'item_id': [1, 1, 2, 2],
+    'trial_num': [1, 2, 1, 2],
+    'score': [1, 0, 1, 1],
+})
+
+params = {
+    'delta_item': 0.05,
+    'delta_cap': 0.05,
+    'draws': 6000,
+    'tune': 6000,
+    'chains': 4,
+    'cores': 4,
+    'CI_delta': 0.0005,
+    'conservatism': 5,
+    'random_seed': 42
+}
+
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['subject', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    score_column='score'
+)
+print(pruned_df)
+print(summary)
+```
 
 ## Logging
 
@@ -1043,32 +1066,7 @@ The package provides functions for adaptive optimal stopping, allowing you to de
 - Supports multiple groupings in a single function call, with independent stopping decisions per grouping
 - **Progress Tracking**: Optional progress bar display (controlled by `display_progress` parameter)
 
-### Best Practices & Recommendations
-- **Specifying Groupings:**
-  - Your DataFrame must include the columns you specify for grouping, sample ID, epoch, and score (see Flexible Column Mapping section above).
-  - For parallelization to be effective, ensure your data contains multiple groupings and/or tasks.
-- **Recommended Parameter Settings:**
-  - `draws` & `tune`: Use at least 1000 for real analyses; lower values are for testing only.
-  - `delta_item` & `delta_cap`: 0.05 for high precision, 0.1 for faster but less precise stopping.
-  - `CI_delta`: 0.0002 for stable CI slope; increase for earlier stopping.
-  - `conservatism`: 5 is the default; increase for more caution in low-performance scenarios.
-- **Reproducibility:**
-  - Set a random seed (e.g., `np.random.seed(42)`) for reproducible results.
-- **Logging:**
-  - Use `configure_optstop_logging()` to log all stopping decisions to file (console output is suppressed by default).
-
-### Example: Recommended Parameters
-```python
-params = {
-    'delta_item': 0.05,      # High precision for items
-    'delta_cap': 0.05,       # High precision for group/task
-    'draws': 6000,           # Minimum recommended for inference
-    'tune': 6000,            # Minimum recommended for inference
-    'CI_delta': 0.00005,      # Require stable CI slope
-    'conservatism': 5,       # Typical value
-    # ... other parameters as needed ...
-}
-```
+For detailed best practices including parameter settings, grouping strategies, and reproducibility guidance, see [Best Practices & Recommendations](#best-practices--recommendations).
 
 ### Example Usage (Post-hoc)
 ```python
@@ -1246,7 +1244,7 @@ See the CLI help (`optstop-convergence --help`) for all options.
 - **Parallelization:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
 
 ### Recommended Parameter Settings
-- **draws & tune:** For reliable Bayesian inference, use at least `draws=3000` and `tune=3000` (per chain) for real analyses. Lower values (e.g., 50) are only for quick tests or debugging.
+- **draws & tune:** Use 1000 minimum for testing, 3000 for quick production runs, 6000 (default) for high-accuracy analysis. Values below 1000 (e.g., 50) are only for debugging.
 - **chains & cores:** Default values of `chains=4` and `cores=4` are suitable for most analyses. Increase `chains` for more robust MCMC sampling and `cores` for faster parallel sampling (up to your system's CPU core count).
 - **CI width thresholds:**
   - `delta_item`: 0.05 is a common choice for high precision; 0.1 is more lenient.
@@ -1258,14 +1256,16 @@ See the CLI help (`optstop-convergence --help`) for all options.
 - **Reproducibility:**
   - For reproducible pruned DataFrames, set a random seed before running your analysis (e.g., `np.random.seed(42)` or pass `random_seed` in params).
   - **Note:** Due to the stochastic nature of MCMC and parallelization, summary statistics (e.g., CI bounds, widths) are not guaranteed to be bitwise reproducible, even with the same random seed. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
+- **Logging:**
+  - Use `configure_optstop_logging()` to log all stopping decisions to file (console output is suppressed by default).
 
 ### Example: Recommended Parameters
 ```python
 params = {
     'delta_item': 0.05,      # High precision for items
     'delta_cap': 0.05,       # High precision for group/task
-    'draws': 6000,           # Minimum recommended for inference
-    'tune': 6000,            # Minimum recommended for inference
+    'draws': 6000,           # Default for high-accuracy (3000 for quick runs, 1000 for testing)
+    'tune': 6000,            # Default for high-accuracy (3000 for quick runs, 1000 for testing)
     'chains': 4,             # Number of MCMC chains
     'cores': 4,              # Number of CPU cores for sampling
     'CI_delta': 0.00005,      # Require stable CI slope
@@ -1277,52 +1277,7 @@ params = {
 See the parameter table above for all options and defaults.
 
 ## License
-MIT 
-
-## Minimal Working Example
-
-Here is a minimal example to get started with optimal stopping:
-
-```python
-import pandas as pd
-from optstop.rule import configure_optstop_logging
-from optstop import optimal_stopping_posthoc
-
-# Configure logging
-configure_optstop_logging('optstop_example.log')
-
-# Create a minimal DataFrame
-# Required columns: specify your own column names for grouping, sample ID, epoch, and score
-df = pd.DataFrame({
-    'subject': [1, 1, 1, 1],
-    'task': [1, 1, 1, 1],
-    'item_id': [1, 1, 2, 2],
-    'trial_num': [1, 2, 1, 2],
-    'score': [1, 0, 1, 1],
-})
-
-params = {
-    'delta_item': 0.05,
-    'delta_cap': 0.05,
-    'draws': 6000,
-    'tune': 6000,
-    'chains': 4,
-    'cores': 4,
-    'CI_delta': 0.0005,
-    'conservatism': 5,
-    'random_seed': 42
-}
-
-pruned_df, summary = optimal_stopping_posthoc(
-    df, params,
-    grouping_columns=['subject', 'task'],
-    sample_id_column='item_id',
-    epoch_column='trial_num',
-    score_column='score'
-)
-print(pruned_df)
-print(summary)
-```
+MIT
 
 ## FAQ & Troubleshooting
 
@@ -1333,7 +1288,7 @@ print(summary)
 - This is expected due to the stochastic nature of MCMC and parallelization. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
 
 **Q: I get PyMC or sampling errors (e.g., "Too few samples", "NUTS initialization failed").**
-- Increase `draws` and `tune` to at least 3000 for real analyses. For small test runs, warnings are expected.
+- Increase `draws` and `tune` (1000 minimum for testing, 3000 for quick production runs, 6000 for high-accuracy). For very small test runs, warnings are expected.
 - Ensure your data is not empty or all-NaN for any grouping.
 
 **Q: The code is slow or uses a lot of CPU.**
