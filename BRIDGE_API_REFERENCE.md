@@ -1,7 +1,7 @@
 # OptimalStoppingManager API Reference
 
 **Version:** 0.3.0
-**Last Updated:** 2025-12-04
+**Last Updated:** 2025-12-09
 **Status:** Production Ready
 **Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
@@ -348,6 +348,8 @@ grouping_columns=['model', 'tag.category']
 ```
 
 **Important:** More granular groupings = more targeted stopping but require more data per grouping. Ensure at least 20-30 samples per unique grouping combination (see [Best Practices §3](#3-choose-appropriate-grouping-granularity)). *Note: Other optstop package functions can assist in computing required sample sizes and epoch ranges, based on historical data.*
+
+**Reserved characters:** Grouping column values (model names, task names, metadata values) must not contain the sequence `:::`. This delimiter is used internally for sample ID tracking. A `ValueError` will be raised if any grouping value contains this sequence.
 
 ---
 
@@ -951,7 +953,8 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
     "stopped_groupings": list[str],      # Groupings that stopped completely
     "stopped_groupings_count": int,      # Count of stopped groupings
     "decision_counters": dict,           # Per-grouping inference timing info
-    "stabilization_histories": dict      # Per-grouping convergence metrics
+    "stabilization_histories": dict,     # Per-grouping convergence metrics
+    "item_entropy_histories": dict       # Per-sample entropy history (ordinal hybrid mode)
 }
 ```
 
@@ -1628,6 +1631,6 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2025-12-04
-**Document Version:** 1.2
+**Last Updated:** 2025-12-09
+**Document Version:** 1.3
 **Phase:** Production Ready (Phase 1-3 Complete)

@@ -151,9 +151,6 @@ async def test_1_1_1a_simple_binary_single_grouping():
     manager = OptimalStoppingManager(
         optstop_params=optstop_params,
         grouping_columns=['model', 'task'],
-        sample_id_column='sample_id',
-        epoch_column='epoch',
-        score_column='score',
         reanalysis_interval=5,  # Analyze every 5 completed samples (lesson from 1.1.2b)
         min_samples_per_grouping=3,  # Minimum 3 samples before analysis
         manager_name="test_binary_single"

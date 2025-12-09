@@ -2,11 +2,11 @@
   "version": 2,
   "status": "success",
   "eval": {
-    "eval_id": "18bc0e09-2ef4-4a9e-a30a-4203698aa406",
-    "run_id": "6a551b88-0f2d-4968-a83d-ecc4f640f6ef",
-    "created": "2025-12-09T11:36:44.839132+00:00",
+    "eval_id": "d0806237-b06e-4ab5-9812-fb87f3b967a8",
+    "run_id": "8a3ea917-ec9f-4532-903b-688ce19558dc",
+    "created": "2025-12-07T20:43:33.964487+00:00",
     "task": "ordinal_rating",
-    "task_id": "f0953c6c-8f71-4371-bc56-7915d2b5c729",
+    "task_id": "172ce22b-1812-41f7-bb50-6cbfde9ec2e5",
     "task_version": 1,
     "task_file": "tasks/ordinal_rating.py",
     "task_display_name": "ordinal_rating",
@@ -26967,8 +26967,8 @@
     ]
   },
   "stats": {
-    "started_at": "2025-12-09T11:36:44.839132+00:00",
-    "completed_at": "2025-12-09T11:37:06.660892+00:00",
+    "started_at": "2025-12-07T20:43:33.964487+00:00",
+    "completed_at": "2025-12-07T20:43:55.849903+00:00",
     "model_usage": {
       "anthropic/claude-3-sonnet": {
         "input_tokens": 10000,
@@ -26985,13 +26985,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "3MKYyXiJupHwbEpQPkCHpP",
+          "id": "Ka8V8KPpFetJz3U53dqniP",
           "content": "Question for sample_0000 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "g2CAVZviVPs5WEbpAuHCaY",
+          "id": "gAv6fyiVG2yYSEnNZGGvU8",
           "content": "Model response for sample_0000",
           "source": "generate",
           "role": "assistant"
@@ -27002,7 +27002,7 @@
         "choices": [
           {
             "message": {
-              "id": "NpWmBmcosSYw9iLWgfCFbJ",
+              "id": "RZQ9J7ySwQqezXM2ZX9mAD",
               "content": "Model response for sample_0000",
               "source": "generate",
               "role": "assistant",
@@ -27042,13 +27042,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "ietEcHhkbRenaHAsnSsZBG",
+          "id": "F34V7fyGzfdGNQg5Zy9P36",
           "content": "Question for sample_0001 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "hfSgDyT724ujJfaqAQW9Db",
+          "id": "FNnNTeRKBkQWVqhUdjaT9m",
           "content": "Model response for sample_0001",
           "source": "generate",
           "role": "assistant"
@@ -27059,7 +27059,7 @@
         "choices": [
           {
             "message": {
-              "id": "KjWHeWmyvEqZN8kbZExC29",
+              "id": "YyaFvCNQp6SLv6CHZmSZhV",
               "content": "Model response for sample_0001",
               "source": "generate",
               "role": "assistant",
@@ -27099,13 +27099,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "h8k2A3GCuBoWKfQvCoJ6jm",
+          "id": "642NdPsRNSehHgs8uAibSM",
           "content": "Question for sample_0002 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "dtoJrtKR7yXeURJvLiJmHn",
+          "id": "ZFW3sYnqY42ogsgmFQfyVv",
           "content": "Model response for sample_0002",
           "source": "generate",
           "role": "assistant"
@@ -27116,7 +27116,7 @@
         "choices": [
           {
             "message": {
-              "id": "igYU5rrGiB4UzZeoRcLfP8",
+              "id": "BfHzgSvqKmAVmPKgvwtKQ2",
               "content": "Model response for sample_0002",
               "source": "generate",
               "role": "assistant",
@@ -27156,13 +27156,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "Du5RhNhbYXfAFjFmKXz7Bb",
+          "id": "9mDNfxshcUm7PUdoTfR5KZ",
           "content": "Question for sample_0003 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "6adojwgT8qG6mSQqW3hjTG",
+          "id": "AEJaH6kLkrb3XdCUXUuoEd",
           "content": "Model response for sample_0003",
           "source": "generate",
           "role": "assistant"
@@ -27173,7 +27173,7 @@
         "choices": [
           {
             "message": {
-              "id": "KWzjntnKhRJhQnTx4QJeit",
+              "id": "duaFcXLbrKqYtP8sdtFxe5",
               "content": "Model response for sample_0003",
               "source": "generate",
               "role": "assistant",
@@ -27213,13 +27213,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "gVjZF9tbunb8jU62hkk5C5",
+          "id": "KNyGntrYuXZVfGPQumdpvb",
           "content": "Question for sample_0004 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "nXaDj7ASpVXuebe5xX8ki3",
+          "id": "epAkBokMojnJpAfQbAESXs",
           "content": "Model response for sample_0004",
           "source": "generate",
           "role": "assistant"
@@ -27230,7 +27230,7 @@
         "choices": [
           {
             "message": {
-              "id": "5c26xGESv6qVC5VHPuWgbA",
+              "id": "n7eMUYscfqRbRxyHBSwazq",
               "content": "Model response for sample_0004",
               "source": "generate",
               "role": "assistant",
@@ -27270,13 +27270,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "FEQWJ3FakL73WwCSHbCau7",
+          "id": "4Aws27EsRXk64Uw4WYzKCz",
           "content": "Question for sample_0005 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "ixZfkMnRKcNHNT23WPAtMx",
+          "id": "M59QSY7LqQWiF5MATBfwQr",
           "content": "Model response for sample_0005",
           "source": "generate",
           "role": "assistant"
@@ -27287,7 +27287,7 @@
         "choices": [
           {
             "message": {
-              "id": "fQhqoS3Ep5QbLY6hxM95Mf",
+              "id": "n4EqrUMEkqUGiQSAeK2wWB",
               "content": "Model response for sample_0005",
               "source": "generate",
               "role": "assistant",
@@ -27327,13 +27327,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "bUP65DCZKP4ZyK5Fqz4FD3",
+          "id": "VMTpcQi6EFT3BRQgUj7WwK",
           "content": "Question for sample_0006 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "7VHF6TyEXQpkYjShfER4Mg",
+          "id": "cpXBy3LB4ysyNeFm7KYKeH",
           "content": "Model response for sample_0006",
           "source": "generate",
           "role": "assistant"
@@ -27344,7 +27344,7 @@
         "choices": [
           {
             "message": {
-              "id": "mCiL3npquGgYooNSiP4fYz",
+              "id": "CxuqaZwkQbp6BNQtKvVzQu",
               "content": "Model response for sample_0006",
               "source": "generate",
               "role": "assistant",
@@ -27384,13 +27384,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "bbcRVztq6vdbuk8EzkJ6WU",
+          "id": "NBcti3tMmYZJVcw6n35mwB",
           "content": "Question for sample_0007 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "FHcqm63VwqgW5GJdTqLiRz",
+          "id": "HQdn3mhVLnfixsVWsU9toN",
           "content": "Model response for sample_0007",
           "source": "generate",
           "role": "assistant"
@@ -27401,7 +27401,7 @@
         "choices": [
           {
             "message": {
-              "id": "NqXLPTuWMvFhcezQvmMrea",
+              "id": "HXFnNJcPrfScGxePHnRiBm",
               "content": "Model response for sample_0007",
               "source": "generate",
               "role": "assistant",
@@ -27441,13 +27441,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "ijjzAvTYEKeMv6MwVRuuo8",
+          "id": "9MJDquP2dQbFtuF89aRWXG",
           "content": "Question for sample_0008 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "ND5ZQeC97vzBGG3biXtaPH",
+          "id": "CeXay93HiQLNKW3zgy7hQZ",
           "content": "Model response for sample_0008",
           "source": "generate",
           "role": "assistant"
@@ -27458,7 +27458,7 @@
         "choices": [
           {
             "message": {
-              "id": "LMBmjW45TJjXcpQYTuqfQQ",
+              "id": "BRZZtV2fcMqLQaPyd8dhDz",
               "content": "Model response for sample_0008",
               "source": "generate",
               "role": "assistant",
@@ -27498,13 +27498,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "KXHpWR2h53J3ZftHVyKhsX",
+          "id": "U54X3fESp54xJ7u99YL4qh",
           "content": "Question for sample_0009 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "GSALAmCVEkY5kX9BSmR4tS",
+          "id": "RXrViYoRnwN3qZcSWwQHzL",
           "content": "Model response for sample_0009",
           "source": "generate",
           "role": "assistant"
@@ -27515,7 +27515,7 @@
         "choices": [
           {
             "message": {
-              "id": "bARGyUg8V4nj2EQWHSzZZg",
+              "id": "gLE6JLc6SWHqzHSwXiEVbz",
               "content": "Model response for sample_0009",
               "source": "generate",
               "role": "assistant",
@@ -27555,13 +27555,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "9gmZRasstwu4Gx3yrnKNb8",
+          "id": "hED2SgYcCPbMJeayoyU7qi",
           "content": "Question for sample_0010 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "jZnPZCJKq48E3nNRBxiv5J",
+          "id": "Zk6S8kGuSBhT2G8mUM47MT",
           "content": "Model response for sample_0010",
           "source": "generate",
           "role": "assistant"
@@ -27572,7 +27572,7 @@
         "choices": [
           {
             "message": {
-              "id": "7rsuUhstq5AGxGdCboA6dP",
+              "id": "aUiuaJmKCvneALJpQTPH9Z",
               "content": "Model response for sample_0010",
               "source": "generate",
               "role": "assistant",
@@ -27612,13 +27612,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "MkcHP9ickXqhLGvfRv9Dxq",
+          "id": "RbTb53N7W82NP856MRawgE",
           "content": "Question for sample_0011 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "8o28hpcfyCYEWWh2UBfeYF",
+          "id": "fNiqEiofSiMaGy5onHCPmM",
           "content": "Model response for sample_0011",
           "source": "generate",
           "role": "assistant"
@@ -27629,7 +27629,7 @@
         "choices": [
           {
             "message": {
-              "id": "7tu8JiEjSFG8ZFJm45bxRg",
+              "id": "SEdWR4TXPwMTuWijMnTMqu",
               "content": "Model response for sample_0011",
               "source": "generate",
               "role": "assistant",
@@ -27669,13 +27669,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "VbN6PyEuGfUMZQizmJEQwb",
+          "id": "4FZkpng3s4EHVFxNmHacCH",
           "content": "Question for sample_0012 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "hLBXUFii8TXcZjN4Sudi2n",
+          "id": "fHozgfexYYjbjDTP4S5o8J",
           "content": "Model response for sample_0012",
           "source": "generate",
           "role": "assistant"
@@ -27686,7 +27686,7 @@
         "choices": [
           {
             "message": {
-              "id": "SAWQF9Tcwu4KB4qmvmqSy6",
+              "id": "5vXfABRChb8V8wQjmBBPiz",
               "content": "Model response for sample_0012",
               "source": "generate",
               "role": "assistant",
@@ -27726,13 +27726,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "nMPN3bZgPBwYrM5EJLDSbu",
+          "id": "5592p8x56rMgBHiSN56nYc",
           "content": "Question for sample_0013 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "Gzg6kvC2e9hCtZVTRP3hSY",
+          "id": "Rmrc8bvdcYoBy4yhcupapj",
           "content": "Model response for sample_0013",
           "source": "generate",
           "role": "assistant"
@@ -27743,7 +27743,7 @@
         "choices": [
           {
             "message": {
-              "id": "bBxWDpuNKpppJGcjmZq7Y6",
+              "id": "UMTCHCULHP2kJinThZTE3Z",
               "content": "Model response for sample_0013",
               "source": "generate",
               "role": "assistant",
@@ -27783,13 +27783,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "7Dn6AAe4AHoPpjtnXEqgj3",
+          "id": "kUbG8Kk6UqxxP8xzWi68JW",
           "content": "Question for sample_0014 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "WtJLcC5SYCh8xrgQP9PY6c",
+          "id": "43PUfhQavuotAPrwnemEZ5",
           "content": "Model response for sample_0014",
           "source": "generate",
           "role": "assistant"
@@ -27800,7 +27800,7 @@
         "choices": [
           {
             "message": {
-              "id": "3QxJgRk78kCGH249VaXvS4",
+              "id": "dA3RjRFwLEjUBkQBQouBeS",
               "content": "Model response for sample_0014",
               "source": "generate",
               "role": "assistant",
@@ -27840,13 +27840,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "ApKovCFk8i7XbU7ZPk8mSD",
+          "id": "DzKWAmRtmCNPuKwUAzjFqc",
           "content": "Question for sample_0015 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "PtWnbxMhLN6Y62vfDUfRqU",
+          "id": "HnGB9eyPLnSx9iznzy6XDv",
           "content": "Model response for sample_0015",
           "source": "generate",
           "role": "assistant"
@@ -27857,7 +27857,7 @@
         "choices": [
           {
             "message": {
-              "id": "N6RK6V3uEeKRtxoE5u3FZw",
+              "id": "Jdxz53CyzFzFB4dJ2dZaSD",
               "content": "Model response for sample_0015",
               "source": "generate",
               "role": "assistant",
@@ -27897,13 +27897,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "hbaXpU9bEA5UjMVLxCLooc",
+          "id": "jbbzGLQjsBoAXaeqd6CAJV",
           "content": "Question for sample_0016 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "DC32PLP8EdDE7ebf38AEHs",
+          "id": "mnjSFj7NLbVaZEncQjnsCp",
           "content": "Model response for sample_0016",
           "source": "generate",
           "role": "assistant"
@@ -27914,7 +27914,7 @@
         "choices": [
           {
             "message": {
-              "id": "CX9zM6hZ2Fv4VuyzYNGK7v",
+              "id": "ZLNpcv3TbsExfxjpvJdgUL",
               "content": "Model response for sample_0016",
               "source": "generate",
               "role": "assistant",
@@ -27954,13 +27954,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "aSQifYAtk4b9Sv85pbVaDM",
+          "id": "Wak3XdcN5GVrEt8jgKNvH8",
           "content": "Question for sample_0017 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "f3PomtzyVXakrPn7XRgnwP",
+          "id": "VjARehS6DmdjDButyPzHgH",
           "content": "Model response for sample_0017",
           "source": "generate",
           "role": "assistant"
@@ -27971,7 +27971,7 @@
         "choices": [
           {
             "message": {
-              "id": "crAwMwvqqKDXow6znwVPxH",
+              "id": "57FkT7GWYxWmpG5aAo3LAJ",
               "content": "Model response for sample_0017",
               "source": "generate",
               "role": "assistant",
@@ -28011,13 +28011,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "kJhqpbuo7uzrQfdYqyNWqd",
+          "id": "6awmtEFA3mZ9pbmwCU56C3",
           "content": "Question for sample_0018 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "nTFYqbtK2CD65sfhpcsBjD",
+          "id": "AwLCKZhMZBgWRHYLoLGkkA",
           "content": "Model response for sample_0018",
           "source": "generate",
           "role": "assistant"
@@ -28028,7 +28028,7 @@
         "choices": [
           {
             "message": {
-              "id": "MR9sNJM4iTczPae4HW6Ufx",
+              "id": "UXemwAY5asX5fmXXHAnp8Z",
               "content": "Model response for sample_0018",
               "source": "generate",
               "role": "assistant",
@@ -28068,13 +28068,13 @@
       "target": "correct_answer",
       "messages": [
         {
-          "id": "E3ceK47wgvNGPYmoJshqMH",
+          "id": "KJtnohzrLMKap6eKwRtYKf",
           "content": "Question for sample_0019 (epoch 1)",
           "source": "input",
           "role": "user"
         },
         {
-          "id": "UAydZ25VhAs8PBUyQC2sF5",
+          "id": "aNYyjqQhJDZQ7cXb6t7Uax",
           "content": "Model response for sample_0019",
           "source": "generate",
           "role": "assistant"
@@ -28085,7 +28085,7 @@
         "choices": [
           {
             "message": {
-              "id": "kxYdLDEdKTHzpzwEXXpPZX",
+              "id": "jUjokvxRQacqXqpfSghtA8",
               "content": "Model response for sample_0019",
               "source": "generate",
               "role": "assistant",
