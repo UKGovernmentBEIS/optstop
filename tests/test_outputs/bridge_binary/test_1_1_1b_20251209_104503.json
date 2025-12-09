@@ -1,0 +1,55 @@
+{
+  "test": "1.1.1b_multi_grouping_binary",
+  "n_groupings": 4,
+  "n_samples_per_grouping": 10,
+  "epochs_per_sample": 5,
+  "total_planned": 200,
+  "grouping_configs": [
+    {
+      "model": "gpt-4",
+      "task": "math",
+      "success_rate": 0.95
+    },
+    {
+      "model": "gpt-4",
+      "task": "coding",
+      "success_rate": 0.8
+    },
+    {
+      "model": "gpt-3.5",
+      "task": "math",
+      "success_rate": 0.5
+    },
+    {
+      "model": "gpt-3.5",
+      "task": "coding",
+      "success_rate": 0.2
+    }
+  ],
+  "per_grouping_stats": {
+    "('gpt-4', 'math')": {
+      "completed": 50,
+      "stopped": 0
+    },
+    "('gpt-4', 'coding')": {
+      "completed": 50,
+      "stopped": 0
+    },
+    "('gpt-3.5', 'math')": {
+      "completed": 50,
+      "stopped": 0
+    },
+    "('gpt-3.5', 'coding')": {
+      "completed": 50,
+      "stopped": 0
+    }
+  },
+  "total_efficiency_percent": 0.0,
+  "validation": {
+    "binary_discrete": true,
+    "no_aggregation": true,
+    "integer_scores": true,
+    "multi_grouping": true,
+    "independent_stopping": true
+  }
+}

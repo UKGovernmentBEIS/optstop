@@ -537,7 +537,20 @@ class OptimalStoppingManager(EarlyStopping):
 
         Returns:
             String representation of grouping (e.g., "gpt_4-math_task")
+
+        Raises:
+            ValueError: If any grouping value contains the reserved delimiter ':::'
         """
+        # Validate that no grouping value contains the reserved delimiter
+        # The ':::' delimiter is used internally to separate grouping_name from sample_id
+        # in stop_sample_ids (format: "grouping_name:::sample_id")
+        for col, value in grouping_values.items():
+            str_value = str(value) if value is not None else 'None'
+            if ':::' in str_value:
+                raise ValueError(
+                    f"Grouping value for column '{col}' contains reserved delimiter ':::'. "
+                    f"Value: '{str_value}'. Please use a different model/task name or metadata value."
+                )
         return '-'.join(str(v) if v is not None else 'None' for v in grouping_values.values())
 
     def _extract_score_value(self, scores: dict[str, SampleScore]) -> float | None:
@@ -1065,6 +1078,11 @@ class OptimalStoppingManager(EarlyStopping):
         if not hasattr(self, '_continuous_group_model_caches'):
             self._continuous_group_model_caches = {}
 
+        # Get or initialize item-level entropy histories for ordinal hybrid mode (Issue #6 fix)
+        # This enables Pathway 2 (entropy stabilization) at sample level
+        if not hasattr(self, '_item_entropy_histories'):
+            self._item_entropy_histories = {}
+
         # Retrieve caches for this grouping
         model_caches = {
             'binary_item': self._binary_item_model_caches.get(grouping_name, {}),
@@ -1074,6 +1092,9 @@ class OptimalStoppingManager(EarlyStopping):
             'continuous_item': self._continuous_item_model_caches.get(grouping_name, {}),
             'continuous_group': self._continuous_group_model_caches.get(grouping_name, {})
         }
+
+        # Retrieve item entropy histories for this grouping (Issue #6 fix)
+        item_entropy_histories = self._item_entropy_histories.get(grouping_name, None)
 
         ## MAJOR FLAG: This is where I feed relevant GPU configuration into sampling_kwargs for optimal_stopping_live_single().
         ## We may want to fix this specifically based on inspect_ai runtime environment.
@@ -1124,7 +1145,8 @@ class OptimalStoppingManager(EarlyStopping):
                 ordinal_model_type=self.ordinal_model_type,
                 entropy_threshold=1.5,  # Could be added as init parameter if needed
                 sampling_kwargs=sampling_kwargs,
-                model_caches=model_caches  # OPTIMIZATION #2: Persist all PyMC models
+                model_caches=model_caches,  # OPTIMIZATION #2: Persist all PyMC models
+                item_entropy_histories=item_entropy_histories  # Issue #6 fix: Persist for Pathway 2
             )
 
             result = await loop.run_in_executor(
@@ -1171,6 +1193,10 @@ class OptimalStoppingManager(EarlyStopping):
             self._ordinal_group_model_caches[grouping_name] = returned_caches.get('ordinal_group', {})
             self._continuous_item_model_caches[grouping_name] = returned_caches.get('continuous_item', {})
             self._continuous_group_model_caches[grouping_name] = returned_caches.get('continuous_group', {})
+
+        # Update stored item entropy histories for ordinal hybrid mode (Issue #6 fix)
+        if 'item_entropy_histories' in result:
+            self._item_entropy_histories[grouping_name] = result['item_entropy_histories']
 
         # Initialize stopped sample tracking for this grouping if needed
         if grouping_name not in self._stopped_sample_ids:

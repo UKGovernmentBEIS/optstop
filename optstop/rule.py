@@ -2196,7 +2196,8 @@ def optimal_stopping_live_single(
     ordinal_model_type: str = 'ordered_logistic',
     entropy_threshold: float = 1.5,
     sampling_kwargs: Optional[Dict[str, Any]] = None,
-    model_caches: Optional[Dict[str, Dict[str, Any]]] = None
+    model_caches: Optional[Dict[str, Dict[str, Any]]] = None,
+    item_entropy_histories: Optional[Dict[Any, List]] = None
 ) -> Dict[str, Any]:
     # TIMING_TEST: Start overall function timing
     import time
@@ -2236,6 +2237,10 @@ def optimal_stopping_live_single(
             Keys: 'binary_item', 'binary_group', 'ordinal_item', 'ordinal_group',
                   'continuous_item', 'continuous_group'
             Persists model compilation across inference calls. If None, creates new caches.
+        item_entropy_histories: Dict mapping sample_id to list of entropy (lo, hi, width) tuples.
+            Used for sample-level ordinal hybrid entropy stabilization (Pathway 2).
+            Persists across calls to enable cross-call stabilization detection.
+            If None, initializes empty dict. (Issue #6 fix)
 
     Returns:
         Dict with:
@@ -2244,6 +2249,7 @@ def optimal_stopping_live_single(
             - 'stop_this_grouping': List containing grouping name if should stop (else empty)
             - 'stabilization_history': Updated history dict with new values appended
             - 'model_caches': Updated cache dict (pass to next call for persistence)
+            - 'item_entropy_histories': Updated per-item entropy histories (pass to next call)
             - 'metadata': Dict with stopping reasons, basis values, and diagnostics
 
     Example:
@@ -2264,7 +2270,8 @@ def optimal_stopping_live_single(
         ...     params={'delta_item': 0.05, 'delta_cap': 0.05},
         ...     sample_id_column='item_id',
         ...     epoch_column='trial',
-        ...     stabilization_history=result1['stabilization_history']  # Pass history
+        ...     stabilization_history=result1['stabilization_history'],  # Pass history
+        ...     item_entropy_histories=result1['item_entropy_histories']  # Pass item histories
         ... )
         >>> # Group-level check runs automatically at end of each call
     """
@@ -2352,7 +2359,12 @@ def optimal_stopping_live_single(
     continuous_item_cache = model_caches.get('continuous_item', {})
     continuous_group_cache = model_caches.get('continuous_group', {})
 
-    entropy_history_per_item = {}
+    # Initialize or use provided item-level entropy histories (Issue #6 fix)
+    # This enables Pathway 2 (entropy stabilization) at sample level for ordinal hybrid
+    if item_entropy_histories is None:
+        entropy_history_per_item = {}
+    else:
+        entropy_history_per_item = item_entropy_histories
 
     # PyMC models for group-level hierarchical inference
     # Compiled once before item loop, updated with data during group-level checks
@@ -2377,12 +2389,13 @@ def optimal_stopping_live_single(
 
         if 'model' not in binary_group_cache:
             # Create new model
+            # Initialize with current_n_items for consistency with ordinal model (Issue #2 fix)
             with pm.Model() as model:
                 mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)
-                successes_data = pm.Data("successes", np.array([0]))
-                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-                trials_data = pm.Data("trials", np.array([1]))
+                successes_data = pm.Data("successes", np.zeros(current_n_items, dtype="int64"))
+                n_items = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
+                trials_data = pm.Data("trials", np.ones(current_n_items, dtype="int64"))
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
                 mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
                 mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
@@ -2432,6 +2445,7 @@ def optimal_stopping_live_single(
                 continuous_group_cache.clear()  # Clear invalid cache
 
         if 'model' not in continuous_group_cache:
+            # Initialize with current_n_items for consistency with ordinal model (Issue #2 fix)
             with pm.Model() as continuous_model:
                 # Group-level parameters (logit scale for mean)
                 # mu_group: centered at 0 → logit^-1(0) = 0.5 on probability scale
@@ -2456,7 +2470,8 @@ def optimal_stopping_live_single(
                 phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
 
                 # Mutable data containers (updated during group-level inference)
-                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                # Initialize with current_n_items for consistency
+                n_items = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
 
                 # Item-level means (hierarchical, logit scale)
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items)  # Item deviations from group
@@ -2482,8 +2497,9 @@ def optimal_stopping_live_single(
                 #   For Beta(mu, phi) distributed observations, sample mean has variance:
                 #   Var(mean) = mu*(1-mu) / (phi * n)
                 #
-                item_means = pm.Data("item_means", np.array([0.5]))  # Placeholder
-                item_ns = pm.Data("item_ns", np.array([10]))  # Placeholder
+                # Initialize with current_n_items for consistency
+                item_means = pm.Data("item_means", np.full(current_n_items, 0.5))
+                item_ns = pm.Data("item_ns", np.full(current_n_items, 10, dtype="int64"))
 
                 # Compute observation SD for each item based on theoretical variance
                 # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
@@ -3193,6 +3209,7 @@ def optimal_stopping_live_single(
         'stop_this_grouping': stop_this_grouping,
         'stabilization_history': stabilization_history,
         'model_caches': model_caches_out,  # OPTIMIZATION #2: Return all caches for persistence
+        'item_entropy_histories': entropy_history_per_item,  # Issue #6 fix: Persist for Pathway 2
         'metadata': metadata
     }
 
