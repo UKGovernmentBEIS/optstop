@@ -136,3 +136,9 @@ test_*.csv
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
 #Q4_Development_Files/
+
+# Claude Code configuration
+.claude/
+
+# Virtual environments in subdirectories
+**/venv_*/

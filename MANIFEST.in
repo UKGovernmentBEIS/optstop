@@ -15,9 +15,11 @@ exclude *.log
 exclude .coverage
 exclude .pytest_cache
 
-# Exclude test outputs and data (not needed in distribution)
+# Exclude test outputs, data, scripts, and tests (not needed in distribution)
 prune test_outputs
 prune test_data
+prune scripts
+prune tests
 
 # Exclude virtual environment
 prune venv
