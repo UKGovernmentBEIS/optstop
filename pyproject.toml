@@ -10,7 +10,14 @@ authors = [
     { name = "Toby D. Pilditch, PhD" }
 ]
 license = { text = "MIT" }
+readme = "README.md"
 requires-python = ">=3.10"
+
+[project.urls]
+Homepage = "https://github.com/UKGovernmentBEIS/optstop"
+Repository = "https://github.com/UKGovernmentBEIS/optstop.git"
+Issues = "https://github.com/UKGovernmentBEIS/optstop/issues"
+Changelog = "https://github.com/UKGovernmentBEIS/optstop/blob/main/CHANGELOG.md"
 dependencies = [
     "numpy",
     "pandas",

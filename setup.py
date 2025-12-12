@@ -18,6 +18,12 @@ setup(
     long_description=long_description,
     long_description_content_type='text/markdown',
     author='Toby D. Pilditch, PhD',
+    url='https://github.com/UKGovernmentBEIS/optstop',
+    project_urls={
+        'Repository': 'https://github.com/UKGovernmentBEIS/optstop.git',
+        'Issues': 'https://github.com/UKGovernmentBEIS/optstop/issues',
+        'Changelog': 'https://github.com/UKGovernmentBEIS/optstop/blob/main/CHANGELOG.md',
+    },
     packages=find_packages(),
     install_requires=[
         'numpy',
