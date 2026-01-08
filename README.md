@@ -16,7 +16,6 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Bayesian and frequentist hybrid methodology
 - **GPU acceleration support** via JAX/numpyro for significantly faster PyMC sampling
 - **Ordinal scoring support** for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
-- **Performance optimizations** for convergence analysis (~30% faster, see Performance Optimizations section)
 - **inspect_ai integration** for LLM evaluation workflows with adaptive early stopping
 
 ## Using optstop with inspect_ai
@@ -165,7 +164,7 @@ manager = OptimalStoppingManager(
 
 **Alternative:** If GPU is unavailable, use `score_agg='mean'` to aggregate ordinal scores into continuous values (~6 seconds per inference).
 
-#### 4. Shadow Mode for A/B Testing
+#### 4. Shadow Mode
 
 Compare performance with and without early stopping:
 
@@ -239,6 +238,7 @@ for sample in diagnostics['stopped_samples']:
 3. **Set appropriate groupings**: More granular groupings = more targeted stopping
 4. **Monitor efficiency**: If efficiency is 0%, your stopping criteria may be too strict
 5. **Check compatibility**: Verify inspect_ai version with `optstop.check_inspect_ai_compatibility()`
+6. **Sample ID Randomisation**: Ensure evals are constructed such that order of sample IDs is randomised (i.e., avoid systematic influences of sample ID order on potential performance)
 
 ### Compatibility
 
@@ -262,9 +262,6 @@ if optstop.check_inspect_ai_compatibility("0.3.5"):
 ### Documentation
 
 - **API reference**: See [`BRIDGE_API_REFERENCE.md`](BRIDGE_API_REFERENCE.md) - Complete parameter documentation and configuration guide
-- **Testing summary**: See `BRIDGE_TESTING_SUMMARY.md` - Phase 1 testing results and validation
-- **Version strategy**: See `VERSION_STRATEGY.md`
-- **Development roadmap**: See `BRIDGE_TESTING_AND_DEVELOPMENT_ROADMAP.md`
 
 ### Troubleshooting
 
@@ -336,50 +333,6 @@ PyMC will use GPU acceleration via JAX/numpyro
 ## Performance Optimizations
 
 `optstop` includes several performance optimizations that significantly improve processing speed, especially for convergence analysis with ordinal scoring.
-
-### Convergence Analysis Optimizations
-
-**Phase 1 Optimizations (Implemented)**:
-- **Vectorized Category Probabilities**: Eliminated Python loops in ordinal probability computation using NumPy broadcasting (2-3x faster for this operation)
-- **Smart Model Caching**: Reuses compiled PyMC model structure across randomization sequences within each grouping (eliminates 11 out of 12 redundant compilations)
-
-**Performance Gains**:
-- **~30% faster** convergence analysis overall (tested: 44s vs 63s on typical dataset)
-- **Greater gains** for ordinal groupings using entropy or hybrid inference modes
-- **Projected savings**: 100-500 seconds on larger datasets with typical parameters
-
-**Key Benefits**:
-- Zero functional changes (mathematical equivalence preserved)
-- 100% backward compatible (no API changes)
-- Randomization integrity maintained (no impact on re-sequencing processes)
-- Parallelization-safe (worker-local caching)
-
-**Example Performance Impact**:
-```python
-# Before optimizations: ~63 seconds for 4 groupings
-# After optimizations:  ~44 seconds for 4 groupings
-# Improvement: 30% faster
-
-result = convergence_posthoc(
-    df, params,
-    grouping_columns=['student', 'task'],
-    sample_id_column='item_id',
-    epoch_column='trial_num',
-    ordinal_tasks=['confidence'],
-    ordinal_inference='hybrid',  # Benefits most from optimizations
-    item_seqs=3, epoch_seqs=3
-)
-```
-
-### When Optimizations Apply
-
-The performance optimizations primarily benefit:
-- **Convergence analysis** (`convergence_posthoc`) - ~30-40% faster
-- **Ordinal scoring** with entropy or hybrid inference modes
-- **Nested loops** (item_seqs × epoch_seqs) - more iterations = more benefit
-
-Posthoc and live optimal stopping also benefit from vectorization (~5-20% faster for ordinal tasks), though the gains are smaller as they don't have the nested loop structure.
-
 ## Ordinal Scoring Support
 
 `optstop` supports both **binary scoring** (0/1) and **ordinal scoring** (e.g., 0-10) for both post-hoc and live optimal stopping modes.
@@ -1431,4 +1384,5 @@ optstop-convergence --help
 - **If you encounter errors, check the FAQ and log file for troubleshooting tips.** 
 
 **Note:** After running any of the main functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, or `convergence_posthoc`), you will see a message printed to the console reminding you where to find the log file with all details and warnings. This log file contains all stopping decisions, errors, and PyMC warnings, even if the terminal output is quiet. 
+
 
