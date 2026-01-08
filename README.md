@@ -22,6 +22,8 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 
 `optstop` now provides seamless integration with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Safety Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, enabling **statistically-rigorous adaptive early stopping** for your LLM evaluations.
 
+For those using this package in conjunction with inspect_ai, please see [`BRIDGE_API_REFERENCE.md`](BRIDGE_API_REFERENCE.md) for more relevant documentation.
+
 ### Why Use Optimal Stopping for LLM Evaluations?
 
 Running LLM evaluations can be expensive and time-consuming:
@@ -161,8 +163,6 @@ manager = OptimalStoppingManager(
     gpu_ids=[0]  # 2-4× faster
 )
 ```
-
-**Alternative:** If GPU is unavailable, use `score_agg='mean'` to aggregate ordinal scores into continuous values (~6 seconds per inference).
 
 #### 4. Shadow Mode
 
@@ -1384,5 +1384,6 @@ optstop-convergence --help
 - **If you encounter errors, check the FAQ and log file for troubleshooting tips.** 
 
 **Note:** After running any of the main functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, or `convergence_posthoc`), you will see a message printed to the console reminding you where to find the log file with all details and warnings. This log file contains all stopping decisions, errors, and PyMC warnings, even if the terminal output is quiet. 
+
 
 
