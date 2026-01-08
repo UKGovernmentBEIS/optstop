@@ -30,10 +30,7 @@ Running LLM evaluations can be expensive and time-consuming:
 - **Compute time**: Running multiple epochs per sample takes hours or days
 - **Resource waste**: Running unnecessary trials after statistical confidence is achieved
 
-Optimal stopping helps you **stop evaluating intelligently** when you have enough data, potentially saving:
-- 30-70% of API costs
-- 30-70% of evaluation time
-- Maintains statistical validity and reliability
+Optimal stopping helps you **stop evaluating intelligently** when you have enough data, potentially saving substantial API costs and evaluation time, whilst maintaining statistical validity and reliability.
 
 ### Quick Start
 
@@ -1434,3 +1431,4 @@ optstop-convergence --help
 - **If you encounter errors, check the FAQ and log file for troubleshooting tips.** 
 
 **Note:** After running any of the main functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, or `convergence_posthoc`), you will see a message printed to the console reminding you where to find the log file with all details and warnings. This log file contains all stopping decisions, errors, and PyMC warnings, even if the terminal output is quiet. 
+
