@@ -12,7 +12,16 @@ authors = [
 license = { text = "MIT" }
 readme = "README.md"
 requires-python = ">=3.10"
-
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
 [project.urls]
 Homepage = "https://github.com/UKGovernmentBEIS/optstop"
 Repository = "https://github.com/UKGovernmentBEIS/optstop.git"
@@ -57,4 +66,5 @@ dev = [
 [project.scripts]
 optstop-posthoc = "optstop.cli:main"
 optstop-live = "optstop.cli:main_live"
+
 optstop-convergence = "optstop.cli:main_convergence" 
