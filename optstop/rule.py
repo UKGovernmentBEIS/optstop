@@ -933,6 +933,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             ordinal_inference = params.get('ordinal_inference', 'modal')
             ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
             entropy_threshold = params.get('entropy_threshold', 1.5)
+            entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
             score_type, bounds = determine_score_type_standalone(
                 grouping_name,
@@ -3426,4 +3427,5 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
     finally:
         sys.stdout = old_stdout
+
         sys.stderr = old_stderr 
