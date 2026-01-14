@@ -55,13 +55,29 @@ Minimal working example for binary scoring evaluation:
 
 ```python
 from optstop.early_stopping import OptimalStoppingManager
-from inspect_ai import eval
+from inspect_ai import Task, eval
+from inspect_ai.dataset import Sample
+from inspect_ai.scorer import model_graded_fact
+from inspect_ai.solver import generate
+
+# Define your task (replace with your own dataset)
+task = Task(
+    dataset=[
+        Sample(input="What is 2+2?", target="4", id="q_0"),
+        Sample(input="What is the capital of France?", target="Paris", id="q_1"),
+        # ... add more samples
+    ],
+    solver=[generate()],
+    scorer=model_graded_fact()
+)
 
 # Configure optimal stopping
 manager = OptimalStoppingManager(
     optstop_params={
         'delta_item': 0.15,  # Max CI width for samples
         'delta_cap': 0.10,   # Max CI width for groupings
+        'draws': 500,
+        'tune': 500,
     },
     grouping_columns=['model', 'task'],
 )
@@ -1330,6 +1346,14 @@ from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 from optstop.early_stopping import OptimalStoppingManager
 
+# Example questions dataset (replace with your own data)
+questions = [
+    ("What is the capital of France?", "Paris"),
+    ("What is 2 + 2?", "4"),
+    ("Who wrote Romeo and Juliet?", "William Shakespeare"),
+    # ... add more question-answer pairs
+]
+
 # Define task
 task = Task(
     dataset=[
@@ -1349,6 +1373,8 @@ optstop_params = {
     'delta_cap': 0.10,
     'cred_level': 0.95,
     'conservatism': 5,
+    'draws': 500,
+    'tune': 500,
 }
 
 manager = OptimalStoppingManager(
