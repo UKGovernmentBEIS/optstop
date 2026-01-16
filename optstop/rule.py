@@ -275,8 +275,6 @@ def _normalize_ordinal_max_scores(
     Returns:
         Dictionary mapping each grouping to its max score (or None if not ordinal)
     """
-    ordinal_groupings = [g for g, st in score_type_map.items() if st == 'ordinal']
-
     if isinstance(ordinal_max_scores, int):
         # Single value - apply to all ordinal groupings
         result = {}
@@ -383,7 +381,13 @@ def _aggregate_with_ci(df: pd.DataFrame, score_col: str = "score",
             ci_highs = []
             for _, row in grp_summary.iterrows():
                 try:
-                    lo, hi = _beta_ci(int(row['successes']), int(row['trials']))
+                    successes = row['successes']
+                    trials = row['trials']
+                    # Explicit NaN check before int conversion
+                    if pd.isna(successes) or pd.isna(trials):
+                        lo, hi = np.nan, np.nan
+                    else:
+                        lo, hi = _beta_ci(int(successes), int(trials))
                 except Exception:
                     lo, hi = np.nan, np.nan
                 ci_lows.append(lo)
@@ -754,8 +758,9 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
         # Calculate confidence intervals for both datasets
         # For ordinal data, scale scores to [0,1] before computing HDI (so y-axis is consistent)
         # With per-grouping score types, we need to scale each grouping individually
-        full_df_for_hdi = full_df_internal.copy()
-        pruned_df_for_hdi = pruned_df_internal.copy()
+        # Use explicit deep=True to ensure independent copies that can be safely modified
+        full_df_for_hdi = full_df_internal.copy(deep=True)
+        pruned_df_for_hdi = pruned_df_internal.copy(deep=True)
 
         for grouping_name in unique_groupings:
             grp_score_type = score_type_map.get(grouping_name, 'continuous')
@@ -2569,13 +2574,35 @@ def optimal_stopping_posthoc(
                 # Ensure both DataFrames have the same column structure for comparison
                 common_columns = list(set(original_columns) & set(final_used_df.columns))
                 if common_columns:
-                    # Determine score type: ordinal > continuous > binary
-                    if ordinal_tasks:
-                        diag_score_type = 'ordinal'
-                    elif continuous_tasks:
-                        diag_score_type = 'continuous'
-                    else:
-                        diag_score_type = 'binary'
+                    # Build per-grouping score_type map using the same logic as the inference code
+                    # This ensures diagnostics match the actual inference pathway used for each grouping
+                    unique_groupings = sorted(df['grouping'].unique().tolist())
+                    diag_score_type_map = {}
+                    diag_ordinal_max_scores = {}
+
+                    for grouping_name in unique_groupings:
+                        # Use determine_score_type_standalone to get the score type for this grouping
+                        # This matches the logic used in the inference workers
+                        inferred_type, bounds = determine_score_type_standalone(
+                            grouping_name,
+                            ordinal_tasks=ordinal_tasks,
+                            continuous_tasks=continuous_tasks,
+                            upper_bound=ordinal_max_score
+                        )
+
+                        # Map internal score types to diagnostic score types
+                        # 'binary' -> 'binary', 'ordinal' -> 'ordinal'
+                        # 'continuous_01', 'continuous_bounded' -> 'continuous'
+                        if inferred_type == 'binary':
+                            diag_score_type_map[grouping_name] = 'binary'
+                        elif inferred_type == 'ordinal':
+                            diag_score_type_map[grouping_name] = 'ordinal'
+                            diag_ordinal_max_scores[grouping_name] = int(bounds.get('upper', ordinal_max_score))
+                        else:  # continuous_01, continuous_bounded
+                            diag_score_type_map[grouping_name] = 'continuous'
+
+                    logger.debug(f"Diagnostic score types: {diag_score_type_map}")
+
                     _generate_diagnostic_plots(
                         original_df[common_columns],
                         final_used_df[common_columns],
@@ -2583,8 +2610,8 @@ def optimal_stopping_posthoc(
                         score_col=score_column,
                         grouping_columns=grouping_columns,
                         sample_id_column=sample_id_column,
-                        score_type=diag_score_type,
-                        ordinal_max_score=ordinal_max_score
+                        score_type=diag_score_type_map,
+                        ordinal_max_score=diag_ordinal_max_scores if diag_ordinal_max_scores else ordinal_max_score
                     )
                 else:
                     logger.warning("No common columns between original and pruned data for diagnostics")

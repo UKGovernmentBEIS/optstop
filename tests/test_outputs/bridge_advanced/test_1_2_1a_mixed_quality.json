@@ -1,74 +1,56 @@
 {
   "test_id": "test_1_2_1a",
   "test_name": "Mixed Data Quality Across Groupings (ENHANCED)",
-  "status": "PASS",
   "configuration": {
     "num_samples_per_grouping": 20,
     "num_epochs": 8,
     "num_groupings": 4,
     "reanalysis_interval": 5,
-    "routing": "binary_discrete",
-    "thresholds": {
-      "delta_item": 0.15,
-      "delta_cap": 0.10,
-      "note": "Strict thresholds - different from Section 1.1 (0.20, 0.18)"
-    }
+    "routing": "binary_discrete"
   },
   "grouping_results": {
     "model-A-task-1": {
       "success_rate": 0.95,
       "total_planned": 160,
-      "total_ran": 95,
-      "total_skipped": 65,
-      "efficiency": 40.625,
-      "status": "PASS - >35% threshold met"
+      "total_ran": 80,
+      "total_skipped": 80,
+      "efficiency": 50.0
     },
     "model-A-task-2": {
       "success_rate": 0.7,
       "total_planned": 160,
       "total_ran": 160,
       "total_skipped": 0,
-      "efficiency": 0.0,
-      "status": "PASS - 0% expected for p=0.70"
+      "efficiency": 0.0
     },
     "model-B-task-1": {
       "success_rate": 1.0,
       "total_planned": 160,
-      "total_ran": 30,
-      "total_skipped": 130,
-      "efficiency": 81.25,
-      "status": "PASS - >75% threshold met"
+      "total_ran": 25,
+      "total_skipped": 135,
+      "efficiency": 84.375
     },
     "model-B-task-2": {
       "success_rate": 0.6,
       "total_planned": 160,
       "total_ran": 160,
       "total_skipped": 0,
-      "efficiency": 0.0,
-      "status": "PASS - 0% expected for p=0.60"
+      "efficiency": 0.0
     }
   },
   "overall_diagnostics": {
     "total_planned": 640,
-    "total_ran": 445,
-    "total_skipped": 195,
-    "efficiency": 30.47
+    "total_ran": 425,
+    "total_skipped": 215,
+    "efficiency": 33.59
   },
   "validation": {
-    "routing_verified": true,
-    "routing_method": "fallback (Binary group inference timing messages)",
+    "routing_verified": false,
     "model-A-task-1_stops": true,
     "model-B-task-1_stops": true,
     "model-A-task-2_efficiency": 0.0,
     "model-B-task-2_efficiency": 0.0,
     "independent_groupings": true,
     "overall_efficiency_nonzero": true
-  },
-  "key_findings": [
-    "Strict thresholds (0.15, 0.10) reduce efficiency vs relaxed (0.20, 0.18)",
-    "p=0.95 achieves 40.6% efficiency (vs 87.5% with relaxed thresholds)",
-    "p=1.00 achieves 81.2% efficiency (similar to 87.5% with relaxed)",
-    "Independent grouping analysis confirmed (4 groupings, different stopping behavior)",
-    "Conservative Bayesian behavior confirmed for p≤0.70 (0% efficiency)"
-  ]
+  }
 }
