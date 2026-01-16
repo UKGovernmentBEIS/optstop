@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from scipy import stats
 from scipy.stats import beta
-from typing import Dict, Any, List, Tuple, Optional
+from typing import Dict, Any, List, Tuple, Optional, Union
 from tqdm import tqdm
 import contextlib
 import io
@@ -168,28 +168,278 @@ def _beta_ci(successes: int, trials: int, cred_level: float = 0.95) -> Tuple[flo
     """Compute beta credible interval for binomial proportion."""
     alpha_post = 1 + successes
     beta_post = 1 + trials - successes
+    # Validate parameters to avoid invalid beta distribution
+    if alpha_post <= 0 or beta_post <= 0:
+        return (np.nan, np.nan)
     lower = beta.ppf((1-cred_level)/2, alpha_post, beta_post)
     upper = beta.ppf(1-(1-cred_level)/2, alpha_post, beta_post)
     return lower, upper
 
-def _aggregate_with_ci(df: pd.DataFrame, score_col: str = "score", is_binomial: bool = True) -> pd.DataFrame:
-    """Aggregate data to item level and compute CIs."""
-    agg_cols = ["grouping", "sample_id"]
-    grouped = df.groupby(agg_cols)
-    
-    if is_binomial:
-        summary = grouped[score_col].agg(['sum', 'count']).reset_index()
-        summary.rename(columns={'sum': 'successes', 'count': 'trials'}, inplace=True)
+
+def _bootstrap_ci(values: np.ndarray, confidence: float = 0.95, n_bootstrap: int = 1000,
+                  random_state: Optional[int] = None) -> Tuple[float, float]:
+    """
+    Compute bootstrap confidence interval for any score distribution.
+    Works for binary, ordinal, or continuous scores.
+
+    Args:
+        values: Array of score values
+        confidence: Confidence level (default 0.95)
+        n_bootstrap: Number of bootstrap samples (default 1000)
+        random_state: Random seed for reproducibility
+
+    Returns:
+        Tuple of (lower_bound, upper_bound)
+    """
+    if len(values) == 0:
+        return (np.nan, np.nan)
+    if len(values) == 1:
+        return (float(values[0]), float(values[0]))
+
+    rng = np.random.default_rng(random_state)
+    bootstrap_means = np.array([
+        rng.choice(values, size=len(values), replace=True).mean()
+        for _ in range(n_bootstrap)
+    ])
+
+    alpha = (1 - confidence) / 2
+    return (float(np.percentile(bootstrap_means, alpha * 100)),
+            float(np.percentile(bootstrap_means, (1 - alpha) * 100)))
+
+
+def _normalize_score_type_input(
+    score_type: Union[str, Dict[str, str]],
+    unique_groupings: List[str],
+    logger: logging.Logger
+) -> Dict[str, str]:
+    """
+    Normalize score_type input to a per-grouping dictionary.
+
+    Args:
+        score_type: Either a single string (applied to all groupings) or a dict mapping
+                    grouping names to score types ('binary', 'ordinal', 'continuous')
+        unique_groupings: List of unique grouping names in the data
+        logger: Logger for warnings
+
+    Returns:
+        Dictionary mapping each grouping to its score type
+    """
+    valid_types = ('binary', 'ordinal', 'continuous')
+
+    if isinstance(score_type, str):
+        # Single value - apply to all groupings
+        if score_type not in valid_types:
+            logger.warning(f"Invalid score_type '{score_type}', must be one of {valid_types}. Defaulting to 'continuous'.")
+            score_type = 'continuous'
+        return {g: score_type for g in unique_groupings}
+    elif isinstance(score_type, dict):
+        # Validate provided types
+        result = {}
+        for grouping in unique_groupings:
+            if grouping in score_type:
+                st = score_type[grouping]
+                if st not in valid_types:
+                    logger.warning(f"Invalid score_type '{st}' for grouping '{grouping}', defaulting to 'continuous'.")
+                    result[grouping] = 'continuous'
+                else:
+                    result[grouping] = st
+            else:
+                logger.warning(f"No score_type specified for grouping '{grouping}', defaulting to 'continuous'.")
+                result[grouping] = 'continuous'
+
+        # Warn about extra keys in map that don't exist in data
+        extra_keys = set(score_type.keys()) - set(unique_groupings)
+        if extra_keys:
+            logger.warning(f"score_type map contains groupings not in data: {extra_keys}")
+
+        return result
     else:
-        summary = grouped[score_col].agg(['mean', 'count']).reset_index()
-        summary.rename(columns={'mean': 'prop', 'count': 'trials'}, inplace=True)
-        summary['successes'] = summary['prop'] * summary['trials']
-    
-    summary['prop'] = summary['successes'] / summary['trials']
-    summary[['ci_low', 'ci_high']] = summary.apply(
-        lambda row: _beta_ci(row['successes'], row['trials']), axis=1, result_type='expand'
+        logger.warning(f"score_type must be str or dict, got {type(score_type)}. Defaulting to 'continuous' for all.")
+        return {g: 'continuous' for g in unique_groupings}
+
+
+def _normalize_ordinal_max_scores(
+    ordinal_max_scores: Union[int, Dict[str, int]],
+    score_type_map: Dict[str, str],
+    logger: logging.Logger
+) -> Dict[str, Optional[int]]:
+    """
+    Normalize ordinal_max_scores input to a per-grouping dictionary.
+
+    Args:
+        ordinal_max_scores: Either a single int (applied to all ordinal groupings) or a dict
+                            mapping grouping names to their max scores
+        score_type_map: Dictionary mapping groupings to score types
+        logger: Logger for warnings
+
+    Returns:
+        Dictionary mapping each grouping to its max score (or None if not ordinal)
+    """
+    ordinal_groupings = [g for g, st in score_type_map.items() if st == 'ordinal']
+
+    if isinstance(ordinal_max_scores, int):
+        # Single value - apply to all ordinal groupings
+        result = {}
+        for grouping, st in score_type_map.items():
+            if st == 'ordinal':
+                result[grouping] = ordinal_max_scores
+            else:
+                result[grouping] = None
+        return result
+    elif isinstance(ordinal_max_scores, dict):
+        result = {}
+        for grouping, st in score_type_map.items():
+            if st == 'ordinal':
+                if grouping in ordinal_max_scores:
+                    result[grouping] = ordinal_max_scores[grouping]
+                else:
+                    logger.warning(f"No ordinal_max_score specified for ordinal grouping '{grouping}', defaulting to 5.")
+                    result[grouping] = 5
+            else:
+                result[grouping] = None
+        return result
+    else:
+        logger.warning(f"ordinal_max_scores must be int or dict, got {type(ordinal_max_scores)}. Defaulting to 5.")
+        return {g: 5 if score_type_map.get(g) == 'ordinal' else None for g in score_type_map}
+
+
+def _aggregate_with_ci(df: pd.DataFrame, score_col: str = "score",
+                       score_type: Union[str, Dict[str, str]] = "binary",
+                       ordinal_max_score: Union[int, Dict[str, int], None] = None,
+                       random_state: Optional[int] = None) -> pd.DataFrame:
+    """
+    Aggregate data to item level and compute CIs, with per-grouping score type support.
+
+    Args:
+        df: Input DataFrame with grouping, sample_id, and score columns
+        score_col: Name of score column
+        score_type: Either a string ('binary', 'ordinal', 'continuous') applied to all groupings,
+                    or a dict mapping grouping names to their score types.
+                    - 'binary': Uses beta CI (assumes 0/1 scores)
+                    - 'ordinal': Uses bootstrap CI with scaling by ordinal_max_score
+                    - 'continuous': Uses bootstrap CI without scaling (assumes [0,1] range)
+        ordinal_max_score: Either a single int (applied to all ordinal groupings) or a dict
+                           mapping grouping names to their max scores
+        random_state: Random seed for reproducible bootstrap CIs
+
+    Returns:
+        DataFrame with columns: grouping, sample_id, successes, trials, prop, ci_low, ci_high, n_reps
+    """
+    agg_cols = ["grouping", "sample_id"]
+    logger = logging.getLogger('optstop.diagnostics')
+    expected_cols = agg_cols + ['successes', 'trials', 'prop', 'ci_low', 'ci_high', 'n_reps']
+
+    # Validate required columns exist and have data
+    for col in agg_cols:
+        if col not in df.columns:
+            logger.warning(f"Required column '{col}' not found in DataFrame")
+            return pd.DataFrame(columns=expected_cols)
+        if df[col].isna().all():
+            logger.warning(f"Column '{col}' is entirely NaN")
+            return pd.DataFrame(columns=expected_cols)
+
+    # Check score column
+    if score_col not in df.columns:
+        logger.warning(f"Score column '{score_col}' not found")
+        return pd.DataFrame(columns=expected_cols)
+
+    # Filter out rows with NaN in aggregation columns (groupby drops them anyway)
+    df_clean = df.dropna(subset=agg_cols)
+    if df_clean.empty:
+        logger.warning("No valid rows after dropping NaN in grouping columns")
+        return pd.DataFrame(columns=expected_cols)
+
+    # Get unique groupings and normalize inputs to per-grouping dictionaries
+    unique_groupings = sorted(df_clean['grouping'].unique().tolist())
+    score_type_map = _normalize_score_type_input(score_type, unique_groupings, logger)
+    ordinal_max_map = _normalize_ordinal_max_scores(
+        ordinal_max_score if ordinal_max_score is not None else 5,
+        score_type_map, logger
     )
-    summary['n_reps'] = summary['trials']
+
+    # Process each grouping according to its score type
+    all_results = []
+
+    for grouping_name in unique_groupings:
+        grp_score_type = score_type_map[grouping_name]
+        grp_max_score = ordinal_max_map.get(grouping_name)
+
+        # Filter data for this grouping
+        grp_df = df_clean[df_clean['grouping'] == grouping_name]
+        if grp_df.empty:
+            continue
+
+        # Group by sample_id within this grouping
+        grp_grouped = grp_df.groupby('sample_id', sort=True)
+
+        if grp_score_type == 'binary':
+            # Binary: use beta CI
+            grp_summary = grp_grouped[score_col].agg(['sum', 'count']).reset_index()
+            grp_summary.rename(columns={'sum': 'successes', 'count': 'trials'}, inplace=True)
+            grp_summary['prop'] = grp_summary['successes'] / grp_summary['trials']
+
+            # Compute beta CIs
+            ci_lows = []
+            ci_highs = []
+            for _, row in grp_summary.iterrows():
+                try:
+                    lo, hi = _beta_ci(int(row['successes']), int(row['trials']))
+                except Exception:
+                    lo, hi = np.nan, np.nan
+                ci_lows.append(lo)
+                ci_highs.append(hi)
+            grp_summary['ci_low'] = ci_lows
+            grp_summary['ci_high'] = ci_highs
+
+        else:
+            # Ordinal/Continuous: use bootstrap CI
+            grp_summary = grp_grouped[score_col].agg(['mean', 'count']).reset_index()
+            grp_summary.rename(columns={'mean': 'prop', 'count': 'trials'}, inplace=True)
+
+            # Determine scaling factor for ordinal
+            scale_factor = None
+            if grp_score_type == 'ordinal':
+                if grp_max_score is not None and grp_max_score > 0:
+                    scale_factor = grp_max_score
+                else:
+                    logger.warning(f"score_type='ordinal' for grouping '{grouping_name}' but no max_score; scores won't be scaled")
+
+            # Scale proportion if needed
+            if scale_factor is not None:
+                grp_summary['prop'] = grp_summary['prop'] / scale_factor
+
+            # For compatibility, compute 'successes' as prop * trials
+            grp_summary['successes'] = grp_summary['prop'] * grp_summary['trials']
+
+            # Compute bootstrap CIs
+            ci_results = {}
+            for sample_id, sample_df in grp_grouped:
+                scores = sample_df[score_col].dropna().values
+                if scale_factor is not None:
+                    scores = scores / scale_factor
+                try:
+                    lo, hi = _bootstrap_ci(scores, random_state=random_state)
+                except Exception:
+                    lo, hi = np.nan, np.nan
+                ci_results[sample_id] = (lo, hi)
+
+            # Use explicit index alignment
+            grp_summary['ci_low'] = grp_summary['sample_id'].map(lambda sid: ci_results.get(sid, (np.nan, np.nan))[0])
+            grp_summary['ci_high'] = grp_summary['sample_id'].map(lambda sid: ci_results.get(sid, (np.nan, np.nan))[1])
+
+        grp_summary['grouping'] = grouping_name
+        grp_summary['n_reps'] = grp_summary['trials']
+        all_results.append(grp_summary)
+
+    if not all_results:
+        return pd.DataFrame(columns=expected_cols)
+
+    # Combine all results
+    summary = pd.concat(all_results, ignore_index=True)
+
+    # Reorder columns to expected order
+    summary = summary[expected_cols]
+
     return summary
 
 def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95, score_col: str = "score") -> pd.DataFrame:
@@ -304,71 +554,225 @@ def _bland_altman(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kw) -> Tuple[flo
     ax.set_title("Bland–Altman")
     return bias, loa
 
-def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
-                              out_prefix: str = "optstop_diagnostics", score_col: str = "score") -> None:
-    """Generate diagnostic plots comparing full vs pruned datasets."""
+def _infer_sample_id_column(df: pd.DataFrame) -> Optional[str]:
+    """
+    Infer sample ID column with proper priority and validation.
+
+    Priority:
+    1. Exact match 'sample_id' if it has valid data
+    2. Other columns containing 'sample' with valid data (sorted for determinism)
+    3. Columns ending in '_id' but not starting with problematic prefixes (sorted for determinism)
+    4. Fall back to None (caller should use index)
+
+    Returns:
+        Column name to use as sample_id, or None if no suitable column found.
+    """
     logger = logging.getLogger('optstop.diagnostics')
-    # logger.info(f"Generating diagnostic plots with prefix: {out_prefix}")  # Verbose
+
+    # Priority 1: Exact match
+    if 'sample_id' in df.columns and df['sample_id'].notna().any():
+        logger.debug("Inferred sample_id column: 'sample_id' (exact match)")
+        return 'sample_id'
+
+    # Priority 2: Columns containing 'sample' (sorted for deterministic selection)
+    sample_cols = sorted([col for col in df.columns
+                          if 'sample' in col.lower() and col != 'sample_id'])
+    for col in sample_cols:
+        if df[col].notna().any():
+            logger.debug(f"Inferred sample_id column: '{col}' (contains 'sample')")
+            return col
+
+    # Priority 3: Columns ending in '_id' but not problematic prefixes (sorted for determinism)
+    skip_prefixes = ('eval_', 'model_', 'task_', 'run_')
+    id_cols = sorted([col for col in df.columns
+                      if col.lower().endswith('_id')
+                      and not col.lower().startswith(skip_prefixes)])
+    for col in id_cols:
+        if df[col].notna().any():
+            logger.debug(f"Inferred sample_id column: '{col}' (ends with '_id')")
+            return col
+
+    # Priority 4: Fall back to None
+    logger.debug("No suitable sample_id column found, will use index")
+    return None
+
+
+def _infer_grouping_columns(df: pd.DataFrame) -> Optional[List[str]]:
+    """
+    Infer grouping columns with validation.
+
+    Returns:
+        List of column names to use for grouping, or None if no valid columns found.
+        Results are sorted for deterministic selection.
+    """
+    logger = logging.getLogger('optstop.diagnostics')
+
+    # Find candidates with valid (non-null) data, sorted for determinism
+    candidates = sorted([col for col in df.columns
+                         if ('group' in col.lower() or 'task' in col.lower())
+                         and df[col].notna().any()])
+
+    # Prefer 'grouping' exact match
+    if 'grouping' in candidates:
+        logger.debug("Inferred grouping column: 'grouping' (exact match)")
+        return ['grouping']
+
+    if candidates:
+        logger.debug(f"Inferred grouping columns: {candidates}")
+        return candidates
+
+    logger.debug("No suitable grouping columns found")
+    return None
+
+
+def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
+                              out_prefix: str = "optstop_diagnostics", score_col: str = "score",
+                              grouping_columns: Optional[List[str]] = None,
+                              sample_id_column: Optional[str] = None,
+                              score_type: Union[str, Dict[str, str]] = "binary",
+                              ordinal_max_score: Union[int, Dict[str, int]] = 10,
+                              random_state: Optional[int] = None) -> None:
+    """
+    Generate diagnostic plots comparing full vs pruned datasets.
+
+    Args:
+        full_df: Full dataset before pruning
+        pruned_df: Pruned dataset after optimal stopping
+        out_prefix: Prefix for output files
+        score_col: Name of score column
+        grouping_columns: Explicit grouping columns (if None, will infer)
+        sample_id_column: Explicit sample ID column (if None, will infer)
+        score_type: Either a string ('binary', 'ordinal', 'continuous') applied to all groupings,
+                    or a dict mapping grouping names to their score types. This affects CI computation:
+                    - 'binary': Uses beta CI (assumes 0/1 scores)
+                    - 'ordinal': Uses bootstrap CI with scaling by ordinal_max_score
+                    - 'continuous': Uses bootstrap CI without scaling (assumes [0,1] range)
+        ordinal_max_score: Either a single int (applied to all ordinal groupings) or a dict
+                           mapping grouping names to their max scores
+        random_state: Random seed for reproducible bootstrap CIs
+    """
+    logger = logging.getLogger('optstop.diagnostics')
 
     try:
         # Create internal column structure for diagnostics
         full_df_internal = full_df.copy()
         pruned_df_internal = pruned_df.copy()
-        
-        # If the data doesn't have internal columns, create them
-        if 'grouping' not in full_df_internal.columns:
-            # Assume we have grouping_num and task_num columns
-            if 'grouping_num' in full_df_internal.columns and 'task_num' in full_df_internal.columns:
-                full_df_internal['grouping'] = full_df_internal['grouping_num'].astype(str) + '-' + full_df_internal['task_num'].astype(str)
-                full_df_internal['task'] = full_df_internal['task_num']
-                full_df_internal['sample_id'] = full_df_internal['sample_id_num']
-            else:
-                # Try to infer from available columns
-                grouping_cols = [col for col in full_df_internal.columns if 'group' in col.lower() or 'task' in col.lower()]
-                if grouping_cols:
-                    full_df_internal['grouping'] = full_df_internal[grouping_cols].astype(str).agg('-'.join, axis=1)
-                    full_df_internal['task'] = full_df_internal[grouping_cols[0]] if len(grouping_cols) == 1 else full_df_internal[grouping_cols[0]]
+
+        # Helper to set up columns for a dataframe
+        def setup_internal_columns(df_internal: pd.DataFrame, df_name: str) -> pd.DataFrame:
+            # Set up grouping column
+            if 'grouping' not in df_internal.columns:
+                grouping_set = False
+
+                # Priority 1: Use explicit grouping columns if provided and valid
+                if grouping_columns:
+                    missing_cols = [col for col in grouping_columns if col not in df_internal.columns]
+                    if missing_cols:
+                        logger.warning(f"Grouping columns {missing_cols} not found in {df_name}, falling back to inference")
+                    else:
+                        df_internal['grouping'] = df_internal[grouping_columns].astype(str).agg('-'.join, axis=1)
+                        df_internal['task'] = df_internal[grouping_columns[0]]
+                        grouping_set = True
+
+                # Priority 2: Use internal numeric columns
+                if not grouping_set and 'grouping_num' in df_internal.columns and 'task_num' in df_internal.columns:
+                    df_internal['grouping'] = df_internal['grouping_num'].astype(str) + '-' + df_internal['task_num'].astype(str)
+                    df_internal['task'] = df_internal['task_num']
+                    grouping_set = True
+
+                # Priority 3: Infer from available columns (fallback)
+                if not grouping_set:
+                    inferred_cols = _infer_grouping_columns(df_internal)
+                    if inferred_cols:
+                        df_internal['grouping'] = df_internal[inferred_cols].astype(str).agg('-'.join, axis=1)
+                        df_internal['task'] = df_internal[inferred_cols[0]]
+                    else:
+                        logger.warning(f"No grouping columns found in {df_name}, using default 'group1'")
+                        df_internal['grouping'] = 'group1'
+                        df_internal['task'] = 1
+
+            # Ensure 'task' column exists (needed for HDI computation)
+            # If 'grouping' already existed but 'task' doesn't, derive it from grouping
+            if 'task' not in df_internal.columns:
+                if 'task_num' in df_internal.columns:
+                    df_internal['task'] = df_internal['task_num']
                 else:
-                    full_df_internal['grouping'] = 'group1'
-                    full_df_internal['task'] = 1
-                
-                sample_id_cols = [col for col in full_df_internal.columns if 'sample' in col.lower() or 'id' in col.lower()]
-                if sample_id_cols:
-                    full_df_internal['sample_id'] = full_df_internal[sample_id_cols[0]]
-                else:
-                    full_df_internal['sample_id'] = full_df_internal.index
-        
-        if 'grouping' not in pruned_df_internal.columns:
-            # Apply the same logic to pruned data
-            if 'grouping_num' in pruned_df_internal.columns and 'task_num' in pruned_df_internal.columns:
-                pruned_df_internal['grouping'] = pruned_df_internal['grouping_num'].astype(str) + '-' + pruned_df_internal['task_num'].astype(str)
-                pruned_df_internal['task'] = pruned_df_internal['task_num']
-                pruned_df_internal['sample_id'] = pruned_df_internal['sample_id_num']
-            else:
-                grouping_cols = [col for col in pruned_df_internal.columns if 'group' in col.lower() or 'task' in col.lower()]
-                if grouping_cols:
-                    pruned_df_internal['grouping'] = pruned_df_internal[grouping_cols].astype(str).agg('-'.join, axis=1)
-                    pruned_df_internal['task'] = pruned_df_internal[grouping_cols[0]] if len(grouping_cols) == 1 else pruned_df_internal[grouping_cols[0]]
-                else:
-                    pruned_df_internal['grouping'] = 'group1'
-                    pruned_df_internal['task'] = 1
-                
-                sample_id_cols = [col for col in pruned_df_internal.columns if 'sample' in col.lower() or 'id' in col.lower()]
-                if sample_id_cols:
-                    pruned_df_internal['sample_id'] = pruned_df_internal[sample_id_cols[0]]
-                else:
-                    pruned_df_internal['sample_id'] = pruned_df_internal.index
-        
-        # Aggregate to item level and compute CIs
-        pruned_item = _aggregate_with_ci(pruned_df_internal, score_col=score_col)
-        full_item = _aggregate_with_ci(full_df_internal, score_col=score_col)
+                    # Use grouping values as task (each unique grouping is a separate task)
+                    df_internal['task'] = df_internal['grouping']
+
+            # Set up sample_id column
+            if 'sample_id' not in df_internal.columns:
+                sample_id_set = False
+
+                # Priority 1: Use explicit sample_id column if provided and valid
+                if sample_id_column:
+                    if sample_id_column not in df_internal.columns:
+                        logger.warning(f"Sample ID column '{sample_id_column}' not found in {df_name}, falling back to inference")
+                    else:
+                        df_internal['sample_id'] = df_internal[sample_id_column]
+                        sample_id_set = True
+
+                # Priority 2: Use internal numeric column
+                if not sample_id_set and 'sample_id_num' in df_internal.columns:
+                    df_internal['sample_id'] = df_internal['sample_id_num']
+                    sample_id_set = True
+
+                # Priority 3: Infer from available columns (fallback)
+                if not sample_id_set:
+                    inferred_col = _infer_sample_id_column(df_internal)
+                    if inferred_col:
+                        df_internal['sample_id'] = df_internal[inferred_col]
+                    else:
+                        logger.warning(f"No sample_id column found in {df_name}, using index")
+                        df_internal['sample_id'] = df_internal.index
+
+            return df_internal
+
+        full_df_internal = setup_internal_columns(full_df_internal, "full_df")
+        pruned_df_internal = setup_internal_columns(pruned_df_internal, "pruned_df")
+
+        # Get unique groupings and normalize score_type/ordinal_max_score to per-grouping dicts
+        unique_groupings = sorted(full_df_internal['grouping'].unique().tolist())
+        score_type_map = _normalize_score_type_input(score_type, unique_groupings, logger)
+        ordinal_max_map = _normalize_ordinal_max_scores(
+            ordinal_max_score if ordinal_max_score is not None else 5,
+            score_type_map, logger
+        )
+
+        # Aggregate to item level and compute CIs (pass through the maps)
+        pruned_item = _aggregate_with_ci(
+            pruned_df_internal, score_col=score_col, score_type=score_type_map,
+            ordinal_max_score=ordinal_max_map,
+            random_state=random_state
+        )
+        full_item = _aggregate_with_ci(
+            full_df_internal, score_col=score_col, score_type=score_type_map,
+            ordinal_max_score=ordinal_max_map,
+            random_state=random_state
+        )
 
         # Calculate confidence intervals for both datasets
-        full_results = _compute_bayesian_hdi_per_task(full_df_internal, score_col=score_col)
+        # For ordinal data, scale scores to [0,1] before computing HDI (so y-axis is consistent)
+        # With per-grouping score types, we need to scale each grouping individually
+        full_df_for_hdi = full_df_internal.copy()
+        pruned_df_for_hdi = pruned_df_internal.copy()
+
+        for grouping_name in unique_groupings:
+            grp_score_type = score_type_map.get(grouping_name, 'continuous')
+            grp_max_score = ordinal_max_map.get(grouping_name)
+
+            if grp_score_type == 'ordinal' and grp_max_score is not None and grp_max_score > 0:
+                # Scale ordinal scores for this grouping
+                mask_full = full_df_for_hdi['grouping'] == grouping_name
+                mask_pruned = pruned_df_for_hdi['grouping'] == grouping_name
+                full_df_for_hdi.loc[mask_full, score_col] = full_df_for_hdi.loc[mask_full, score_col] / grp_max_score
+                pruned_df_for_hdi.loc[mask_pruned, score_col] = pruned_df_for_hdi.loc[mask_pruned, score_col] / grp_max_score
+
+        full_results = _compute_bayesian_hdi_per_task(full_df_for_hdi, score_col=score_col)
         full_results.rename(columns={'n_items': 'n_samples'}, inplace=True)
         full_results['dataset'] = 'Full'
 
-        trimmed_results = _compute_bayesian_hdi_per_task(pruned_df_internal, score_col=score_col)
+        trimmed_results = _compute_bayesian_hdi_per_task(pruned_df_for_hdi, score_col=score_col)
         trimmed_results.rename(columns={'n_items': 'n_samples'}, inplace=True)
         trimmed_results['dataset'] = 'Trimmed'
 
@@ -2165,11 +2569,22 @@ def optimal_stopping_posthoc(
                 # Ensure both DataFrames have the same column structure for comparison
                 common_columns = list(set(original_columns) & set(final_used_df.columns))
                 if common_columns:
+                    # Determine score type: ordinal > continuous > binary
+                    if ordinal_tasks:
+                        diag_score_type = 'ordinal'
+                    elif continuous_tasks:
+                        diag_score_type = 'continuous'
+                    else:
+                        diag_score_type = 'binary'
                     _generate_diagnostic_plots(
                         original_df[common_columns],
                         final_used_df[common_columns],
                         diagnostics_prefix,
-                        score_col=score_column
+                        score_col=score_column,
+                        grouping_columns=grouping_columns,
+                        sample_id_column=sample_id_column,
+                        score_type=diag_score_type,
+                        ordinal_max_score=ordinal_max_score
                     )
                 else:
                     logger.warning("No common columns between original and pruned data for diagnostics")

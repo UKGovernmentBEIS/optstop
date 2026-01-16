@@ -132,6 +132,8 @@ dmypy.json
 #*.log
 test_*.csv
 #test_*.log
+test_diagnostics/
+DIAGNOSTICS_BUG_REPORT.md
 
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
