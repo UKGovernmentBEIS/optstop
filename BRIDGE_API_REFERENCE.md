@@ -49,6 +49,43 @@ Note: Although logs and randomisation seeds allow for transparency and a degree 
 
 ---
 
+## ⚠️ Critical: Correct API Usage
+
+> **IMPORTANT:** The `early_stopping` parameter must be attached to **Task objects**, not passed to `eval()`.
+>
+> The `eval()` function does **NOT** have an `early_stopping` parameter. Passing it to `eval()` will silently fail—the parameter gets absorbed by `**kwargs` and ignored, resulting in no early stopping behavior.
+
+**Correct usage patterns:**
+
+```python
+# Option 1: Attach to Task directly
+task = Task(
+    dataset=my_dataset,
+    solver=my_solver,
+    scorer=my_scorer,
+    early_stopping=manager,  # ✅ Attach here
+    epochs=10
+)
+eval(task, model="openai/gpt-4")
+
+# Option 2: Use task_with() for registered tasks
+from inspect_ai._eval.loader import load_tasks
+from inspect_ai._eval.task import task_with
+
+tasks = load_tasks(["inspect_evals/truthfulqa"])
+for task in tasks:
+    task_with(task, early_stopping=manager, epochs=10)  # ✅ Modify task
+eval(tasks, model="openai/gpt-4")
+```
+
+**Incorrect (WILL NOT WORK):**
+```python
+# ❌ WRONG - early_stopping silently ignored!
+eval(task, model="openai/gpt-4", epochs=10, early_stopping=manager)
+```
+
+---
+
 ## Quick Start
 
 Minimal working example for binary scoring evaluation:
@@ -59,17 +96,6 @@ from inspect_ai import Task, eval
 from inspect_ai.dataset import Sample
 from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate
-
-# Define your task (replace with your own dataset)
-task = Task(
-    dataset=[
-        Sample(input="What is 2+2?", target="4", id="q_0"),
-        Sample(input="What is the capital of France?", target="Paris", id="q_1"),
-        # ... add more samples
-    ],
-    solver=[generate()],
-    scorer=model_graded_fact()
-)
 
 # Configure optimal stopping
 manager = OptimalStoppingManager(
@@ -82,13 +108,28 @@ manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
 )
 
-# Run evaluation with early stopping
-log = eval(task, model="openai/gpt-4", epochs=10, early_stopping=manager)
+# Define your task with early_stopping attached (replace dataset with your own)
+task = Task(
+    dataset=[
+        Sample(input="What is 2+2?", target="4", id="q_0"),
+        Sample(input="What is the capital of France?", target="Paris", id="q_1"),
+        # ... add more samples
+    ],
+    solver=[generate()],
+    scorer=model_graded_fact(),
+    early_stopping=manager,  # ✅ Attach to Task, NOT to eval()
+    epochs=10
+)
 
-# Check results
-diagnostics = log.results.early_stopping.metadata
-print(f"Efficiency: {diagnostics['efficiency_percent']}%")
-print(f"Trials run: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
+# Run evaluation
+logs = eval(task, model="openai/gpt-4")
+
+# Check results (eval returns a list)
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
+        print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+        print(f"Trials run: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
 ```
 
 For detailed configuration options, see [Initialization Parameters](#initialization-parameters).
@@ -709,6 +750,7 @@ manager = OptimalStoppingManager(
 
 ```python
 from optstop.early_stopping import OptimalStoppingManager
+from inspect_ai import eval, Task
 
 manager = OptimalStoppingManager(
     optstop_params={
@@ -720,15 +762,16 @@ manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
-# Use with inspect_ai
-from inspect_ai import eval, Task
-
-log = eval(
-    task,
-    model="openai/gpt-4",
-    epochs=10,
-    early_stopping=manager
+# Attach early_stopping to Task (NOT to eval)
+task = Task(
+    dataset=my_dataset,
+    solver=my_solver,
+    scorer=my_scorer,
+    early_stopping=manager,
+    epochs=10
 )
+
+logs = eval(task, model="openai/gpt-4")
 ```
 
 ### Pattern 2: Multi-Model Comparison
@@ -736,6 +779,8 @@ log = eval(
 **Use case:** Comparing multiple models on same task, want independent stopping per model.
 
 ```python
+from inspect_ai._eval.task import task_with
+
 manager = OptimalStoppingManager(
     optstop_params={
         'delta_item': 0.15,
@@ -745,12 +790,13 @@ manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
+# Attach early_stopping to Task
+task_with(task, early_stopping=manager, epochs=10)
+
 # Each model gets independent stopping decisions
-log = eval(
+logs = eval(
     task,
-    model=["openai/gpt-4", "anthropic/claude-3", "google/gemini-pro"],
-    epochs=10,
-    early_stopping=manager
+    model=["openai/gpt-4", "anthropic/claude-3", "google/gemini-pro"]
 )
 ```
 
@@ -815,6 +861,8 @@ manager = OptimalStoppingManager(
 **Use case:** Want to measure potential efficiency gains without actually stopping.
 
 ```python
+from inspect_ai._eval.task import task_with
+
 manager = OptimalStoppingManager(
     optstop_params={
         'delta_item': 0.15,
@@ -825,12 +873,17 @@ manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Attach to Task
+task_with(task, early_stopping=manager, epochs=10)
+
+logs = eval(task, model="gpt-4")
 
 # Check potential efficiency gains
-diagnostics = log.results.early_stopping.metadata
-print(f"Would have saved: {diagnostics['efficiency_percent']}%")
-print(f"Would have stopped: {diagnostics['stopped_samples_count']} samples")
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
+        print(f"Would have saved: {diagnostics['efficiency_percent']}%")
+        print(f"Would have stopped: {diagnostics['stopped_samples_count']} samples")
 ```
 
 ### Pattern 7: Custom Metadata Grouping
@@ -1065,35 +1118,45 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 
 ```python
 from inspect_ai import eval
+from inspect_ai._eval.task import task_with
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Attach early_stopping to task first
+task_with(task, early_stopping=manager, epochs=10)
 
-# Access early stopping summary (EarlyStoppingSummary object)
-early_stopping = log.results.early_stopping
+# Run evaluation
+logs = eval(task, model="gpt-4")
 
-# Access manager name and early stops list
-print(f"Manager: {early_stopping.manager}")
-print(f"Early stops: {len(early_stopping.early_stops)}")
+# Access results (eval returns a list)
+for log in logs:
+    if not log.results.early_stopping:
+        continue
 
-# Access detailed diagnostics from metadata dict
-diagnostics = early_stopping.metadata
+    # Access early stopping summary (EarlyStoppingSummary object)
+    early_stopping = log.results.early_stopping
 
-print(f"Efficiency: {diagnostics['efficiency_percent']}%")
-print(f"Trials saved: {diagnostics['total_skipped']} / {diagnostics['total_planned_trials']}")
+    # Access manager name and early stops list
+    print(f"Manager: {early_stopping.manager}")
+    print(f"Early stops: {len(early_stopping.early_stops)}")
 
-# Iterate through stopped samples (from metadata)
-for sample in diagnostics['stopped_samples']:
-    print(f"Sample {sample['id']} stopped at epoch {sample['epoch']}")
-    print(f"  Reason: {sample['reason']}")
+    # Access detailed diagnostics from metadata dict
+    diagnostics = early_stopping.metadata
 
-# Alternatively, iterate through EarlyStop objects
-for early_stop in early_stopping.early_stops:
-    print(f"Sample {early_stop.id} stopped at epoch {early_stop.epoch}")
-    print(f"  Reason: {early_stop.reason}")
+    print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+    print(f"Trials saved: {diagnostics['total_skipped']} / {diagnostics['total_planned_trials']}")
 
-# Check per-grouping efficiency
-for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
-    print(f"{grouping}: {count} samples stopped early")
+    # Iterate through stopped samples (from metadata)
+    for sample in diagnostics['stopped_samples']:
+        print(f"Sample {sample['id']} stopped at epoch {sample['epoch']}")
+        print(f"  Reason: {sample['reason']}")
+
+    # Alternatively, iterate through EarlyStop objects
+    for early_stop in early_stopping.early_stops:
+        print(f"Sample {early_stop.id} stopped at epoch {early_stop.epoch}")
+        print(f"  Reason: {early_stop.reason}")
+
+    # Check per-grouping efficiency
+    for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
+        print(f"{grouping}: {count} samples stopped early")
 ```
 
 ---
@@ -1127,6 +1190,8 @@ optstop_params = {
 Before committing to early stopping, run with shadow mode to estimate efficiency:
 
 ```python
+from inspect_ai._eval.task import task_with
+
 # First run: measure potential savings
 shadow_manager = OptimalStoppingManager(
     optstop_params=params,
@@ -1134,8 +1199,13 @@ shadow_manager = OptimalStoppingManager(
     shadow_mode=True
 )
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=shadow_manager)
-print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
+# Attach to task
+task_with(task, early_stopping=shadow_manager, epochs=10)
+
+logs = eval(task, model="gpt-4")
+for log in logs:
+    if log.results.early_stopping:
+        print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
 
 # If efficiency looks good, run without shadow mode
 production_manager = OptimalStoppingManager(
@@ -1143,6 +1213,9 @@ production_manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     shadow_mode=False
 )
+
+# Attach production manager to task
+task_with(task, early_stopping=production_manager, epochs=10)
 ```
 
 ### 3. Choose Appropriate Grouping Granularity
@@ -1178,12 +1251,18 @@ Track efficiency over multiple runs to tune parameters:
 
 ```python
 import json
+from inspect_ai._eval.task import task_with
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Attach early_stopping to task
+task_with(task, early_stopping=manager, epochs=10)
+
+logs = eval(task, model="gpt-4")
 
 # Save diagnostics for analysis
-with open('stopping_diagnostics.json', 'w') as f:
-    json.dump(log.results.early_stopping.metadata, f, indent=2)
+for log in logs:
+    if log.results.early_stopping:
+        with open('stopping_diagnostics.json', 'w') as f:
+            json.dump(log.results.early_stopping.metadata, f, indent=2)
 
 # Track over multiple runs
 # Analyze: which groupings stop? At what thresholds? What's the efficiency trend?
@@ -1223,7 +1302,44 @@ manager = OptimalStoppingManager(
 
 ## Common Pitfalls
 
-### 1. Wrong Routing Due to Missing/Extra Parameters
+### 1. Passing early_stopping to eval() Instead of Task (CRITICAL)
+
+**Problem:** Passing `early_stopping` as a parameter to `eval()` instead of attaching it to the Task.
+
+```python
+# ❌ WRONG - This silently fails! early_stopping is ignored.
+manager = OptimalStoppingManager(...)
+log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+```
+
+**Why this fails:** The `eval()` function does **not** have an `early_stopping` parameter. Python's `**kwargs` silently absorbs the parameter, and it's never used. Your evaluation runs without any early stopping, with no error message.
+
+**Solution:** Attach `early_stopping` to the **Task object**:
+
+```python
+# ✅ CORRECT - Option 1: In Task constructor
+task = Task(
+    dataset=my_dataset,
+    solver=my_solver,
+    scorer=my_scorer,
+    early_stopping=manager,
+    epochs=10
+)
+logs = eval(task, model="gpt-4")
+
+# ✅ CORRECT - Option 2: Using task_with() for registered tasks
+from inspect_ai._eval.loader import load_tasks
+from inspect_ai._eval.task import task_with
+
+tasks = load_tasks(["inspect_evals/truthfulqa"])
+for task in tasks:
+    task_with(task, early_stopping=manager, epochs=10)
+logs = eval(tasks, model="gpt-4")
+```
+
+**How to detect:** If your logs show no `early_stopping` metadata or 0% efficiency with all trials running, check that you're attaching the manager to the Task, not passing it to `eval()`.
+
+### 2. Wrong Routing Due to Missing/Extra Parameters
 
 **Problem:** Adding/removing `score_agg` changes routing completely.
 
@@ -1245,7 +1361,7 @@ manager = OptimalStoppingManager(
 
 **Solution:** Carefully review routing logic and verify in logs.
 
-### 2. Expecting 100% Efficiency
+### 3. Expecting 100% Efficiency
 
 **Problem:** Expecting all samples to stop early.
 
@@ -1256,7 +1372,7 @@ manager = OptimalStoppingManager(
 
 **Solution:** Understand that 0% efficiency is valid behavior for moderate-variance data.
 
-### 3. Insufficient Data Per Grouping
+### 4. Insufficient Data Per Grouping
 
 **Problem:** Too many grouping columns with too few samples.
 
@@ -1267,7 +1383,7 @@ grouping_columns=['model', 'task', 'metadata.difficulty', 'tag.category']
 
 **Solution:** See [Best Practices §3](#3-choose-appropriate-grouping-granularity) for guidance on grouping granularity.
 
-### 4. Conflicting Score Parameters
+### 5. Conflicting Score Parameters
 
 **Problem:** Specifying both `score_choice` and `score_agg`.
 
@@ -1283,7 +1399,7 @@ manager = OptimalStoppingManager(
 
 **Solution:** Choose one or neither, never both.
 
-### 5. Forgetting to Mark Ordinal Tasks
+### 6. Forgetting to Mark Ordinal Tasks
 
 **Problem:** Ordinal scores (1-5) treated as binary, causing validation errors.
 
@@ -1304,7 +1420,7 @@ manager = OptimalStoppingManager(
 )
 ```
 
-### 6. Not Checking Logs for Validation Warnings
+### 7. Not Checking Logs for Validation Warnings
 
 **Problem:** Invalid scores silently skipped, inference never runs.
 
@@ -1313,7 +1429,7 @@ manager = OptimalStoppingManager(
 WARNING: Invalid score for sample_id=123, epoch=2: Binary task has score > 1 (5.0)
 ```
 
-### 7. Using Shadow Mode in Production
+### 8. Using Shadow Mode in Production
 
 **Problem:** Forgetting to disable shadow mode, running all trials.
 
@@ -1354,19 +1470,6 @@ questions = [
     # ... add more question-answer pairs
 ]
 
-# Define task
-task = Task(
-    dataset=[
-        Sample(input=q, target=a, id=f"q_{i}")
-        for i, (q, a) in enumerate(questions)
-    ],
-    solver=[
-        system_message("You are a helpful assistant."),
-        generate()
-    ],
-    scorer=model_graded_fact()
-)
-
 # Configure optimal stopping
 optstop_params = {
     'delta_item': 0.15,
@@ -1384,24 +1487,38 @@ manager = OptimalStoppingManager(
     min_samples_per_grouping=5
 )
 
-# Run evaluation
-log = eval(
-    task,
-    model="openai/gpt-4",
-    epochs=10,
-    early_stopping=manager
+# Define task with early_stopping attached
+task = Task(
+    dataset=[
+        Sample(input=q, target=a, id=f"q_{i}")
+        for i, (q, a) in enumerate(questions)
+    ],
+    solver=[
+        system_message("You are a helpful assistant."),
+        generate()
+    ],
+    scorer=model_graded_fact(),
+    early_stopping=manager,  # ✅ Attach to Task
+    epochs=10
 )
 
+# Run evaluation
+logs = eval(task, model="openai/gpt-4")
+
 # Check results
-diagnostics = log.results.early_stopping.metadata
-print(f"Efficiency: {diagnostics['efficiency_percent']}%")
-print(f"Trials: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
-print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
+        print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+        print(f"Trials: {diagnostics['total_ran']} / {diagnostics['total_planned_trials']}")
+        print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
 ```
 
 ### Example 2: Multi-Model Comparison with Shadow Mode
 
 ```python
+from inspect_ai._eval.task import task_with
+
 # First run: measure potential savings
 shadow_manager = OptimalStoppingManager(
     optstop_params={
@@ -1413,16 +1530,16 @@ shadow_manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
-log_shadow = eval(
-    task,
-    model=["openai/gpt-4", "anthropic/claude-3"],
-    epochs=10,
-    early_stopping=shadow_manager
-)
+# Attach to task
+task_with(task, early_stopping=shadow_manager, epochs=10)
 
-print(f"Potential efficiency: {log_shadow.results.early_stopping.metadata['efficiency_percent']}%")
+logs_shadow = eval(task, model=["openai/gpt-4", "anthropic/claude-3"])
 
-# If good, run without shadow mode
+for log in logs_shadow:
+    if log.results.early_stopping:
+        print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
+
+# If good, run without shadow mode (create new task or reload)
 production_manager = OptimalStoppingManager(
     optstop_params={
         'delta_item': 0.15,
@@ -1433,19 +1550,21 @@ production_manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
-log_production = eval(
-    task,
-    model=["openai/gpt-4", "anthropic/claude-3"],
-    epochs=10,
-    early_stopping=production_manager
-)
+# Reload task and attach production manager
+task_with(task, early_stopping=production_manager, epochs=10)
 
-print(f"Actual efficiency: {log_production.results.early_stopping.metadata['efficiency_percent']}%")
+logs_production = eval(task, model=["openai/gpt-4", "anthropic/claude-3"])
+
+for log in logs_production:
+    if log.results.early_stopping:
+        print(f"Actual efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
 ```
 
 ### Example 3: Ordinal Rating with Custom Metadata Grouping
 
 ```python
+from inspect_ai._eval.task import task_with
+
 # Samples have metadata: {'difficulty': 'easy'/'medium'/'hard'}
 # Scorer returns 0-5 ordinal ratings
 
@@ -1462,29 +1581,23 @@ manager = OptimalStoppingManager(
     min_samples_per_grouping=10,  # More data for ordinal
 )
 
-log = eval(
-    task,
-    model="openai/gpt-4",
-    epochs=15,
-    early_stopping=manager
-)
+# Attach to task
+task_with(task, early_stopping=manager, epochs=15)
+
+logs = eval(task, model="openai/gpt-4")
 
 # Analyze per difficulty level
-diagnostics = log.results.early_stopping.metadata
-for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
-    print(f"{grouping}: {count} samples stopped")
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
+        for grouping, count in diagnostics['stopped_samples_per_grouping'].items():
+            print(f"{grouping}: {count} samples stopped")
 ```
 
 ### Example 4: Multiple Scorers with Aggregation
 
 ```python
 from inspect_ai.scorer import accuracy, f1, recall
-
-task = Task(
-    dataset=samples,
-    solver=solver,
-    scorer=[accuracy(), f1(), recall()]  # Multiple scorers
-)
 
 manager = OptimalStoppingManager(
     optstop_params={
@@ -1496,7 +1609,16 @@ manager = OptimalStoppingManager(
     reanalysis_interval=10,
 )
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Attach early_stopping and epochs to Task
+task = Task(
+    dataset=samples,
+    solver=solver,
+    scorer=[accuracy(), f1(), recall()],  # Multiple scorers
+    early_stopping=manager,
+    epochs=10
+)
+
+logs = eval(task, model="gpt-4")
 
 # Each trial's score = mean([accuracy, f1, recall])
 # Routes to continuous bounded inference
@@ -1505,6 +1627,8 @@ log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 ### Example 5: Aggressive Efficiency Settings
 
 ```python
+from inspect_ai._eval.task import task_with
+
 # For scenarios where you want maximum efficiency and can tolerate less confidence
 
 aggressive_params = {
@@ -1521,7 +1645,10 @@ manager = OptimalStoppingManager(
     min_samples_per_grouping=3, # Start early
 )
 
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Attach to task
+task_with(task, early_stopping=manager, epochs=10)
+
+logs = eval(task, model="gpt-4")
 
 # Expected: Higher efficiency, lower confidence
 ```
@@ -1657,6 +1784,8 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2025-12-09
-**Document Version:** 1.3
+**Last Updated:** 2026-01-23
+**Document Version:** 1.4
 **Phase:** Production Ready (Phase 1-3 Complete)
+
+**v1.4 Changes:** Critical fix - All examples updated to use correct API pattern. The `early_stopping` parameter must be attached to Task objects (via constructor or `task_with()`), NOT passed to `eval()`. Added prominent warning and new Common Pitfall #1.
