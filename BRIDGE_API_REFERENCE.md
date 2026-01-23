@@ -49,7 +49,7 @@ Note: Although logs and randomisation seeds allow for transparency and a degree 
 
 ---
 
-## ⚠️ Critical: Correct API Usage
+## Critical: Correct API Usage
 
 > **IMPORTANT:** The `early_stopping` parameter must be attached to **Task objects**, not passed to `eval()`.
 >
@@ -63,7 +63,7 @@ task = Task(
     dataset=my_dataset,
     solver=my_solver,
     scorer=my_scorer,
-    early_stopping=manager,  # ✅ Attach here
+    early_stopping=manager,  # Attach here
     epochs=10
 )
 eval(task, model="openai/gpt-4")
@@ -74,13 +74,13 @@ from inspect_ai._eval.task import task_with
 
 tasks = load_tasks(["inspect_evals/truthfulqa"])
 for task in tasks:
-    task_with(task, early_stopping=manager, epochs=10)  # ✅ Modify task
+    task_with(task, early_stopping=manager, epochs=10)  # Modify task
 eval(tasks, model="openai/gpt-4")
 ```
 
 **Incorrect (WILL NOT WORK):**
 ```python
-# ❌ WRONG - early_stopping silently ignored!
+# WRONG - early_stopping silently ignored!
 eval(task, model="openai/gpt-4", epochs=10, early_stopping=manager)
 ```
 
@@ -117,7 +117,7 @@ task = Task(
     ],
     solver=[generate()],
     scorer=model_graded_fact(),
-    early_stopping=manager,  # ✅ Attach to Task, NOT to eval()
+    early_stopping=manager,  # Attach to Task, NOT to eval()
     epochs=10
 )
 
@@ -1307,7 +1307,7 @@ manager = OptimalStoppingManager(
 **Problem:** Passing `early_stopping` as a parameter to `eval()` instead of attaching it to the Task.
 
 ```python
-# ❌ WRONG - This silently fails! early_stopping is ignored.
+# WRONG - This silently fails! early_stopping is ignored.
 manager = OptimalStoppingManager(...)
 log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 ```
@@ -1317,7 +1317,7 @@ log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
 **Solution:** Attach `early_stopping` to the **Task object**:
 
 ```python
-# ✅ CORRECT - Option 1: In Task constructor
+# CORRECT - Option 1: In Task constructor
 task = Task(
     dataset=my_dataset,
     solver=my_solver,
@@ -1327,7 +1327,7 @@ task = Task(
 )
 logs = eval(task, model="gpt-4")
 
-# ✅ CORRECT - Option 2: Using task_with() for registered tasks
+# CORRECT - Option 2: Using task_with() for registered tasks
 from inspect_ai._eval.loader import load_tasks
 from inspect_ai._eval.task import task_with
 
@@ -1498,7 +1498,7 @@ task = Task(
         generate()
     ],
     scorer=model_graded_fact(),
-    early_stopping=manager,  # ✅ Attach to Task
+    early_stopping=manager,  # Attach to Task
     epochs=10
 )
 
