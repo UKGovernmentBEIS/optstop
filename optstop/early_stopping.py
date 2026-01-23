@@ -764,6 +764,17 @@ class OptimalStoppingManager(EarlyStopping):
         self._continuous_item_model_caches = {}
         self._continuous_group_model_caches = {}
 
+        # Reset stabilization and entropy histories for clean state
+        self._stabilization_histories = {}
+        self._item_entropy_histories = {}
+
+        # Recreate executor if it was shutdown (enables manager reuse across evaluations)
+        if self._inference_executor._shutdown:
+            self._inference_executor = ThreadPoolExecutor(
+                max_workers=1,
+                thread_name_prefix=f"optstop_inference_{self.manager_name}"
+            )
+
         # logger.info(
         #     f"Initialized optimal stopping dataset with {len(self.compiled_dataset)} "
         #     f"planned trials ({len(samples)} samples × {epochs} epochs)"
