@@ -756,13 +756,28 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
                 logger.info(f"Auto-decision: Using GPU with optimized parameters (chains={params.get('chains')}, cores={params.get('cores')})")
 
     # Base sampling arguments
+    # Defaults optimized for iterative stopping decisions (not publication-quality posteriors)
+    # Users can override via optstop_params if higher precision needed
+    if gpu_available and gpu_backend in ['jax-gpu', 'pytensor-gpu']:
+        # GPU: Can afford more samples due to parallelization
+        default_draws = 2000
+        default_tune = 2000
+        default_target_accept = 0.95
+    else:
+        # CPU: Prioritize speed for iterative stopping decisions
+        # 1000 draws with 4 chains typically yields ESS of 100-500, sufficient for CI estimation
+        # Old defaults (6000/6000/0.97) were overly conservative for stopping decisions
+        default_draws = 1000
+        default_tune = 1000
+        default_target_accept = 0.90  # Standard PyMC recommendation; 0.97 was overly conservative
+
     sampling_kwargs = {
-        'draws': params.get('draws', 6000),
-        'tune': params.get('tune', 6000),
+        'draws': params.get('draws', default_draws),
+        'tune': params.get('tune', default_tune),
         'chains': params.get('chains', 4),
         'cores': params.get('cores', 4),
         'progressbar': False,
-        'target_accept': 0.97,
+        'target_accept': params.get('target_accept', default_target_accept),
     }
 
     # Include random_seed if provided for reproducibility

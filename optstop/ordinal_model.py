@@ -182,7 +182,8 @@ def _create_ordered_logistic_hierarchical(
     n_categories: int,
     n_items: int,
     mu_group_prior: Tuple[float, float] = (0.0, 2.0),
-    sigma_group_prior: float = 1.0
+    sigma_group_prior: float = 1.0,
+    use_preallocation: bool = True
 ) -> pm.Model:
     """
     Create IDENTIFIED hierarchical OrderedLogistic model for aggregated count data.
@@ -191,6 +192,7 @@ def _create_ordered_logistic_hierarchical(
     1. Identification: First cutpoint fixed at 0
     2. Adaptive priors: Cutpoint increments scale with K
     3. Aggregated likelihood: Multinomial on category probabilities
+    4. Optional pre-allocation: Fixed shape with explicit masking (Fix 1)
 
     Model Structure:
     ----------------
@@ -212,32 +214,56 @@ def _create_ordered_logistic_hierarchical(
         P(Y ≤ k) = sigmoid(c_k - η_i)
         P(Y = k) = P(Y ≤ k) - P(Y ≤ k-1)
 
-    Likelihood (aggregated counts):
-        counts_i ~ Multinomial(n_i, probs_i)
+    Likelihood:
+        When use_preallocation=True:
+            log_lik = obs_weight * logp(Multinomial(n_i, probs_i), counts_i)
+            obs_weight = 0 for unobserved items (zero contribution to likelihood)
+        When use_preallocation=False:
+            obs ~ Multinomial(n_i, probs_i) with dynamic n_items
 
     Parameters
     ----------
     n_categories : int
         Number of ordinal categories (e.g., 11 for 0-10 scale)
     n_items : int
-        Number of items/samples with aggregated counts
+        Number of items. When use_preallocation=True, this is the pre-allocated
+        maximum (may be > actual observed items). When use_preallocation=False,
+        this is the current number of items (model recompiles when it changes).
     mu_group_prior : Tuple[float, float], default=(0.0, 2.0)
         Prior for group-level mean: (mean, std)
     sigma_group_prior : float, default=1.0
         Rate parameter for Exponential prior on group-level std
+    use_preallocation : bool, default=True
+        If True, uses fixed shape with explicit obs_weight masking (Fix 1).
+        If False, uses dynamic n_items_data with direct Multinomial likelihood
+        (original behavior, requires model recompilation when n_items changes).
 
     Returns
     -------
     model : pm.Model
-        PyMC model with Data containers for item_counts and item_ns
+        PyMC model with Data containers for item_counts, item_ns, and optionally
+        obs_weight (only when use_preallocation=True) or n_items (only when False).
 
     Notes
     -----
-    Data must be set before sampling:
+    Data must be set before sampling.
+
+    When use_preallocation=True:
         with model:
             pm.set_data({
                 "item_counts": counts_array,  # shape (n_items, n_categories)
-                "item_ns": ns_array  # shape (n_items,)
+                "item_ns": ns_array,          # shape (n_items,)
+                "obs_weight": weight_array    # shape (n_items,) - 1.0 observed, 0.0 padded
+            })
+        For padded (unobserved) items, use:
+            item_counts[i, 0] = 1, item_ns[i] = 1, obs_weight[i] = 0.0
+
+    When use_preallocation=False:
+        with model:
+            pm.set_data({
+                "n_items": np.int64(n_items),
+                "item_counts": counts_array,  # shape (n_items, n_categories)
+                "item_ns": ns_array,          # shape (n_items,)
             })
 
     See Also
@@ -253,13 +279,14 @@ def _create_ordered_logistic_hierarchical(
         mu_group = pm.Normal("mu_group", mu=mu_group_prior[0], sigma=mu_group_prior[1])
         sigma_group = pm.Exponential("sigma_group", lam=sigma_group_prior)
 
-        # === MUTABLE n_items FOR DYNAMIC RESIZING ===
-        # Using pm.Data allows shape to change when set_data() is called
-        # This is consistent with binary/continuous models in rule.py
-        n_items_data = pm.Data("n_items", np.array(n_items, dtype="int64"))
-
         # === ITEM-LEVEL (non-centered parameterization) ===
-        z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+        if use_preallocation:
+            # Fixed shape at n_items for pre-allocation (Fix 1)
+            z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+        else:
+            # Dynamic shape using n_items_data (original behavior)
+            n_items_data = pm.Data("n_items", np.array(n_items, dtype="int64"))
+            z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
         eta = pm.Deterministic("eta", mu_group + z * sigma_group)
 
         # === IDENTIFIED CUTPOINTS ===
@@ -325,22 +352,30 @@ def _create_ordered_logistic_hierarchical(
         )
 
         # === DATA CONTAINERS FOR AGGREGATED COUNTS ===
-        item_counts_data = pm.Data(
-            "item_counts",
-            np.ones((n_items, n_categories), dtype="int64")
-        )
-        item_ns_data = pm.Data(
-            "item_ns",
-            np.ones(n_items, dtype="int64") * n_categories
-        )
+        if use_preallocation:
+            # Pre-allocated mode (Fix 1): fixed shape with explicit masking
+            # Default values ensure valid Multinomial: sum(item_counts[i]) = item_ns[i]
+            # Padded items: item_counts[i, 0] = 1, item_ns[i] = 1
+            default_counts = np.zeros((n_items, n_categories), dtype="int64")
+            default_counts[:, 0] = 1  # One count in first category
+            item_counts_data = pm.Data("item_counts", default_counts)
+            item_ns_data = pm.Data("item_ns", np.ones(n_items, dtype="int64"))
+            obs_weight_data = pm.Data("obs_weight", np.zeros(n_items, dtype="float64"))
 
-        # === MULTINOMIAL LIKELIHOOD ON COUNTS ===
-        obs = pm.Multinomial(
-            "obs",
-            n=item_ns_data,
-            p=probs,
-            observed=item_counts_data
-        )
+            # MULTINOMIAL LIKELIHOOD WITH EXPLICIT MASKING
+            # obs_weight=0 for unobserved items → zero contribution to likelihood
+            multinomial_dist = pm.Multinomial.dist(n=item_ns_data, p=probs)
+            log_lik = obs_weight_data * pm.logp(multinomial_dist, item_counts_data)
+            pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+        else:
+            # Dynamic mode (original behavior): shape changes with n_items
+            # Model recompiles when n_items changes
+            default_counts = np.zeros((n_items, n_categories), dtype="int64")
+            item_counts_data = pm.Data("item_counts", default_counts)
+            item_ns_data = pm.Data("item_ns", np.ones(n_items, dtype="int64"))
+
+            # DIRECT MULTINOMIAL LIKELIHOOD (no masking needed)
+            obs = pm.Multinomial("obs", n=item_ns_data, p=probs, observed=item_counts_data)
 
         # === DERIVED QUANTITIES FOR STOPPING CRITERIA ===
         # Group-level category probabilities (average over items)
@@ -349,11 +384,11 @@ def _create_ordered_logistic_hierarchical(
         # Modal category at group level
         modal_group = pm.Deterministic("modal_group", pt.argmax(probs_group))
 
-        # Entropy at group level
-        # H = -sum(p * log(p)), using log base 2 for interpretability
+        # Entropy at group level (natural log, in nats)
+        # H = -sum(p * log(p)), consistent with dirichlet model and ordinal_utils scaling
         entropy_group = pm.Deterministic(
             "entropy_group",
-            -pm.math.sum(probs_group * pm.math.log(probs_group + 1e-10)) / pm.math.log(2.0)
+            -pm.math.sum(probs_group * pm.math.log(probs_group + 1e-10))
         )
 
     return model
@@ -986,7 +1021,11 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     )
 
     # === COMPUTE BOTH METRICS FROM HIERARCHICAL MODEL ===
-    # Both functions share the same model cache, so they can reuse posterior samples
+    # PERFORMANCE NOTE: Each function below calls pm.sample() independently, resulting
+    # in two separate MCMC sampling runs. This doubles inference time compared to a
+    # single-sample approach, but maintains modularity and code simplicity.
+    # Both modal_group and entropy_group exist in the same model, so a future
+    # optimization could extract both from a single sampling run if needed.
 
     # Modal CI (hierarchical)
     modal_lo, modal_hi, modal_width = _ordinal_ci_hierarchical_modal(

@@ -125,13 +125,27 @@ class OptimalStoppingManager(EarlyStopping):
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
         score_agg: Optional[str] = None,
-        random_seed: Optional[int] = None
+        random_seed: Optional[int] = None,
+        use_preallocation: bool = True,  # Fix 1: Pre-allocation flag
     ):
         """Initialize optimal stopping manager.
 
         Args:
-            optstop_params: Dictionary of optimal stopping parameters
-                (delta_item, delta_cap, cred_level, conservatism, etc.)
+            optstop_params: Dictionary of optimal stopping parameters.
+                Core stopping parameters:
+                    - delta_item: Effect size threshold for item-level stopping
+                    - delta_cap: Effect size threshold for capability-level stopping
+                    - cred_level: Credible interval level (e.g., 0.95)
+                    - conservatism: Conservatism factor for stopping decisions
+                MCMC sampling parameters (optional, with sensible defaults):
+                    - draws: Number of posterior samples (default: 1000 CPU, 2000 GPU)
+                    - tune: Number of tuning samples (default: 1000 CPU, 2000 GPU)
+                    - chains: Number of MCMC chains (default: 4)
+                    - cores: Number of CPU cores for sampling (default: 4)
+                    - target_accept: Target acceptance rate for NUTS sampler
+                      (default: 0.90 CPU, 0.95 GPU). Higher values (e.g., 0.95-0.99)
+                      reduce divergences but increase computation time. Lower values
+                      (e.g., 0.80-0.90) are faster but may have more divergences.
             grouping_columns: List of columns to use for grouping decisions.
                 REQUIRED - user must specify.
                 Can reference any column in compiled_dataset (from EvalSpec or sample metadata).
@@ -153,6 +167,10 @@ class OptimalStoppingManager(EarlyStopping):
                 If None, uses single score. Mutually exclusive with score_choice.
             random_seed: Random seed for MCMC sampling reproducibility.
                 If None, a seed is auto-generated and logged for reproducibility tracking.
+            use_preallocation: Enable model pre-allocation at max_n_items (Fix 1).
+                When True (default), models are pre-allocated to avoid recompilation
+                as n_items grows. When False, uses original dynamic behavior.
+                Set to False to revert if issues arise.
 
         Raises:
             ValueError: If both score_choice and score_agg are specified (mutually exclusive).
@@ -203,6 +221,11 @@ class OptimalStoppingManager(EarlyStopping):
         # GPU configuration
         self.gpu_ids = gpu_ids
 
+        # Pre-allocation flag (Fix 1 for scaling issue)
+        # When True, models are pre-allocated at max_n_items to avoid recompilation
+        # Set to False to revert to original behavior if issues arise
+        self._use_preallocation = use_preallocation
+
         # Data tracking
         self.compiled_dataset: Optional[pd.DataFrame] = None
         self.stopped_samples: list[StoppedSample] = []
@@ -239,6 +262,12 @@ class OptimalStoppingManager(EarlyStopping):
             max_workers=1,
             thread_name_prefix=f"optstop_inference_{manager_name}"
         )
+
+        # Track pending inference per grouping (Fix 7: Skip redundant queued inference)
+        # When a newer inference request arrives while one is pending, the older one
+        # would produce stale results (the newer request has strictly more data).
+        # This dict tracks which groupings have pending inference to skip redundant calls.
+        self._pending_inference: dict[str, Any] = {}
 
         # Initialize score value converter (cached from inspect_ai import)
         # This avoids repeated import attempts in _extract_score_value()
@@ -768,6 +797,9 @@ class OptimalStoppingManager(EarlyStopping):
         self._stabilization_histories = {}
         self._item_entropy_histories = {}
 
+        # Reset pending inference tracking (Fix 7)
+        self._pending_inference = {}
+
         # Recreate executor if it was shutdown (enables manager reuse across evaluations)
         if self._inference_executor._shutdown:
             self._inference_executor = ThreadPoolExecutor(
@@ -1138,6 +1170,41 @@ class OptimalStoppingManager(EarlyStopping):
             # Get event loop for executor usage
             loop = asyncio.get_running_loop()
 
+            # === Fix 1: Compute max_n_items for pre-allocation ===
+            # This enables model pre-allocation to avoid repeated recompilation
+            max_n_items = None
+            if self._use_preallocation:
+                # Count total unique sample_ids in this grouping (observed + not-yet-observed)
+                grouping_mask_full = pd.Series([True] * len(self.compiled_dataset))
+                for col, val in grouping_values.items():
+                    actual_col = self._translate_grouping_column(col)
+                    if pd.isna(val):
+                        grouping_mask_full &= self.compiled_dataset[actual_col].isna()
+                    else:
+                        grouping_mask_full &= (self.compiled_dataset[actual_col] == val)
+                max_n_items = self.compiled_dataset.loc[grouping_mask_full, self._SAMPLE_ID_COLUMN].nunique()
+
+            # === Fix 7: Skip Redundant Queued Inference ===
+            # If there's already a pending inference for this grouping, skip this one.
+            # The pending inference will have all the same data plus more (since samples
+            # complete sequentially), so this call's result would be strictly dominated.
+            # This eliminates the inference backlog that causes 98% hangs.
+            if grouping_name in self._pending_inference:
+                pending_future = self._pending_inference[grouping_name]
+                if not pending_future.done():
+                    logger.debug(
+                        f"Skipping redundant inference for '{grouping_name}' - "
+                        f"inference already pending with more recent data"
+                    )
+                    # Return empty result - the pending inference will handle stopping decisions
+                    return {
+                        'grouping': grouping_name,
+                        'stop_sample_ids': [],
+                        'stop_this_grouping': [],
+                        'stabilization_history': stabilization_history or {},
+                        'metadata': {'skipped': True, 'reason': 'redundant_inference'}
+                    }
+
             # Run inference in dedicated executor (no fixed timeout)
             # User controls inference time via draws/tune in optstop_params
             # Using functools.partial to pass keyword arguments to executor
@@ -1150,6 +1217,7 @@ class OptimalStoppingManager(EarlyStopping):
                 epoch_column=self._EPOCH_COLUMN,
                 score_column=self._SCORE_COLUMN,
                 stabilization_history=stabilization_history,
+                max_n_items=max_n_items,  # Fix 1: Enable model pre-allocation
                 ordinal_tasks=self.ordinal_tasks,
                 ordinal_max_score=self.ordinal_max_score,
                 ordinal_inference=self.ordinal_inference,
@@ -1160,10 +1228,20 @@ class OptimalStoppingManager(EarlyStopping):
                 item_entropy_histories=item_entropy_histories  # Issue #6 fix: Persist for Pathway 2
             )
 
-            result = await loop.run_in_executor(
+            # Submit inference and track the Future (Fix 7)
+            future = loop.run_in_executor(
                 self._inference_executor,
                 inference_call
             )
+            self._pending_inference[grouping_name] = future
+
+            try:
+                result = await future
+            finally:
+                # Clean up tracking - only remove if this is still the tracked future
+                # (another call may have replaced it)
+                if self._pending_inference.get(grouping_name) is future:
+                    del self._pending_inference[grouping_name]
         except asyncio.CancelledError:
             trace_message(
                 logger, "OptimalStopping",

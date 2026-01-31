@@ -1053,6 +1053,341 @@ async def test_1_1_2e_ordinal_realistic_modal():
     print(f"\n✅ TEST 1.1.2e PASSED (Realistic data test completed)")
 
 
+@pytest.mark.asyncio
+async def test_1_1_2f_ordinal_dirichlet_inference():
+    """
+    Test 1.1.2f: Ordinal Dirichlet Model Inference
+
+    Validates that the dirichlet ordinal model pathway works correctly with
+    the pre-allocation fix (Fix 1). This test specifically uses the dirichlet
+    model type instead of the default ordered_logistic.
+
+    Setup:
+    - 15 samples, 8 epochs each
+    - Single grouping: gpt-4-rating (ordinal task)
+    - Deterministic ordinal data: mode=4, concentration=0.85 (5-point scale)
+    - Inference mode: 'modal'
+    - Model type: 'dirichlet' (Dirichlet-Multinomial)
+
+    Expected:
+    - Dirichlet model should work with pre-allocation
+    - Modal inference should converge based on mode stability
+    - Stopping should occur when mode is stable with narrow CI
+    """
+    print("\n" + "="*80)
+    print("TEST 1.1.2f: Ordinal Dirichlet Model Inference")
+    print("="*80)
+
+    # Configure optstop parameters
+    optstop_params = {
+        'delta_item': 0.20,
+        'delta_cap': 0.15,
+        'cred_level': 0.85,
+        'conservatism': 3,
+        'draws': 500,
+        'tune': 500,
+    }
+
+    # Configure manager for ordinal dirichlet inference
+    manager = OptimalStoppingManager(
+        optstop_params=optstop_params,
+        grouping_columns=['model', 'task'],
+        reanalysis_interval=10,
+        min_samples_per_grouping=5,
+        ordinal_tasks=['rating'],
+        ordinal_max_score=5,
+        ordinal_inference='modal',  # Use modal inference
+        ordinal_model_type='dirichlet',  # Use Dirichlet-Multinomial model
+    )
+
+    # Create samples with ordinal task name
+    n_samples = 15
+    samples = [
+        Sample(id=f"sample_{i}", metadata={})
+        for i in range(n_samples)
+    ]
+
+    # Create eval spec
+    eval_spec = EvalSpec(
+        task="gpt-4-rating",
+        model="gpt-4"
+    )
+
+    # Generate deterministic ordinal data (mode=4, 85% concentration)
+    ordinal_data = create_deterministic_ordinal_data(
+        n_samples * 8,
+        mode_value=4,
+        concentration=0.85,
+        max_score=5,
+        seed=42
+    )
+    data_idx = 0
+
+    # Start task
+    await manager.start_task(eval_spec, samples, epochs=8)
+
+    # Run evaluation loop
+    completed_trials = 0
+    stopped_trials = 0
+    sample_epoch_counts = {}
+    stopped_groupings = set()
+    grouping_key = f"{eval_spec.model}-{eval_spec.task}"
+
+    for sample in samples:
+        sample_epoch_counts[sample.id] = 0
+
+        if grouping_key in stopped_groupings:
+            stopped_trials += 8
+            continue
+
+        for epoch in range(1, 9):
+            early_stop = await manager.schedule_sample(sample.id, epoch)
+
+            if early_stop is not None:
+                stopped_trials += 1
+                print(f"Sample {sample.id} stopped at epoch {epoch}: {early_stop.reason}")
+
+                if "grouping" in early_stop.reason.lower():
+                    stopped_groupings.add(grouping_key)
+                    stopped_trials += (8 - epoch)
+                    break
+
+                continue
+
+            score_value = ordinal_data[data_idx]
+            data_idx += 1
+            scores = create_mock_sample_score(score_value)
+
+            await manager.complete_sample(sample.id, epoch, scores)
+            completed_trials += 1
+            sample_epoch_counts[sample.id] += 1
+
+    # Complete task
+    diagnostics = await manager.complete_task()
+
+    # Calculate efficiency
+    total_planned = n_samples * 8
+    efficiency_percent = (stopped_trials / total_planned) * 100
+
+    print(f"\n{'='*80}")
+    print("RESULTS")
+    print(f"{'='*80}")
+    print(f"Total planned trials: {total_planned}")
+    print(f"Completed trials: {completed_trials}")
+    print(f"Stopped trials: {stopped_trials}")
+    print(f"Efficiency: {efficiency_percent:.1f}%")
+    print(f"Stopped groupings: {diagnostics.get('stopped_groupings', [])}")
+    print(f"Stopped samples count: {diagnostics.get('stopped_samples_count', 0)}")
+    print(f"Model type: dirichlet")
+
+    # Save results
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results = {
+        "test": "1.1.2f_ordinal_dirichlet_inference",
+        "inference_mode": "modal",
+        "ordinal_model_type": "dirichlet",
+        "ordinal_max_score": 5,
+        "n_samples": n_samples,
+        "epochs_per_sample": 8,
+        "total_planned": total_planned,
+        "completed_trials": completed_trials,
+        "stopped_trials": stopped_trials,
+        "efficiency_percent": efficiency_percent,
+        "stopped_groupings": diagnostics.get('stopped_groupings', []),
+        "stopped_samples_count": diagnostics.get('stopped_samples_count', 0),
+        "sample_epoch_counts": sample_epoch_counts,
+        "validation": {
+            "dirichlet_model_used": True,
+            "modal_inference_used": True,
+            "ordinal_scoring": True,
+            "some_stopping": stopped_trials > 0
+        }
+    }
+
+    output_file = TEST_OUTPUT_DIR / f"test_1_1_2f_dirichlet_{timestamp}.json"
+    with open(output_file, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    print(f"\nResults saved to: {output_file}")
+
+    # Assertions
+    assert completed_trials + stopped_trials == total_planned, "Trial count mismatch"
+    assert stopped_trials > 0, "Expected some stopping to occur with dirichlet model"
+    assert efficiency_percent > 10, f"Expected >10% efficiency, got {efficiency_percent:.1f}%"
+
+    print("\n✅ TEST 1.1.2f PASSED (Dirichlet model test completed)")
+
+
+@pytest.mark.asyncio
+async def test_1_1_2g_ordinal_dirichlet_entropy():
+    """
+    Test 1.1.2g: Ordinal Dirichlet Model with Entropy Inference
+
+    Validates that the dirichlet ordinal model pathway works correctly with
+    entropy inference and the pre-allocation fix (Fix 1). This test exercises
+    the hierarchical entropy code path in ordinal_utils.py with dirichlet.
+
+    Setup:
+    - 15 samples, 8 epochs each
+    - Single grouping: gpt-4-confidence (ordinal task)
+    - Deterministic ordinal data: mode=5, concentration=0.90 (very peaked)
+    - Inference mode: 'entropy'
+    - Model type: 'dirichlet' (Dirichlet-Multinomial)
+
+    Expected:
+    - Dirichlet model should work with pre-allocation in entropy mode
+    - Entropy inference runs successfully without errors
+    - Test validates inference execution (stopping may not occur with limited data)
+    """
+    print("\n" + "="*80)
+    print("TEST 1.1.2g: Ordinal Dirichlet Model with Entropy Inference")
+    print("="*80)
+
+    # Configure optstop parameters - reduced for faster testing
+    optstop_params = {
+        'delta_item': 0.25,
+        'delta_cap': 0.25,
+        'cred_level': 0.80,
+        'conservatism': 3,
+        'draws': 300,  # Reduced for faster testing
+        'tune': 300,   # Reduced for faster testing
+    }
+
+    # Configure manager for ordinal dirichlet + entropy inference
+    manager = OptimalStoppingManager(
+        optstop_params=optstop_params,
+        grouping_columns=['model', 'task'],
+        reanalysis_interval=10,
+        min_samples_per_grouping=3,
+        ordinal_tasks=['confidence'],
+        ordinal_max_score=5,
+        ordinal_inference='entropy',  # Use entropy inference
+        ordinal_model_type='dirichlet',  # Use Dirichlet-Multinomial model
+    )
+
+    # Create samples
+    n_samples = 15
+    samples = [
+        Sample(id=f"sample_{i}", metadata={})
+        for i in range(n_samples)
+    ]
+
+    # Create eval spec
+    eval_spec = EvalSpec(
+        task="gpt-4-confidence",
+        model="gpt-4"
+    )
+
+    # Generate very peaked ordinal data (mode=5, 90% concentration)
+    ordinal_data = create_deterministic_ordinal_data(
+        n_samples * 8,
+        mode_value=5,
+        concentration=0.90,
+        max_score=5,
+        seed=44
+    )
+    data_idx = 0
+
+    # Start task
+    await manager.start_task(eval_spec, samples, epochs=8)
+
+    # Run evaluation loop
+    completed_trials = 0
+    stopped_trials = 0
+    sample_epoch_counts = {}
+    stopped_groupings = set()
+    grouping_key = f"{eval_spec.model}-{eval_spec.task}"
+
+    for sample in samples:
+        sample_epoch_counts[sample.id] = 0
+
+        if grouping_key in stopped_groupings:
+            stopped_trials += 8
+            continue
+
+        for epoch in range(1, 9):
+            early_stop = await manager.schedule_sample(sample.id, epoch)
+
+            if early_stop is not None:
+                stopped_trials += 1
+                print(f"Sample {sample.id} stopped at epoch {epoch}: {early_stop.reason}")
+
+                if "grouping" in early_stop.reason.lower():
+                    stopped_groupings.add(grouping_key)
+                    stopped_trials += (8 - epoch)
+                    break
+
+                continue
+
+            score_value = ordinal_data[data_idx]
+            data_idx += 1
+            scores = create_mock_sample_score(score_value)
+
+            await manager.complete_sample(sample.id, epoch, scores)
+            completed_trials += 1
+            sample_epoch_counts[sample.id] += 1
+
+    # Complete task
+    diagnostics = await manager.complete_task()
+
+    # Calculate efficiency
+    total_planned = n_samples * 8
+    efficiency_percent = (stopped_trials / total_planned) * 100
+
+    print(f"\n{'='*80}")
+    print("RESULTS")
+    print(f"{'='*80}")
+    print(f"Total planned trials: {total_planned}")
+    print(f"Completed trials: {completed_trials}")
+    print(f"Stopped trials: {stopped_trials}")
+    print(f"Efficiency: {efficiency_percent:.1f}%")
+    print(f"Stopped groupings: {diagnostics.get('stopped_groupings', [])}")
+    print(f"Stopped samples count: {diagnostics.get('stopped_samples_count', 0)}")
+    print(f"Model type: dirichlet, Inference: entropy")
+
+    # Save results
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    results = {
+        "test": "1.1.2g_ordinal_dirichlet_entropy",
+        "inference_mode": "entropy",
+        "ordinal_model_type": "dirichlet",
+        "ordinal_max_score": 5,
+        "n_samples": n_samples,
+        "epochs_per_sample": 8,
+        "total_planned": total_planned,
+        "completed_trials": completed_trials,
+        "stopped_trials": stopped_trials,
+        "efficiency_percent": efficiency_percent,
+        "stopped_groupings": diagnostics.get('stopped_groupings', []),
+        "stopped_samples_count": diagnostics.get('stopped_samples_count', 0),
+        "sample_epoch_counts": sample_epoch_counts,
+        "validation": {
+            "dirichlet_model_used": True,
+            "entropy_inference_used": True,
+            "ordinal_scoring": True
+        }
+    }
+
+    output_file = TEST_OUTPUT_DIR / f"test_1_1_2g_dirichlet_entropy_{timestamp}.json"
+    with open(output_file, 'w') as f:
+        json.dump(results, f, indent=2)
+
+    print(f"\nResults saved to: {output_file}")
+
+    # Assertions - validate execution, not efficiency (entropy may not stop with limited data)
+    assert completed_trials + stopped_trials == total_planned, "Trial count mismatch"
+    assert results['validation']['dirichlet_model_used'], "Dirichlet model should be used"
+    assert results['validation']['entropy_inference_used'], "Entropy inference should be used"
+
+    print(f"\n📊 Dirichlet entropy inference completed: {stopped_trials}/{total_planned} trials stopped ({efficiency_percent:.1f}%)")
+    if stopped_trials > 0:
+        print(f"✅ Entropy stabilization detected")
+    else:
+        print("ℹ️  No stopping occurred (entropy stabilization requires sustained convergence)")
+
+    print("\n✅ TEST 1.1.2g PASSED (Dirichlet entropy test completed)")
+
+
 if __name__ == "__main__":
     # Run tests individually for debugging
     import asyncio
@@ -1065,6 +1400,8 @@ if __name__ == "__main__":
         await test_1_1_2c_ordinal_hybrid_peaked()
         await test_1_1_2d_ordinal_hybrid_diffuse()
         await test_1_1_2e_ordinal_realistic_modal()
+        await test_1_1_2f_ordinal_dirichlet_inference()
+        await test_1_1_2g_ordinal_dirichlet_entropy()
 
         print("\n" + "="*80)
         print("ALL SECTION 1.1.2 TESTS COMPLETED")

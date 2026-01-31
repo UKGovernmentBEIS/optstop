@@ -1468,10 +1468,12 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 if ordinal_model_type == 'ordered_logistic':
                     # === ORDERED LOGISTIC (Cumulative Link) ===
                     # Respects ordinal structure via latent scale with identified cutpoints
+                    # Posthoc mode: all data available upfront, no pre-allocation needed
                     try:
                         ordinal_group_model = _create_ordered_logistic_hierarchical(
                             n_categories=n_categories,
-                            n_items=n_items_total
+                            n_items=n_items_total,
+                            use_preallocation=False  # Posthoc: exact size, no padding
                         )
                     except Exception as e:
                         logger.warning(
@@ -2633,6 +2635,7 @@ def optimal_stopping_live_single(
     epoch_column: str,
     score_column: str = "score",
     stabilization_history: Optional[Dict[str, List[float]]] = None,
+    max_n_items: Optional[int] = None,  # Fix 1: Pre-allocation parameter
     ordinal_tasks: Optional[List[str]] = None,
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
@@ -2666,6 +2669,11 @@ def optimal_stopping_live_single(
             - 'entropy_history': List of entropy values (ordinal only)
             - 'n_samples_evaluated': Number of samples processed so far
             If None, initializes empty history.
+        max_n_items: Maximum number of unique items expected in this grouping.
+            If provided, models are pre-allocated at this size to avoid recompilation
+            as n_items grows. Unobserved items are masked via explicit obs_weight.
+            If None, uses current observed n_items (original dynamic behavior).
+            (Fix 1: Pre-allocation for scaling)
         ordinal_tasks: List of substrings to identify if this grouping uses ordinal scoring
         ordinal_max_score: Maximum score for ordinal data (default: 10)
         ordinal_inference: Ordinal inference mode ('modal', 'entropy', 'hybrid')
@@ -2783,6 +2791,26 @@ def optimal_stopping_live_single(
 
     item_ids = sorted(df_work['sample_id_num'].unique())
 
+    # === PRE-ALLOCATION LOGIC (Fix 1) ===
+    # Determine model size: use max_n_items if provided for pre-allocation,
+    # otherwise fall back to current observed n_items (original behavior)
+    current_n_items = len(item_ids)
+    if max_n_items is not None and max_n_items >= current_n_items:
+        model_n_items = max_n_items
+    else:
+        model_n_items = current_n_items
+        if max_n_items is not None and max_n_items < current_n_items:
+            logger.warning(
+                f"max_n_items ({max_n_items}) < current_n_items ({current_n_items}) "
+                f"for grouping '{grouping_name}'. Using current_n_items instead."
+            )
+
+    # Create observation weight vector for explicit masking
+    # 1.0 for observed items (indices 0 to current_n_items-1)
+    # 0.0 for unobserved/padding items (indices current_n_items to model_n_items-1)
+    obs_weight = np.zeros(model_n_items, dtype=np.float64)
+    obs_weight[:current_n_items] = 1.0
+
     # Initialize model caches (OPTIMIZATION #2: Extract from passed-in dict)
     if model_caches is None:
         model_caches = {
@@ -2815,38 +2843,82 @@ def optimal_stopping_live_single(
     if score_type == 'binary':
         # === BINARY HIERARCHICAL MODEL ===
         # Binomial likelihood with logit-scale hierarchical structure
-        # OPTIMIZATION #2: Cache model to avoid recompilation
-        # PyMC shapes are fixed at creation, so validate n_items hasn't changed
-        current_n_items = len(item_ids)
+        # Fix 1: Pre-allocation with explicit masking to avoid recompilation
+        # OPTIMIZATION #2: Cache model - reuse if current data fits within allocated size
+        #
+        # Two modes:
+        #   - use_preallocation=True (max_n_items specified): Fixed shape + obs_weight masking
+        #   - use_preallocation=False (max_n_items=None): Dynamic mode with mutable n_items
+
+        # Determine current use_preallocation setting
+        use_preallocation = (max_n_items is not None)
 
         if 'model' in binary_group_cache:
-            cached_n_items = binary_group_cache.get('n_items_last', 0)
-            if cached_n_items == current_n_items:
-                # Safe to reuse - n_items unchanged
+            cached_model_n_items = binary_group_cache.get('model_n_items', 0)
+            cached_use_preallocation = binary_group_cache.get('use_preallocation', True)
+            # Cache valid if: same preallocation mode AND data fits within allocated size
+            if (cached_use_preallocation == use_preallocation and
+                current_n_items <= cached_model_n_items):
+                # Safe to reuse - current data fits within allocated model size
                 model = binary_group_cache['model']
-                # logger.info(f"✓ CACHE HIT: Reusing binary group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
+                # logger.debug(f"✓ CACHE HIT: Reusing binary model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
-                # Must recreate - n_items changed (PyMC shapes are immutable)
-                # logger.info(f"✗ CACHE INVALIDATED: Binary model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")  # Verbose cache logging
-                binary_group_cache.clear()  # Clear invalid cache
+                # Must recreate - mode changed or current data exceeds allocated model size
+                if cached_use_preallocation != use_preallocation:
+                    logger.info(f"Binary model cache invalidated: use_preallocation changed from {cached_use_preallocation} to {use_preallocation}")
+                else:
+                    logger.info(f"Binary model cache invalidated: n_items {current_n_items} > allocated {cached_model_n_items}")
+                binary_group_cache.clear()
 
         if 'model' not in binary_group_cache:
-            # Create new model
-            # Initialize with current_n_items for consistency with ordinal model (Issue #2 fix)
             with pm.Model() as model:
+                # Group-level priors (unchanged)
                 mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)
-                successes_data = pm.Data("successes", np.zeros(current_n_items, dtype="int64"))
-                n_items = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
-                trials_data = pm.Data("trials", np.ones(current_n_items, dtype="int64"))
-                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-                obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+
+                if use_preallocation:
+                    # PRE-ALLOCATED MODE: Fixed shape + obs_weight masking
+                    # Data containers - allocated at model_n_items (may be > current_n_items)
+                    # Use trials=1 (not 0) as safe default for unobserved items
+                    successes_data = pm.Data("successes", np.zeros(model_n_items, dtype="int64"))
+                    trials_data = pm.Data("trials", np.ones(model_n_items, dtype="int64"))
+                    obs_weight_data = pm.Data("obs_weight", np.zeros(model_n_items, dtype="float64"))
+
+                    # Item random effects - fixed shape at model_n_items
+                    z = pm.Normal("z", mu=0, sigma=1, shape=model_n_items)
+
+                    # Item-level means
+                    mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+
+                    # EXPLICIT MASKING: Use weighted log-likelihood via Potential
+                    # obs_weight=0 for unobserved items → zero contribution to likelihood
+                    binomial_dist = pm.Binomial.dist(n=trials_data, p=Theta)
+                    log_lik = obs_weight_data * pm.logp(binomial_dist, successes_data)
+                    pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+                else:
+                    # DYNAMIC MODE: Original behavior with mutable n_items
+                    # Model is recompiled when n_items changes, but allows full rollback
+                    n_items_data = pm.Data("n_items", np.array(model_n_items, dtype="int64"))
+                    successes_data = pm.Data("successes", np.zeros(model_n_items, dtype="int64"))
+                    trials_data = pm.Data("trials", np.ones(model_n_items, dtype="int64"))
+
+                    # Item random effects - shape depends on n_items_data
+                    z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+
+                    # Item-level means
+                    mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+
+                    # Direct observation (original behavior)
+                    obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+
             binary_group_cache['model'] = model
-            binary_group_cache['n_items_last'] = current_n_items  # Track for validation
-            # logger.info(f"✗ CACHE MISS: Created new binary group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
+            binary_group_cache['model_n_items'] = model_n_items  # Track allocated size
+            binary_group_cache['use_preallocation'] = use_preallocation
+            logger.info(f"Created binary model for '{grouping_name}' (allocated={model_n_items}, current={current_n_items}, prealloc={use_preallocation})")
 
     elif score_type in ['continuous_01', 'continuous_bounded']:
         # === CONTINUOUS HIERARCHICAL MODEL (AGGREGATED) ===
@@ -2872,96 +2944,104 @@ def optimal_stopping_live_single(
         # This is analogous to how Binary uses aggregated Binomial (successes/trials)
         # rather than individual 0/1 observations.
         #
-        # OPTIMIZATION #2: Cache model to avoid recompilation
-        # PyMC shapes are fixed at creation, so validate n_items hasn't changed
-        current_n_items = len(item_ids)
+        # Fix 1: Pre-allocation with explicit masking to avoid recompilation
+        # OPTIMIZATION #2: Cache model - reuse if current data fits within allocated size
+        #
+        # Two modes:
+        #   - use_preallocation=True (max_n_items specified): Fixed shape + obs_weight masking
+        #   - use_preallocation=False (max_n_items=None): Dynamic mode with mutable n_items
+
+        # Determine current use_preallocation setting
+        use_preallocation = (max_n_items is not None)
 
         if 'model' in continuous_group_cache:
-            cached_n_items = continuous_group_cache.get('n_items_last', 0)
-            if cached_n_items == current_n_items:
-                # Safe to reuse - n_items unchanged
+            cached_model_n_items = continuous_group_cache.get('model_n_items', 0)
+            cached_use_preallocation = continuous_group_cache.get('use_preallocation', True)
+            # Cache valid if: same preallocation mode AND data fits within allocated size
+            if (cached_use_preallocation == use_preallocation and
+                current_n_items <= cached_model_n_items):
                 continuous_model = continuous_group_cache['model']
-                # logger.info(f"✓ CACHE HIT: Reusing continuous group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
+                # logger.debug(f"✓ CACHE HIT: Reusing continuous model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
-                # Must recreate - n_items changed (PyMC shapes are immutable)
-                # logger.info(f"✗ CACHE INVALIDATED: Continuous model n_items changed {cached_n_items} → {current_n_items} for '{grouping_name}'")  # Verbose cache logging
-                continuous_group_cache.clear()  # Clear invalid cache
+                # Must recreate - mode changed or current data exceeds allocated model size
+                if cached_use_preallocation != use_preallocation:
+                    logger.info(f"Continuous model cache invalidated: use_preallocation changed from {cached_use_preallocation} to {use_preallocation}")
+                else:
+                    logger.info(f"Continuous model cache invalidated: n_items {current_n_items} > allocated {cached_model_n_items}")
+                continuous_group_cache.clear()
 
         if 'model' not in continuous_group_cache:
-            # Initialize with current_n_items for consistency with ordinal model (Issue #2 fix)
             with pm.Model() as continuous_model:
                 # Group-level parameters (logit scale for mean)
-                # mu_group: centered at 0 → logit^-1(0) = 0.5 on probability scale
-                # Note: For high-performing scenarios (typical p > 0.7), consider mu=1.5
-                # which corresponds to logit^-1(1.5) ≈ 0.82
                 mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
-
-                # sigma_group: between-item variability (logit scale)
-                # lam=1.0 → mean=1.0 (moderate between-item variation)
-                # For similar items, consider lam=2.0 → mean=0.5 (tighter)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
+                phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
 
-                # Group-level precision (concentration parameter for Beta distributions)
-                # Controls typical within-item variance: higher phi = less variance
-                # FIXED: Changed from beta=0.1 (mean=20, too tight for aggregated data)
-                # to beta=1.0 (mean=2, more appropriate for aggregated sample means)
-                #
-                # For Beta(mu, phi):
-                #   SD = sqrt(mu*(1-mu)/(phi+1))
-                #   phi=2: SD ≈ 0.29 for mu=0.8 (reasonable for aggregated scores)
-                #   phi=20: SD ≈ 0.087 for mu=0.8 (too tight!)
-                phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
+                if use_preallocation:
+                    # PRE-ALLOCATED MODE: Fixed shape + obs_weight masking
+                    # Data containers - allocated at model_n_items (may be > current_n_items)
+                    # CRITICAL: item_ns must be >= 1 to avoid division by zero in obs_sd calculation
+                    item_means_data = pm.Data("item_means", np.full(model_n_items, 0.5, dtype="float64"))
+                    item_ns_data = pm.Data("item_ns", np.ones(model_n_items, dtype="int64"))  # MUST be >= 1
+                    obs_weight_data = pm.Data("obs_weight", np.zeros(model_n_items, dtype="float64"))
 
-                # Mutable data containers (updated during group-level inference)
-                # Initialize with current_n_items for consistency
-                n_items = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
+                    # Item-level means (hierarchical, logit scale) - fixed shape at model_n_items
+                    z = pm.Normal("z", mu=0, sigma=1, shape=model_n_items)
+                    mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                    mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                    mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
 
-                # Item-level means (hierarchical, logit scale)
-                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)  # Item deviations from group
-                mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
-                mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                           pm.math.clip(mu_item_logit, -6.0, 6.0))
-                mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))  # [0,1]
+                    # Item-level precision (allows heterogeneity in within-item variance)
+                    z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=model_n_items)
+                    log_phi_item = pm.Deterministic("log_phi_item",
+                                                    pm.math.log(phi_group) + z_phi * 0.5)
+                    phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
 
-                # Item-level precision (allows heterogeneity in within-item variance)
-                # z_phi allows items to have different precisions around group mean
-                z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items)
-                log_phi_item = pm.Deterministic("log_phi_item",
-                                                pm.math.log(phi_group) + z_phi * 0.5)
-                phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+                    # Compute observation SD for each item based on theoretical variance
+                    # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
+                    mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                    obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                         (phi_item * item_ns_data))
 
-                # === AGGREGATED OBSERVATION STRUCTURE ===
-                # Instead of individual observations, use item-level aggregated statistics
-                # Data format:
-                #   item_means: [mean1, mean2, ..., mean50]  (observed sample means per item)
-                #   item_ns:    [n1, n2, ..., n50]           (sample sizes per item)
-                #
-                # Variance structure (data-dependent):
-                #   For Beta(mu, phi) distributed observations, sample mean has variance:
-                #   Var(mean) = mu*(1-mu) / (phi * n)
-                #
-                # Initialize with current_n_items for consistency
-                item_means = pm.Data("item_means", np.full(current_n_items, 0.5))
-                item_ns = pm.Data("item_ns", np.full(current_n_items, 10, dtype="int64"))
+                    # EXPLICIT MASKING: Use weighted log-likelihood via Potential
+                    # obs_weight=0 for unobserved items → zero contribution to likelihood
+                    normal_dist = pm.Normal.dist(mu=mu_item, sigma=obs_sd)
+                    log_lik = obs_weight_data * pm.logp(normal_dist, item_means_data)
+                    pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+                else:
+                    # DYNAMIC MODE: Original behavior with mutable n_items
+                    # Model is recompiled when n_items changes, but allows full rollback
+                    n_items_data = pm.Data("n_items", np.array(model_n_items, dtype="int64"))
+                    item_means_data = pm.Data("item_means", np.full(model_n_items, 0.5, dtype="float64"))
+                    item_ns_data = pm.Data("item_ns", np.ones(model_n_items, dtype="int64"))  # MUST be >= 1
 
-                # Compute observation SD for each item based on theoretical variance
-                # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
-                # Clip mu away from boundaries to avoid sqrt(0)
-                mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
-                obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
-                                     (phi_item * item_ns))
+                    # Item-level means (hierarchical, logit scale) - shape depends on n_items_data
+                    z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+                    mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                    mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                    mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
 
-                # Normal likelihood on aggregated means
-                # Each item's observed mean ~ Normal(mu_item, obs_sd)
-                # This is analogous to Binary using Binomial(successes | n, p)
-                # rather than Bernoulli for each trial
-                obs = pm.Normal("obs",
-                               mu=mu_item,
-                               sigma=obs_sd,
-                               observed=item_means)
+                    # Item-level precision (allows heterogeneity in within-item variance)
+                    z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
+                    log_phi_item = pm.Deterministic("log_phi_item",
+                                                    pm.math.log(phi_group) + z_phi * 0.5)
+                    phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+
+                    # Compute observation SD for each item based on theoretical variance
+                    # SD(sample_mean) = sqrt(mu * (1-mu) / (phi * n))
+                    mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                    obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                         (phi_item * item_ns_data))
+
+                    # Direct observation (original behavior)
+                    obs = pm.Normal("obs", mu=mu_item, sigma=obs_sd, observed=item_means_data)
+
             continuous_group_cache['model'] = continuous_model
-            continuous_group_cache['n_items_last'] = current_n_items  # Track for validation
-            # logger.info(f"✗ CACHE MISS: Created new continuous group model for '{grouping_name}' (n_items={current_n_items})")  # Verbose cache logging
+            continuous_group_cache['model_n_items'] = model_n_items  # Track allocated size
+            continuous_group_cache['use_preallocation'] = use_preallocation
+            logger.info(f"Created continuous model for '{grouping_name}' (allocated={model_n_items}, current={current_n_items}, prealloc={use_preallocation})")
 
     elif score_type == 'ordinal':
         # === ORDINAL HIERARCHICAL MODEL ===
@@ -2969,23 +3049,29 @@ def optimal_stopping_live_single(
         #   - 'ordered_logistic': Cumulative link model (respects ordinal structure)
         #   - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
         #
-        # OPTIMIZATION: Cache model to avoid recompilation
-        # PyMC shapes are fixed at creation, so validate n_items, n_categories, AND model_type
+        # Fix 1: Pre-allocation with explicit masking to avoid recompilation
+        # Cache model - reuse if current data fits, n_categories matches, and model type matches
         n_categories = ordinal_max_score + 1
-        current_n_items = len(item_ids)
 
-        # Check cache validity (must match dimensions AND model type)
+        # Check cache validity
+        # Determine current use_preallocation setting
+        current_use_preallocation = (max_n_items is not None)
+
         if 'model' in ordinal_group_cache:
-            cached_n_items = ordinal_group_cache.get('n_items_last', 0)
+            cached_model_n_items = ordinal_group_cache.get('model_n_items', 0)
             cached_n_categories = ordinal_group_cache.get('n_categories_last', 0)
             cached_model_type = ordinal_group_cache.get('model_type', 'dirichlet')
-            if (cached_n_items == current_n_items and
+            cached_use_preallocation = ordinal_group_cache.get('use_preallocation', True)
+
+            # Cache valid if: data fits, categories match, model type matches, AND preallocation mode matches
+            if (current_n_items <= cached_model_n_items and
                 cached_n_categories == n_categories and
-                cached_model_type == ordinal_model_type):
-                # Safe to reuse - dimensions and model type unchanged
+                cached_model_type == ordinal_model_type and
+                cached_use_preallocation == current_use_preallocation):
                 ordinal_model = ordinal_group_cache['model']
+                # logger.debug(f"✓ CACHE HIT: Reusing ordinal model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
-                # Must recreate - dimensions or model type changed
+                logger.info(f"Ordinal model cache invalidated: n_items {current_n_items} > allocated {cached_model_n_items} or config changed (prealloc: {cached_use_preallocation} -> {current_use_preallocation})")
                 ordinal_group_cache.clear()
 
         if 'model' not in ordinal_group_cache:
@@ -2995,10 +3081,13 @@ def optimal_stopping_live_single(
             if ordinal_model_type == 'ordered_logistic':
                 # === ORDERED LOGISTIC (Cumulative Link) ===
                 # Respects ordinal structure via latent scale with identified cutpoints
+                # use_preallocation determined by whether max_n_items was provided
+                use_preallocation = (max_n_items is not None)
                 try:
                     ordinal_model = _create_ordered_logistic_hierarchical(
                         n_categories=n_categories,
-                        n_items=current_n_items
+                        n_items=model_n_items,
+                        use_preallocation=use_preallocation
                     )
                 except Exception as e:
                     logger.warning(
@@ -3010,6 +3099,9 @@ def optimal_stopping_live_single(
             if actual_model_type == 'dirichlet':
                 # === DIRICHLET-MULTINOMIAL ===
                 # Treats categories as exchangeable (no ordinal structure)
+                # use_preallocation determined by whether max_n_items was provided
+                use_preallocation = (max_n_items is not None)
+
                 with pm.Model() as ordinal_model:
                     # Group-level: baseline category probabilities
                     alpha_prior = np.ones(n_categories)
@@ -3018,20 +3110,42 @@ def optimal_stopping_live_single(
                     # Concentration parameter
                     kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
 
-                    # Mutable data containers (n_items allows dynamic resizing via set_data)
-                    n_items_data = pm.Data("n_items", np.array(current_n_items, dtype="int64"))
-                    item_counts_data = pm.Data("item_counts", np.zeros((current_n_items, n_categories), dtype="int64"))
-                    item_ns_data = pm.Data("item_ns", np.ones(current_n_items, dtype="int64"))
-
                     # Item-level concentrations
                     alpha_item = alpha_group * kappa
 
-                    # Item-specific probabilities with partial pooling
-                    # Using n_items_data allows shape to change when set_data() is called
-                    p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+                    if use_preallocation:
+                        # === PRE-ALLOCATED MODE (Fix 1) ===
+                        # Fixed shape with explicit obs_weight masking
+                        # Data containers - allocated at model_n_items (may be > current_n_items)
+                        # For valid Multinomial: sum(item_counts[i]) must equal item_ns[i]
+                        # Default: item_ns=1, item_counts=[1,0,0,...] (one count in first category)
+                        default_counts = np.zeros((model_n_items, n_categories), dtype="int64")
+                        default_counts[:, 0] = 1  # One count in first category ensures sum = 1 = item_ns
+                        item_counts_data = pm.Data("item_counts", default_counts)
+                        item_ns_data = pm.Data("item_ns", np.ones(model_n_items, dtype="int64"))
+                        obs_weight_data = pm.Data("obs_weight", np.zeros(model_n_items, dtype="float64"))
 
-                    # Multinomial likelihood on category counts
-                    obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
+                        # Item-specific probabilities with partial pooling - fixed shape at model_n_items
+                        p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(model_n_items, n_categories))
+
+                        # EXPLICIT MASKING: Use weighted log-likelihood via Potential
+                        # obs_weight=0 for unobserved items → zero contribution to likelihood
+                        multinomial_dist = pm.Multinomial.dist(n=item_ns_data, p=p_item)
+                        log_lik = obs_weight_data * pm.logp(multinomial_dist, item_counts_data)
+                        pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+                    else:
+                        # === DYNAMIC MODE (original behavior) ===
+                        # Shape changes with n_items; model recompiles when n_items changes
+                        n_items_data = pm.Data("n_items", np.array(model_n_items, dtype="int64"))
+                        default_counts = np.zeros((model_n_items, n_categories), dtype="int64")
+                        item_counts_data = pm.Data("item_counts", default_counts)
+                        item_ns_data = pm.Data("item_ns", np.ones(model_n_items, dtype="int64"))
+
+                        # Item-specific probabilities with partial pooling - dynamic shape
+                        p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_data, n_categories))
+
+                        # DIRECT MULTINOMIAL LIKELIHOOD (no masking needed)
+                        obs = pm.Multinomial("obs", n=item_ns_data, p=p_item, observed=item_counts_data)
 
                     # Derived quantities for stopping criteria
                     modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
@@ -3042,9 +3156,14 @@ def optimal_stopping_live_single(
                     )
 
             ordinal_group_cache['model'] = ordinal_model
-            ordinal_group_cache['n_items_last'] = current_n_items
             ordinal_group_cache['n_categories_last'] = n_categories
             ordinal_group_cache['model_type'] = actual_model_type
+            ordinal_group_cache['use_preallocation'] = current_use_preallocation
+            # Track pre-allocation status: model_n_items is set only when pre-allocation is used
+            # This allows ordinal_utils.py helper functions to detect which data-setting path to use
+            if current_use_preallocation:
+                ordinal_group_cache['model_n_items'] = model_n_items
+            logger.info(f"Created ordinal model for '{grouping_name}' (allocated={model_n_items}, current={current_n_items}, type={actual_model_type}, prealloc={current_use_preallocation})")
 
     # Process each sample for sample-level stopping
     item_summaries = []
@@ -3240,11 +3359,35 @@ def optimal_stopping_live_single(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 with model:
-                    pm.set_data({
-                        "successes": all_successes,
-                        "trials": all_trials,
-                        "n_items": np.int64(len(all_successes))
-                    })
+                    # Prepare data arrays based on mode (Fix 1)
+                    n_observed = len(all_successes)
+                    cached_use_preallocation = binary_group_cache.get('use_preallocation', True)
+
+                    if cached_use_preallocation:
+                        # PRE-ALLOCATED MODE: Pad arrays with obs_weight masking
+                        model_size = binary_group_cache.get('model_n_items', n_observed)
+                        successes_padded = np.zeros(model_size, dtype="int64")
+                        trials_padded = np.ones(model_size, dtype="int64")  # 1, not 0 (safe default)
+                        obs_weight_padded = np.zeros(model_size, dtype="float64")
+
+                        # Fill observed data in first n_observed positions
+                        successes_padded[:n_observed] = all_successes
+                        trials_padded[:n_observed] = all_trials
+                        obs_weight_padded[:n_observed] = 1.0
+
+                        pm.set_data({
+                            "successes": successes_padded,
+                            "trials": trials_padded,
+                            "obs_weight": obs_weight_padded,
+                        })
+                    else:
+                        # DYNAMIC MODE: Set raw data with n_items
+                        pm.set_data({
+                            "n_items": np.int64(n_observed),
+                            "successes": all_successes.astype("int64"),
+                            "trials": all_trials.astype("int64"),
+                        })
+
                     with suppress_all_output():
                         trace = pm.sample(**sampling_kwargs)
                     with suppress_all_output():
@@ -3525,12 +3668,35 @@ def optimal_stopping_live_single(
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 with continuous_model:
-                    # Update model with aggregated data (SOLUTION A)
-                    pm.set_data({
-                        "item_means": item_means_array,
-                        "item_ns": item_ns_array,
-                        "n_items": np.int64(n_items_actual)
-                    })
+                    # Prepare data arrays based on mode (Fix 1)
+                    n_observed = n_items_actual
+                    cached_use_preallocation = continuous_group_cache.get('use_preallocation', True)
+
+                    if cached_use_preallocation:
+                        # PRE-ALLOCATED MODE: Pad arrays with obs_weight masking
+                        model_size = continuous_group_cache.get('model_n_items', n_observed)
+                        # CRITICAL: item_ns must be >= 1 to avoid division by zero
+                        item_means_padded = np.full(model_size, 0.5, dtype="float64")
+                        item_ns_padded = np.ones(model_size, dtype="int64")  # 1, not 0
+                        obs_weight_padded = np.zeros(model_size, dtype="float64")
+
+                        # Fill observed data in first n_observed positions
+                        item_means_padded[:n_observed] = item_means_array
+                        item_ns_padded[:n_observed] = item_ns_array
+                        obs_weight_padded[:n_observed] = 1.0
+
+                        pm.set_data({
+                            "item_means": item_means_padded,
+                            "item_ns": item_ns_padded,
+                            "obs_weight": obs_weight_padded,
+                        })
+                    else:
+                        # DYNAMIC MODE: Set raw data with n_items
+                        pm.set_data({
+                            "n_items": np.int64(n_observed),
+                            "item_means": item_means_array.astype("float64"),
+                            "item_ns": item_ns_array.astype("int64"),
+                        })
 
                     # Sample posterior distribution
                     with suppress_all_output():
@@ -3541,21 +3707,21 @@ def optimal_stopping_live_single(
                         mu_item_hdi = az.hdi(trace.posterior["mu_item"], hdi_prob=cred_level)
 
                 # Extract CI bounds from HDI
-                # mu_item is shape (n_items,) - one mean per item
-                # We want group-level CI, so average across items
+                # mu_item is shape (model_n_items,) - one mean per item
+                # Only use OBSERVED items (first n_observed) for group-level CI
                 try:
-                    mu_values_lower = mu_item_hdi["mu_item"].sel(hdi="lower").values
+                    mu_values_lower = mu_item_hdi["mu_item"].sel(hdi="lower").values[:n_observed]
                     mu_lo_normalized = float(np.mean(mu_values_lower))
                 except Exception:
                     # Fallback for different arviz versions
-                    mu_lo_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 0]))
+                    mu_lo_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 0][:n_observed]))
 
                 try:
-                    mu_values_upper = mu_item_hdi["mu_item"].sel(hdi="upper").values
+                    mu_values_upper = mu_item_hdi["mu_item"].sel(hdi="upper").values[:n_observed]
                     mu_hi_normalized = float(np.mean(mu_values_upper))
                 except Exception:
                     # Fallback for different arviz versions
-                    mu_hi_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 1]))
+                    mu_hi_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 1][:n_observed]))
 
                 # Compute width in normalized [0,1] space
                 width_normalized = mu_hi_normalized - mu_lo_normalized

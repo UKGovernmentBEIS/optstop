@@ -164,26 +164,30 @@ Discrete ordinal inference is a far more complex, intensive process, hence the r
 The `draws` and `tune` parameters have **linear impact** on inference time:
 
 ```python
-# Default 
+# Current defaults (CPU-aware, as of Fix 4)
+# CPU: draws=1000, tune=1000, target_accept=0.90
+# GPU: draws=2000, tune=2000, target_accept=0.95
+
 optstop_params = {
-    'draws': 6000,    # 6000 MCMC samples
-    'tune': 6000,     # 6000 tuning steps
+    'draws': 1000,    # Default for CPU (2000 for GPU)
+    'tune': 1000,     # Default for CPU (2000 for GPU)
     'chains': 4,
+    'target_accept': 0.90,  # Default for CPU (0.95 for GPU)
 }
-# Total: 12,000 iterations per inference. This is extremely conservative (e.g., maximising ensured convergence likelihood)
 
-# Recommended for production (1000-3000 samples/tunes)
+# For higher precision (if convergence warnings appear)
 optstop_params = {
-    'draws': 1000,     # EXACT NUMBER SUBJECT TO INITIAL TESTING (how much can live use in production bear...)
-    'tune': 1000,      # EXACT NUMBER SUBJECT TO INITIAL TESTING
-    'chains': 4, 
+    'draws': 2000,
+    'tune': 2000,
+    'chains': 4,
+    'target_accept': 0.95,
 }
-
 ```
 
 **Impact on performance:**
-- draws=6000, tune=6000:
-    - Leads to an approximate 6x linear increase vs 1000 draw/tune. Inconsequential for binary, continuous, and ordinal (modal) inference pathways. However, for the recommended ordinal (hybrid) inference call (on CPU), this could raise inference time to ~1 hour on CPU. Lowering to 1000 draw/tune and using GPU resources could lower this to ~3 minutes per inference.
+- Higher draws/tune values provide better posterior estimates but scale linearly with inference time
+- For ordinal (hybrid) inference on CPU, 1000/1000 draws/tune takes ~5-10 minutes per inference
+- Using GPU with 2000/2000 draws/tune can achieve similar times with better precision
 
 **Quality trade-off:**
 - Need to assess carefully about adequate precision vs speed.
@@ -324,7 +328,8 @@ manager = OptimalStoppingManager(
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
     score_agg: Optional[str] = None,
-    random_seed: Optional[int] = None
+    random_seed: Optional[int] = None,
+    use_preallocation: bool = True
 )
 ```
 
@@ -345,16 +350,20 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `low_performance_threshold` (float, default: 0.01): Success rate below which conservative stopping applies
 
 **Advanced parameters (performance-critical):**
-- `draws` (int, default: 6000): Number of MCMC samples
+- `draws` (int, default: 1000 CPU / 2000 GPU): Number of MCMC samples
   - **Performance impact:** Linear scaling with inference time
-  - **Recommended production:** 1000-2000
-- `tune` (int, default: 6000): Number of MCMC tuning steps
+  - Defaults are now CPU/GPU-aware for balanced speed and quality
+- `tune` (int, default: 1000 CPU / 2000 GPU): Number of MCMC tuning steps
   - **Performance impact:** Linear scaling with inference time
-  - **Recommended production:** 1000-2000
+  - Defaults are now CPU/GPU-aware for balanced speed and quality
 - `chains` (int, default: 4): Number of MCMC chains
-  - **Recommended production:** 2 (2× faster)
+  - Can reduce to 2 for faster inference (2× speedup)
 - `cores` (int, default: 4): Number of CPU cores for sampling
   - Usually matches `chains`
+- `target_accept` (float, default: 0.90 CPU / 0.95 GPU): Target acceptance rate for NUTS sampler
+  - **Higher values** (0.95-0.99): Reduce divergences, but increase computation time
+  - **Lower values** (0.80-0.90): Faster sampling, but may have more divergences
+  - Automatically selected based on CPU/GPU detection
 - `CI_delta` (float, default: 0.00005): Slope threshold for CI stabilization
 - `stab_window` (int, default: 10): Window size for stabilization assessment
 - `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
@@ -363,7 +372,7 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - **Higher values** = more aggressive (stop with LESS stability)
   - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
 
-**Important:** Default MCMC settings (draws=6000, tune=6000) are designed for publication-quality posteriors. For early stopping decisions, much lower values may be sufficient and **drastically faster**. See [Performance Considerations](#performance-considerations) for detailed guidance.
+**Note:** MCMC defaults are now CPU/GPU-aware (1000/1000 for CPU, 2000/2000 for GPU). These values balance inference quality with practical performance. For publication-quality posteriors, you may increase draws/tune, but this is rarely needed for early stopping decisions.
 
 **Example (production-optimized):**
 ```python

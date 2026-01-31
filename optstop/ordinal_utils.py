@@ -582,14 +582,42 @@ def _ordinal_ci_hierarchical_modal(
     ordinal_model = model_cache['model']
 
     # Update model data
+    # Check if using pre-allocated model (Fix 1) or dynamic model
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with ordinal_model:
-            pm.set_data({
-                "n_items": np.int64(n_items),
-                "item_counts": item_counts.astype("int64"),
-                "item_ns": item_ns.astype("int64")
-            })
+            if 'model_n_items' in model_cache:
+                # Pre-allocated model with explicit masking (Fix 1)
+                # Works with both dirichlet and ordered_logistic when use_preallocation=True
+                # Pad arrays to allocated model size; unobserved items get obs_weight=0
+                model_size = model_cache['model_n_items']
+
+                # Pad arrays to model size
+                # For valid Multinomial: sum(item_counts[i]) must equal item_ns[i]
+                # Padded items: item_ns=1, item_counts=[1,0,0,...] (ensures finite logp)
+                item_counts_padded = np.zeros((model_size, n_categories), dtype="int64")
+                item_counts_padded[n_items:, 0] = 1  # Padded items: one count in first category
+                item_ns_padded = np.ones(model_size, dtype="int64")
+                obs_weight_padded = np.zeros(model_size, dtype="float64")
+
+                # Fill observed data in first n_items positions
+                item_counts_padded[:n_items] = item_counts.astype("int64")
+                item_ns_padded[:n_items] = item_ns.astype("int64")
+                obs_weight_padded[:n_items] = 1.0
+
+                pm.set_data({
+                    "item_counts": item_counts_padded,
+                    "item_ns": item_ns_padded,
+                    "obs_weight": obs_weight_padded
+                })
+            else:
+                # Dynamic model (dirichlet or ordered_logistic with use_preallocation=False)
+                # Uses original interface with n_items; model recompiles when n_items changes
+                pm.set_data({
+                    "n_items": np.int64(n_items),
+                    "item_counts": item_counts.astype("int64"),
+                    "item_ns": item_ns.astype("int64")
+                })
 
             # Sample from posterior
             trace = pm.sample(**sampling_kwargs)
@@ -721,14 +749,42 @@ def _ordinal_ci_hierarchical_entropy(
     ordinal_model = model_cache['model']
 
     # Update model data and sample
+    # Check if using pre-allocated model (Fix 1) or dynamic model
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         with ordinal_model:
-            pm.set_data({
-                "n_items": np.int64(n_items),
-                "item_counts": item_counts.astype("int64"),
-                "item_ns": item_ns.astype("int64")
-            })
+            if 'model_n_items' in model_cache:
+                # Pre-allocated model with explicit masking (Fix 1)
+                # Works with both dirichlet and ordered_logistic when use_preallocation=True
+                # Pad arrays to allocated model size; unobserved items get obs_weight=0
+                model_size = model_cache['model_n_items']
+
+                # Pad arrays to model size
+                # For valid Multinomial: sum(item_counts[i]) must equal item_ns[i]
+                # Padded items: item_ns=1, item_counts=[1,0,0,...] (ensures finite logp)
+                item_counts_padded = np.zeros((model_size, n_categories), dtype="int64")
+                item_counts_padded[n_items:, 0] = 1  # Padded items: one count in first category
+                item_ns_padded = np.ones(model_size, dtype="int64")
+                obs_weight_padded = np.zeros(model_size, dtype="float64")
+
+                # Fill observed data in first n_items positions
+                item_counts_padded[:n_items] = item_counts.astype("int64")
+                item_ns_padded[:n_items] = item_ns.astype("int64")
+                obs_weight_padded[:n_items] = 1.0
+
+                pm.set_data({
+                    "item_counts": item_counts_padded,
+                    "item_ns": item_ns_padded,
+                    "obs_weight": obs_weight_padded
+                })
+            else:
+                # Dynamic model (dirichlet or ordered_logistic with use_preallocation=False)
+                # Uses original interface with n_items; model recompiles when n_items changes
+                pm.set_data({
+                    "n_items": np.int64(n_items),
+                    "item_counts": item_counts.astype("int64"),
+                    "item_ns": item_ns.astype("int64")
+                })
 
             # Sample from posterior
             trace = pm.sample(**sampling_kwargs)

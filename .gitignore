@@ -133,8 +133,9 @@ dmypy.json
 test_*.csv
 #test_*.log
 test_diagnostics/
+tests/test_outputs/
 DIAGNOSTICS_BUG_REPORT.md
-
+Temp_Dev_Files/
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
 #Q4_Development_Files/
