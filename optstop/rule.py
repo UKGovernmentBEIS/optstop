@@ -1435,6 +1435,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             group_entropy_history = []  # Track entropy CI history for hybrid stopping (group-level)
             ordinal_item_cache = {}  # Cache for item-level OrderedLogistic model reuse
             group_ordinal_model_cache = {}  # Separate cache for group-level hierarchical model
+            continuous_model_cache = {}  # Cache for continuous hierarchical model
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
 
@@ -1519,6 +1520,55 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 group_ordinal_model_cache['n_items_last'] = n_items_total
                 group_ordinal_model_cache['n_categories_last'] = n_categories
                 group_ordinal_model_cache['model_type'] = actual_model_type
+
+            elif score_type in ['continuous_01', 'continuous_bounded']:
+                # === CONTINUOUS HIERARCHICAL MODEL ===
+                # Uses hierarchical Beta model with item-level means
+                # Posthoc mode: exact size, no pre-allocation needed
+                lower_bound = bounds.get('lower', 0.0)
+                upper_bound = bounds.get('upper', 1.0)
+
+                with pm.Model() as continuous_model:
+                    # Group-level parameters (logit scale for mean)
+                    mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+                    sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
+                    phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
+
+                    # Data containers
+                    n_items_data = pm.Data("n_items", np.array(n_items_total, dtype="int64"))
+                    item_means_data = pm.Data("item_means", np.full(n_items_total, 0.5, dtype="float64"))
+                    item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
+
+                    # Item-level means (hierarchical, logit scale)
+                    z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+                    mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                    mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                    mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+
+                    # Item-level precision
+                    z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
+                    log_phi_item = pm.Deterministic("log_phi_item",
+                                                    pm.math.log(phi_group) + z_phi * 0.5)
+                    phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+
+                    # Observation SD for each item
+                    mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                    obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                         (phi_item * item_ns_data))
+
+                    # Normal likelihood on item means
+                    obs = pm.Normal("obs", mu=mu_item, sigma=obs_sd, observed=item_means_data)
+
+                continuous_model_cache = {
+                    'model': continuous_model,
+                    'n_items_last': n_items_total,
+                    'lower_bound': lower_bound,
+                    'upper_bound': upper_bound,
+                    'use_preallocation': False  # Posthoc mode: exact size, no pre-allocation
+                }
+                logger.info(f"Created continuous hierarchical model for grouping {pid}")
+
             for item_idx, item_id in enumerate(item_ids):
                 df_item = df_part[df_part['sample_id_num'] == item_id].sort_values('epoch_num')
 
@@ -1529,6 +1579,11 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 if score_type == 'binary':
                     successes = 0
                     trials = 0
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    # Continuous scores: track raw scores for normalization
+                    accumulated_scores = []
+                    cont_lower = continuous_model_cache.get('lower_bound', 0.0)
+                    cont_upper = continuous_model_cache.get('upper_bound', 1.0)
                 else:  # ordinal
                     accumulated_scores = []
 
@@ -1546,6 +1601,18 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         trials += len(batch)
                         lo, hi, width = _beta_ci_adaptive(
                             successes, trials, cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                    elif score_type in ['continuous_01', 'continuous_bounded']:
+                        # Continuous scores: accumulate and compute CI using Beta sampling
+                        accumulated_scores.extend(batch[score_column].values)
+                        # Use _continuous_bounded_ci_adaptive for item-level CI
+                        lo, hi, width = _continuous_bounded_ci_adaptive(
+                            np.array(accumulated_scores),
+                            lower_bound=cont_lower,
+                            upper_bound=cont_upper,
+                            cred_level=cred_level,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold
                         )
@@ -1637,6 +1704,21 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 # Store item summary based on score type
                 if score_type == 'binary':
                     item_summaries.append({'successes': successes, 'trials': trials})
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    # Store continuous scores normalized to [0,1] for hierarchical model
+                    scores_array = np.array(accumulated_scores)
+                    # Normalize to [0, 1] for hierarchical model
+                    scores_normalized = (scores_array - cont_lower) / (cont_upper - cont_lower)
+                    scores_normalized = np.clip(scores_normalized, 0.0, 1.0)
+                    item_summaries.append({
+                        'scores_raw': accumulated_scores.copy(),
+                        'scores_normalized': scores_normalized.tolist(),
+                        'n_obs': len(accumulated_scores),
+                        'mean_raw': float(np.mean(accumulated_scores)),
+                        'mean_normalized': float(np.mean(scores_normalized)),
+                        'lower_bound': cont_lower,
+                        'upper_bound': cont_upper
+                    })
                 else:  # ordinal
                     # Store category counts for hierarchical Dirichlet-Multinomial model
                     counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
@@ -1655,6 +1737,14 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 # Compute current performance estimate based on score type
                 if score_type == 'binary':
                     current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    # Use mean_normalized (already in [0,1]) for performance estimate
+                    total_obs = sum(s['n_obs'] for s in item_summaries)
+                    if total_obs > 0:
+                        # Weighted mean of normalized item means
+                        current_perf_estimate = sum(s['mean_normalized'] * s['n_obs'] for s in item_summaries) / total_obs
+                    else:
+                        current_perf_estimate = 0.0
                 else:  # ordinal
                     # Use mean_score stored in item_summaries (already computed)
                     total_obs = sum(s['n_obs'] for s in item_summaries)
@@ -1680,19 +1770,27 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             })
                             with suppress_all_output():
                                 trace = pm.sample(**sampling_kwargs)
+
+                        # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
+                        # This correctly accounts for between-item variance (sigma_group)
+                        n_items_current = len(all_successes)
+                        try:
+                            # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                            theta_samples = trace.posterior["Theta"].values
+                            # Compute mean across items for each posterior sample
+                            mean_theta_samples = theta_samples.mean(axis=2)
                             with suppress_all_output():
-                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                        hdi_indices = list(theta_hdi["Theta"].hdi.values)
-                        try:
-                            theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                            theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
                         except Exception:
-                            theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-                        try:
-                            theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                            theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                        except Exception:
-                            theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                            # Fallback: use sigmoid(mu_group)
+                            mu_group_samples = trace.posterior["mu_group"].values
+                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -1803,6 +1901,91 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                         break
                                     elif abs(slope) <= slope_threshold / 2:
                                         logger.info(f"Stopping low-performance ordinal grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                        break
+
+                # Group-level stopping for continuous scoring (HIERARCHICAL)
+                # Uses hierarchical Beta model with group-level mu_group parameter
+                elif score_type in ['continuous_01', 'continuous_bounded'] and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
+                    # Aggregate item-level statistics for hierarchical model
+                    item_means_list = []
+                    item_ns_list = []
+                    total_obs_count = 0
+
+                    for item_summary in item_summaries:
+                        # Use normalized scores (already in [0,1])
+                        scores_norm = item_summary['scores_normalized']
+                        item_means_list.append(np.mean(scores_norm))
+                        item_ns_list.append(len(scores_norm))
+                        total_obs_count += len(scores_norm)
+
+                    item_means_array = np.array(item_means_list, dtype="float64")
+                    item_ns_array = np.array(item_ns_list, dtype="int64")
+                    n_items_actual = len(item_summaries)
+
+                    # Retrieve bounds from cache
+                    cont_lower_bound = continuous_model_cache.get('lower_bound', 0.0)
+                    cont_upper_bound = continuous_model_cache.get('upper_bound', 1.0)
+
+                    if n_items_actual > 0 and total_obs_count > 0:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            continuous_model = continuous_model_cache['model']
+                            with continuous_model:
+                                # Posthoc mode: exact size, no pre-allocation needed
+                                pm.set_data({
+                                    "n_items": np.int64(n_items_actual),
+                                    "item_means": item_means_array,
+                                    "item_ns": item_ns_array,
+                                })
+
+                                # Sample posterior distribution
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+
+                            # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
+                            # This correctly accounts for between-item variance (sigma_group)
+                            try:
+                                # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                                mu_item_samples = trace.posterior["mu_item"].values
+                                # Compute mean across items for each posterior sample
+                                mean_mu_samples = mu_item_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                            except Exception:
+                                # Fallback: use sigmoid(mu_group)
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+
+                            # Compute width in normalized [0,1] space
+                            theta_width = theta_hi - theta_lo
+
+                        CI_record.append(theta_width)
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+
+                        if effective_width < delta_cap:
+                            logger.info(f"Stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                            break
+
+                        if len(CI_record) >= stab_window:
+                            recent_widths = CI_record[-stab_window:]
+                            slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                            CI_slopes_hist.append(slope)
+                            slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                            if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                recent_slopes = CI_slopes_hist[-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if current_perf_estimate >= low_perf_threshold:
+                                        logger.info(f"Stopping continuous grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
+                                        break
+                                    elif abs(slope) <= slope_threshold / 2:
+                                        logger.info(f"Stopping low-performance continuous grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
 
             avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs]) if used_reps_dfs else 0
@@ -2051,6 +2234,56 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
                 obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
 
+        # Continuous model cache for continuous score types
+        continuous_model_cache = {}
+        if score_type in ['continuous_01', 'continuous_bounded']:
+            # === CONTINUOUS HIERARCHICAL MODEL ===
+            # Uses hierarchical Beta model with item-level means
+            cont_lower_bound = bounds.get('lower', 0.0) if bounds else 0.0
+            cont_upper_bound = bounds.get('upper', 1.0) if bounds else 1.0
+            n_items_total = len(item_ids)
+
+            with pm.Model() as continuous_model:
+                # Group-level parameters (logit scale for mean)
+                mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
+                phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
+
+                # Data containers
+                n_items_data = pm.Data("n_items", np.array(n_items_total, dtype="int64"))
+                item_means_data = pm.Data("item_means", np.full(n_items_total, 0.5, dtype="float64"))
+                item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
+
+                # Item-level means (hierarchical, logit scale)
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
+                mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                         pm.math.clip(mu_item_logit, -6.0, 6.0))
+                mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+
+                # Item-level precision
+                z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
+                log_phi_item = pm.Deterministic("log_phi_item",
+                                                pm.math.log(phi_group) + z_phi * 0.5)
+                phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+
+                # Observation SD for each item
+                mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                     (phi_item * item_ns_data))
+
+                # Normal likelihood on item means
+                obs = pm.Normal("obs", mu=mu_item, sigma=obs_sd, observed=item_means_data)
+
+            continuous_model_cache = {
+                'model': continuous_model,
+                'n_items_last': n_items_total,
+                'lower_bound': cont_lower_bound,
+                'upper_bound': cont_upper_bound,
+                'use_preallocation': False  # Live mode: dynamic size
+            }
+            logger.info(f"Created continuous hierarchical model for grouping {grouping}")
+
         # Per-sample_id stopping (width and slope)
         for item_idx, item_id in enumerate(item_ids):
             df_item = df_grouping[df_grouping['sample_id_num'] == item_id].sort_values('epoch_num')
@@ -2104,7 +2337,78 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
                 item_summaries.append({'successes': successes, 'trials': trials})
 
-            else:
+            elif score_type in ['continuous_01', 'continuous_bounded']:
+                # === CONTINUOUS SCORING LOGIC ===
+                # Uses Beta sampling for item-level CI
+                cont_lower = continuous_model_cache.get('lower_bound', 0.0)
+                cont_upper = continuous_model_cache.get('upper_bound', 1.0)
+
+                accumulated_scores = []
+                used_reps = []
+                ci_record = []
+                ci_slopes_hist = []
+                current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
+
+                for start in range(0, len(df_item), rep_batch_size):
+                    batch = df_item.iloc[start:start+rep_batch_size]
+                    accumulated_scores.extend(batch[score_column].tolist())
+                    used_reps.extend(batch.itertuples(index=False))
+
+                    # Compute CI using continuous Beta sampling
+                    lo, hi, width = _continuous_bounded_ci_adaptive(
+                        np.array(accumulated_scores),
+                        lower_bound=cont_lower,
+                        upper_bound=cont_upper,
+                        cred_level=cred_level,
+                        conservatism=current_conservatism,
+                        low_perf_threshold=low_perf_threshold
+                    )
+                    ci_record.append(width)
+
+                    if width < delta_item:
+                        original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                        stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                        break
+
+                    if len(ci_record) >= stab_window:
+                        recent_widths = ci_record[-stab_window:]
+                        slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                        ci_slopes_hist.append(slope)
+                        slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+                        if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
+                            recent_slopes = ci_slopes_hist[-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if df_item[score_column].mean() >= low_perf_threshold:
+                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                    break
+                                elif abs(slope) <= slope_threshold / 2:
+                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
+                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
+                                    break
+
+                sample_ci_records[item_id] = ci_record
+                sample_ci_slopes[item_id] = ci_slopes_hist
+                used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
+
+                # Store continuous scores normalized to [0,1] for hierarchical model
+                scores_array = np.array(accumulated_scores)
+                scores_normalized = (scores_array - cont_lower) / (cont_upper - cont_lower)
+                scores_normalized = np.clip(scores_normalized, 0.0, 1.0)
+                item_summaries.append({
+                    'scores_raw': accumulated_scores.copy(),
+                    'scores_normalized': scores_normalized.tolist(),
+                    'n_obs': len(accumulated_scores),
+                    'mean_raw': float(np.mean(accumulated_scores)),
+                    'mean_normalized': float(np.mean(scores_normalized)),
+                    'lower_bound': cont_lower,
+                    'upper_bound': cont_upper,
+                    'successes': float(np.mean(scores_normalized)),  # Proxy for perf estimate
+                    'trials': 1  # Proxy for perf estimate
+                })
+
+            elif score_type == 'ordinal':
                 # === ORDINAL SCORING LOGIC ===
                 from .ordinal_utils import _ordinal_ci_adaptive
                 from .ordinal_model import (
@@ -2187,13 +2491,22 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 })
             
             # Group-level stopping check (periodic)
-            current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
-            if score_type == 'ordinal':
-                # For ordinal, normalize by max score for conservatism check
-                current_perf_estimate_normalized = current_perf_estimate / ordinal_max_score
-                current_conservatism = conservatism if current_perf_estimate_normalized < low_perf_threshold else 1.0
-            else:
+            if score_type in ['continuous_01', 'continuous_bounded']:
+                # For continuous, use mean_normalized (already in [0,1])
+                total_obs = sum(s['n_obs'] for s in item_summaries)
+                if total_obs > 0:
+                    current_perf_estimate = sum(s['mean_normalized'] * s['n_obs'] for s in item_summaries) / total_obs
+                else:
+                    current_perf_estimate = 0.0
                 current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+            else:
+                current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
+                if score_type == 'ordinal':
+                    # For ordinal, normalize by max score for conservatism check
+                    current_perf_estimate_normalized = current_perf_estimate / ordinal_max_score
+                    current_conservatism = conservatism if current_perf_estimate_normalized < low_perf_threshold else 1.0
+                else:
+                    current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
 
             if ((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1):
                 if score_type == 'binary':
@@ -2210,18 +2523,27 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             })
                             with suppress_all_output():
                                 trace = pm.sample(**sampling_kwargs)
+
+                        # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
+                        # This correctly accounts for between-item variance (sigma_group)
+                        n_items_current = len(all_successes)
+                        try:
+                            # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                            theta_samples = trace.posterior["Theta"].values
+                            # Compute mean across items for each posterior sample
+                            mean_theta_samples = theta_samples.mean(axis=2)
                             with suppress_all_output():
-                                theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                        try:
-                            theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                            theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
                         except Exception:
-                            theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-                        try:
-                            theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                            theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                        except Exception:
-                            theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                            # Fallback: use sigmoid(mu_group)
+                            mu_group_samples = trace.posterior["mu_group"].values
+                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -2247,7 +2569,84 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                         stop_this_grouping.append(grouping)
                                         break
 
-                else:
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    # === CONTINUOUS GROUP-LEVEL STOPPING ===
+                    # Uses hierarchical Beta model with group-level mu_group parameter
+                    item_means_list = []
+                    item_ns_list = []
+                    total_obs_count = 0
+
+                    for item_summary in item_summaries:
+                        # Use normalized scores (already in [0,1])
+                        scores_norm = item_summary['scores_normalized']
+                        item_means_list.append(np.mean(scores_norm))
+                        item_ns_list.append(len(scores_norm))
+                        total_obs_count += len(scores_norm)
+
+                    item_means_array = np.array(item_means_list, dtype="float64")
+                    item_ns_array = np.array(item_ns_list, dtype="int64")
+                    n_items_actual = len(item_summaries)
+
+                    if n_items_actual > 0 and total_obs_count > 0:
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            continuous_model = continuous_model_cache['model']
+                            with continuous_model:
+                                pm.set_data({
+                                    "n_items": np.int64(n_items_actual),
+                                    "item_means": item_means_array,
+                                    "item_ns": item_ns_array,
+                                })
+
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+
+                            # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
+                            # This correctly accounts for between-item variance (sigma_group)
+                            try:
+                                # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                                mu_item_samples = trace.posterior["mu_item"].values
+                                # Compute mean across items for each posterior sample
+                                mean_mu_samples = mu_item_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                            except Exception:
+                                # Fallback: use sigmoid(mu_group)
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+
+                            theta_width = theta_hi - theta_lo
+
+                        CI_record.append(theta_width)
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+
+                        if effective_width < delta_cap:
+                            stop_this_grouping.append(grouping)
+                            break
+
+                        if len(CI_record) >= stab_window:
+                            recent_widths = CI_record[-stab_window:]
+                            slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                            CI_slopes_hist.append(slope)
+                            slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                            if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                recent_slopes = CI_slopes_hist[-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if current_perf_estimate >= low_perf_threshold:
+                                        stop_this_grouping.append(grouping)
+                                        break
+                                    elif abs(slope) <= slope_threshold / 2:
+                                        stop_this_grouping.append(grouping)
+                                        break
+
+                elif score_type == 'ordinal':
                     # === ORDINAL GROUP-LEVEL STOPPING ===
                     # Collect all ordinal scores from all items processed so far
                     all_ord_scores = []
@@ -3390,23 +3789,103 @@ def optimal_stopping_live_single(
 
                     with suppress_all_output():
                         trace = pm.sample(**sampling_kwargs)
+
+                # === DIAGNOSTIC LOGGING FOR POSTERIOR ANALYSIS (BINARY) ===
+                # This helps debug CI anomalies between preallocation modes
+                try:
+                    _diag_mu_group = trace.posterior["mu_group"].values
+                    _diag_sigma_group = trace.posterior["sigma_group"].values if "sigma_group" in trace.posterior else None
+                    _diag_accuracy = float(all_successes.sum()) / float(all_trials.sum()) if all_trials.sum() > 0 else 0.0
+
+                    _sigma_mean_str = f"{_diag_sigma_group.mean():.4f}" if _diag_sigma_group is not None else "N/A"
+                    _sigma_std_str = f"{_diag_sigma_group.std():.6f}" if _diag_sigma_group is not None else "N/A"
+                    logger.warning(
+                        f"🔬 BINARY POSTERIOR [{grouping_name}] prealloc={use_preallocation}: "
+                        f"n_items={n_observed}, accuracy={_diag_accuracy:.4f}, "
+                        f"mu_group: mean={_diag_mu_group.mean():.4f} std={_diag_mu_group.std():.6f}, "
+                        f"sigma_group: mean={_sigma_mean_str} std={_sigma_std_str}"
+                    )
+
+                    # Store diagnostics in metadata for later analysis
+                    if 'posterior_diagnostics' not in metadata:
+                        metadata['posterior_diagnostics'] = []
+                    metadata['posterior_diagnostics'].append({
+                        'pathway': 'binary',
+                        'n_items': n_observed,
+                        'accuracy': _diag_accuracy,
+                        'mu_group_mean': float(_diag_mu_group.mean()),
+                        'mu_group_std': float(_diag_mu_group.std()),
+                        'sigma_group_mean': float(_diag_sigma_group.mean()) if _diag_sigma_group is not None else None,
+                        'sigma_group_std': float(_diag_sigma_group.std()) if _diag_sigma_group is not None else None,
+                        'use_preallocation': use_preallocation,
+                    })
+                except Exception as e:
+                    logger.warning(f"🔬 BINARY POSTERIOR DIAGNOSTIC failed: {e}")
+                # === END DIAGNOSTIC LOGGING ===
+
+                # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
+                #
+                # Why mean(Theta) is correct:
+                # - We want CI on the expected group accuracy E[Theta]
+                # - In the hierarchical model: Theta_i = sigmoid(mu_group + z_i * sigma_group)
+                # - E[Theta] = mean across items, NOT sigmoid(mu_group)
+                # - When sigma_group is large, sigmoid(mu_group) can be very different from E[Theta]
+                #   Example: mu_group=5.3, sigma_group=5.3 gives sigmoid(mu_group)=0.995 but E[Theta]=0.83
+                #
+                # Previous approaches and their problems:
+                # - Theta[0] (first item only): arbitrary, depends on data ordering
+                # - sigmoid(mu_group): measures "typical item" (z=0), not expected accuracy
+                # - mean(Theta): correctly computes expected group accuracy ✓
+                try:
+                    # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                    theta_samples = trace.posterior["Theta"].values
+
+                    # For preallocation mode, only use first n_observed items
+                    # (remaining items are padding with obs_weight=0)
+                    if use_preallocation:
+                        theta_samples = theta_samples[:, :, :n_observed]
+
+                    # Compute EXPECTED GROUP ACCURACY: mean across items for each posterior sample
+                    # This gives E[Theta] which represents the expected group-level accuracy
+                    # Shape: (chains × draws)
+                    mean_theta_samples = theta_samples.mean(axis=2)
+
+                    # Compute HDI on the expected group accuracy
                     with suppress_all_output():
-                        theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-
-                # Extract CI bounds
-                try:
-                    theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                    theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                    theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                    theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
                 except Exception:
-                    theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-
-                try:
-                    theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                    theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                except Exception:
-                    theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                    # Fallback: if Theta extraction fails, use sigmoid(mu_group)
+                    # This is less accurate but maintains backward compatibility
+                    mu_group_samples = trace.posterior["mu_group"].values
+                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                    with suppress_all_output():
+                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 theta_width = theta_hi - theta_lo
+
+                # === CI DIAGNOSTIC LOGGING ===
+                logger.warning(
+                    f"🔬 BINARY CI [{grouping_name}] prealloc={use_preallocation}: "
+                    f"CI=[{theta_lo:.6f}, {theta_hi:.6f}], width={theta_width:.6f}, "
+                    f"n_checks={len(stabilization_history.get('ci_width_history', []))+1}, "
+                    f"method=mean(Theta)"
+                )
+                # Store CI in diagnostics
+                if 'ci_diagnostics' not in metadata:
+                    metadata['ci_diagnostics'] = []
+                metadata['ci_diagnostics'].append({
+                    'pathway': 'binary',
+                    'theta_lo': float(theta_lo),
+                    'theta_hi': float(theta_hi),
+                    'theta_width': float(theta_width),
+                    'n_items': n_observed,
+                    'use_preallocation': use_preallocation,
+                })
+                # === END CI DIAGNOSTIC LOGGING ===
 
                 # Append to history
                 stabilization_history['ci_width_history'].append(float(theta_width))
@@ -3702,26 +4181,31 @@ def optimal_stopping_live_single(
                     with suppress_all_output():
                         trace = pm.sample(**sampling_kwargs)
 
-                    # Extract item-level means HDI (High Density Interval)
+                # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
+                # This correctly accounts for between-item variance (sigma_group)
+                try:
+                    # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                    # mu_item is already in [0,1] space (sigmoid applied in model)
+                    mu_item_samples = trace.posterior["mu_item"].values
+
+                    # For preallocation mode, only use first n_observed items
+                    if use_preallocation:
+                        mu_item_samples = mu_item_samples[:, :, :n_observed]
+
+                    # Compute mean across items for each posterior sample
+                    mean_mu_samples = mu_item_samples.mean(axis=2)
                     with suppress_all_output():
-                        mu_item_hdi = az.hdi(trace.posterior["mu_item"], hdi_prob=cred_level)
-
-                # Extract CI bounds from HDI
-                # mu_item is shape (model_n_items,) - one mean per item
-                # Only use OBSERVED items (first n_observed) for group-level CI
-                try:
-                    mu_values_lower = mu_item_hdi["mu_item"].sel(hdi="lower").values[:n_observed]
-                    mu_lo_normalized = float(np.mean(mu_values_lower))
+                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                    mu_lo_normalized = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                    mu_hi_normalized = float(group_hdi["mean_mu"].sel(hdi="higher").values)
                 except Exception:
-                    # Fallback for different arviz versions
-                    mu_lo_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 0][:n_observed]))
-
-                try:
-                    mu_values_upper = mu_item_hdi["mu_item"].sel(hdi="upper").values[:n_observed]
-                    mu_hi_normalized = float(np.mean(mu_values_upper))
-                except Exception:
-                    # Fallback for different arviz versions
-                    mu_hi_normalized = float(np.mean(mu_item_hdi["mu_item"].values[..., 1][:n_observed]))
+                    # Fallback: use sigmoid(mu_group)
+                    mu_group_samples = trace.posterior["mu_group"].values
+                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                    with suppress_all_output():
+                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                    mu_lo_normalized = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                    mu_hi_normalized = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 # Compute width in normalized [0,1] space
                 width_normalized = mu_hi_normalized - mu_lo_normalized

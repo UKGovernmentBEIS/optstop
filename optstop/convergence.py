@@ -554,18 +554,26 @@ def _process_grouping(args):
                                 })
                                 with suppress_all_output():
                                     trace = pm.sample(**sampling_kwargs)
+                            # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
+                            # This correctly accounts for between-item variance (sigma_group)
+                            # Using mean(Theta) instead of Theta[0] or sigmoid(mu_group)
+                            try:
+                                # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                                theta_samples = trace.posterior["Theta"].values
+                                # Compute mean across items for each posterior sample
+                                mean_theta_samples = theta_samples.mean(axis=2)
                                 with suppress_all_output():
-                                    theta_hdi = az.hdi(trace.posterior["Theta"], hdi_prob=cred_level)
-                            try:
-                                theta_values_lower = theta_hdi["Theta"].sel(hdi="lower").values
-                                theta_lo = theta_values_lower.item() if theta_values_lower.size == 1 else theta_values_lower.flatten()[0]
+                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
                             except Exception:
-                                theta_lo = theta_hdi["Theta"].values[..., 0].flatten()[0]
-                            try:
-                                theta_values_upper = theta_hdi["Theta"].sel(hdi="upper").values
-                                theta_hi = theta_values_upper.item() if theta_values_upper.size == 1 else theta_values_upper.flatten()[0]
-                            except Exception:
-                                theta_hi = theta_hdi["Theta"].values[..., 1].flatten()[0]
+                                # Fallback: use sigmoid(mu_group)
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                             theta_width = theta_hi - theta_lo
                             CI_record.append(theta_width)
                             effective_width = theta_width
