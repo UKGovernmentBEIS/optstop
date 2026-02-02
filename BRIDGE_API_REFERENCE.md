@@ -147,8 +147,8 @@ The computational cost of early stopping inference varies dramatically based on 
 
 | Pathway | Typical Time | Complexity |
 |---------|--------------|-----------|
-| **Binary** | ~3-4s | MCMC Binomial model |
-| **Continuous** | ~5-6s | MCMC Beta model (aggregated) |
+| **Binary** | ~3-4s | MCMC hierarchical Binomial model |
+| **Continuous** | ~5-6s | MCMC hierarchical Beta model (mu_group, sigma_group, phi_group) |
 | **Ordinal (modal)** | ~0.1s | Bootstrap |
 | **Ordinal (entropy)** | ~5 min | MCMC OrderedLogistic |
 | **Ordinal (hybrid)** | ~5 min | BOTH modal + entropy |
@@ -1745,7 +1745,13 @@ manager = OptimalStoppingManager(
 
 ## Version History
 
-### v0.3.0 (Current)
+### v0.3.1 (Current)
+- **Continuous score type support**: Full hierarchical Beta model for `continuous_01` and `continuous_bounded` score types in both posthoc and live modes
+- **CI extraction methodology fix**: Changed from using HDI on individual item Theta values to using `mean(Theta)` / `mean(mu_item)` across all items, which correctly accounts for between-item variance (sigma_group)
+- **Diagnostic logging**: Added diagnostic logging for posterior analysis debugging (mu_group, sigma_group statistics)
+- **Hierarchical continuous model**: New model with group-level parameters (mu_group, sigma_group, phi_group) and item-level means
+
+### v0.3.0
 - `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')
 - Ordered Logistic (cumulative link) model as default for ordinal inference
 - ~3× faster ordinal inference vs Dirichlet-Multinomial
@@ -1793,8 +1799,10 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2026-01-23
-**Document Version:** 1.4
+**Last Updated:** 2026-02-02
+**Document Version:** 1.5
 **Phase:** Production Ready (Phase 1-3 Complete)
+
+**v1.5 Changes:** Added v0.3.1 version history entry documenting continuous score type support, CI extraction methodology fix (mean(Theta) for correct between-item variance handling), and diagnostic logging additions.
 
 **v1.4 Changes:** Critical fix - All examples updated to use correct API pattern. The `early_stopping` parameter must be attached to Task objects (via constructor or `task_with()`), NOT passed to `eval()`. Added prominent warning and new Common Pitfall #1.

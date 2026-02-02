@@ -340,7 +340,7 @@ PyMC will use GPU acceleration via JAX/numpyro
 ### Overview
 - **Binary scoring**: Traditional 0/1 success/failure data (default)
 - **Ordinal scoring**: Likert scale data (e.g., confidence ratings, difficulty ratings on 0-10 scale)
-- **Continuous bounded scoring**: Pre-aggregated mean scores in [0, 1] range (e.g., average accuracy across sub-items)
+- **Continuous bounded scoring**: Pre-aggregated mean scores in [0, 1] range (e.g., average accuracy across sub-items), using a hierarchical Beta model with group-level parameters
 - **Mixed datasets**: Seamlessly handle binary, ordinal, and continuous groupings in the same analysis
 
 ### Score Type Parameters
@@ -505,6 +505,15 @@ pruned_df, summary = optimal_stopping_posthoc(
 - Scores are naturally in the [0, 1] range
 - You want fast inference (~5-6 seconds per analysis vs ~7-8 minutes for ordinal)
 
+**Hierarchical Model Details:**
+The continuous bounded pathway uses a hierarchical Beta model with the following structure:
+- **mu_group**: Group-level mean (logit scale)
+- **sigma_group**: Between-item standard deviation (captures item-level variability)
+- **phi_group**: Group-level precision parameter
+- **mu_item**: Item-level means (hierarchical, derived from mu_group + z * sigma_group)
+
+This hierarchical structure correctly accounts for between-item variance when computing group-level confidence intervals.
+
 ### How It Works
 
 1. **Automatic Detection**: The package uses substring matching to identify score types
@@ -520,6 +529,25 @@ pruned_df, summary = optimal_stopping_posthoc(
 3. **Independent Processing**: Each grouping is processed with the correct scoring method (no cross-contamination)
 
 4. **False Peak Detection**: In hybrid mode for ordinal scoring, `entropy_threshold` prevents premature stopping on diffuse data
+
+### CI Extraction Methodology
+
+**Expected Group Accuracy via mean(Theta)**
+
+The package computes group-level confidence intervals using the **expected group accuracy**: `mean(Theta)` across all items, rather than using individual item Theta values or `sigmoid(mu_group)`.
+
+**Why this matters:**
+- In hierarchical models, `Theta_i = sigmoid(mu_group + z_i * sigma_group)` for each item
+- The expected group accuracy `E[Theta]` is the mean across items, NOT `sigmoid(mu_group)`
+- When `sigma_group` is large, `sigmoid(mu_group)` can be very different from `E[Theta]`
+  - Example: `mu_group=5.3`, `sigma_group=5.3` gives `sigmoid(mu_group)=0.995` but `E[Theta]=0.83`
+
+**Previous approaches and their limitations:**
+- `Theta[0]` (first item only): Arbitrary, depends on data ordering
+- `sigmoid(mu_group)`: Measures "typical item" (z=0), not expected accuracy
+- `mean(Theta)`: Correctly computes expected group accuracy ✓
+
+This methodology correctly accounts for between-item variance (`sigma_group`) when computing confidence intervals, providing more accurate stopping decisions for hierarchical data structures.
 
 ### Score Type Support Status
 
