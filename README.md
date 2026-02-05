@@ -54,17 +54,6 @@ from inspect_ai.scorer import model_graded_fact
 from inspect_ai.solver import generate, system_message
 from optstop.early_stopping import OptimalStoppingManager
 
-# Define your task as usual
-task = Task(
-    dataset=[Sample(input=q, target=a, id=f"q_{i}")
-             for i, (q, a) in enumerate(questions)],
-    solver=[
-        system_message("You are a helpful assistant."),
-        generate()
-    ],
-    scorer=model_graded_fact()
-)
-
 # Configure optimal stopping
 optstop_params = {
     'delta_item': 0.05,       # CI width threshold for individual samples
@@ -80,18 +69,29 @@ stopping_manager = OptimalStoppingManager(
     min_samples_per_grouping=5           # Minimum before first analysis
 )
 
-# Run evaluation with early stopping
-log = eval(
-    task,
-    model="openai/gpt-4",
-    epochs=10,  # Plan 10 epochs per sample
-    early_stopping=stopping_manager  # Enable optimal stopping
+# Define your task with early_stopping attached
+# IMPORTANT: early_stopping must be on Task, NOT passed to eval()
+task = Task(
+    dataset=[Sample(input=q, target=a, id=f"q_{i}")
+             for i, (q, a) in enumerate(questions)],
+    solver=[
+        system_message("You are a helpful assistant."),
+        generate()
+    ],
+    scorer=model_graded_fact(),
+    early_stopping=stopping_manager,  # Attach to Task, NOT eval()
+    epochs=10                         # Plan 10 epochs per sample
 )
 
-# Check efficiency gains
-diagnostics = log.results.early_stopping.metadata
-print(f"Efficiency: {diagnostics['efficiency_percent']}%")
-print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
+# Run evaluation
+logs = eval(task, model="openai/gpt-4")
+
+# Check efficiency gains (eval returns a list)
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
+        print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+        print(f"Stopped samples: {diagnostics['stopped_samples_count']}")
 ```
 
 ### Key Features
@@ -177,7 +177,10 @@ manager = OptimalStoppingManager(
 )
 
 # After evaluation, check what would have stopped
-print(f"Would have saved: {log.results.early_stopping.metadata['efficiency_percent']}%")
+logs = eval(task, model="gpt-4")
+for log in logs:
+    if log.results.early_stopping:
+        print(f"Would have saved: {log.results.early_stopping.metadata['efficiency_percent']}%")
 ```
 
 ### Configuration Parameters
@@ -213,22 +216,26 @@ Both modes are valid; choose based on your use case. Use `'hybrid'` when accurac
 After evaluation, `complete_task()` returns comprehensive diagnostics:
 
 ```python
-log = eval(task, model="gpt-4", epochs=10, early_stopping=manager)
+# Assuming task was created with early_stopping=manager attached
+logs = eval(task, model="gpt-4")
 
-diagnostics = log.results.early_stopping.metadata
+# eval() returns a list of logs
+for log in logs:
+    if log.results.early_stopping:
+        diagnostics = log.results.early_stopping.metadata
 
-print(f"Total planned trials: {diagnostics['total_planned_trials']}")
-print(f"Trials run: {diagnostics['total_ran']}")
-print(f"Trials skipped: {diagnostics['total_skipped']}")
-print(f"Efficiency: {diagnostics['efficiency_percent']}%")
+        print(f"Total planned trials: {diagnostics['total_planned_trials']}")
+        print(f"Trials run: {diagnostics['total_ran']}")
+        print(f"Trials skipped: {diagnostics['total_skipped']}")
+        print(f"Efficiency: {diagnostics['efficiency_percent']}%")
 
-# Per-grouping breakdown
-for grouping, metrics in diagnostics['decision_counters'].items():
-    print(f"{grouping}: {metrics['completed_samples']} samples completed")
+        # Per-grouping breakdown
+        for grouping, metrics in diagnostics['decision_counters'].items():
+            print(f"{grouping}: {metrics['completed_samples']} samples completed")
 
-# Stopped samples with reasons
-for sample in diagnostics['stopped_samples']:
-    print(f"Sample {sample['id']}: {sample['reason']}")
+        # Stopped samples with reasons
+        for sample in diagnostics['stopped_samples']:
+            print(f"Sample {sample['id']}: {sample['reason']}")
 ```
 
 ### Best Practices

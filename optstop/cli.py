@@ -164,7 +164,7 @@ def main_live():
         parser.add_argument('--conservatism', type=float, default=5, help='Factor for rare event conservatism (default: 5)')
         parser.add_argument('--rep_batch_size', type=int, default=1, help='Number of repetitions to process in each batch (default: 1)')
         parser.add_argument('--pymc_refresh_every', type=int, default=2, help='How often to run the PyMC model (default: 2)')
-        parser.add_argument('--stab_window', type=int, default=5, help='Window size for assessing CI stabilization (default: 10)')
+        parser.add_argument('--stab_window', type=int, default=10, help='Window size for assessing CI stabilization (default: 10)')
         parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducible results (optional)')
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
         parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which conservative stopping is applied (default: 0.01)')

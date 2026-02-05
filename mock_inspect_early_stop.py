@@ -58,7 +58,7 @@ class EarlyStopping(Protocol):
         ...
 
     async def schedule_sample(self, id: str | int, epoch: int) -> EarlyStop | None:
-        """Called prior to scheduling a sample to cheeck for an early stop.
+        """Called prior to scheduling a sample to check for an early stop.
 
         Args:
             id: Sample dataset id.

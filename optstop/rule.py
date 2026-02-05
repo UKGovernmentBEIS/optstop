@@ -1736,7 +1736,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
                 # Compute current performance estimate based on score type
                 if score_type == 'binary':
-                    current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+                    total_trials = sum(s['trials'] for s in item_summaries)
+                    current_perf_estimate = sum(s['successes'] for s in item_summaries) / total_trials if total_trials > 0 else 0
                 elif score_type in ['continuous_01', 'continuous_bounded']:
                     # Use mean_normalized (already in [0,1]) for performance estimate
                     total_obs = sum(s['n_obs'] for s in item_summaries)
@@ -2500,7 +2501,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     current_perf_estimate = 0.0
                 current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
             else:
-                current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
+                total_trials = np.sum([s['trials'] for s in item_summaries]) if item_summaries else 0
+                current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / total_trials if total_trials > 0 else 0
                 if score_type == 'ordinal':
                     # For ordinal, normalize by max score for conservatism check
                     current_perf_estimate_normalized = current_perf_estimate / ordinal_max_score
@@ -3044,9 +3046,6 @@ def optimal_stopping_live_single(
     model_caches: Optional[Dict[str, Dict[str, Any]]] = None,
     item_entropy_histories: Optional[Dict[Any, List]] = None
 ) -> Dict[str, Any]:
-    # TIMING_TEST: Start overall function timing
-    import time
-    _function_start_time = time.perf_counter()
     """
     Run optimal stopping for a SINGLE grouping with stateful stabilization history.
 
@@ -3125,6 +3124,10 @@ def optimal_stopping_live_single(
         ... )
         >>> # Group-level check runs automatically at end of each call
     """
+    # TIMING_TEST: Start overall function timing
+    import time
+    _function_start_time = time.perf_counter()
+
     logger = logging.getLogger('optstop.live_single')
 
     # Initialize or use provided stabilization history
@@ -3738,7 +3741,8 @@ def optimal_stopping_live_single(
 
         # Compute performance estimate based on score type
         if score_type in ['binary', 'ordinal']:
-            current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / np.sum([s['trials'] for s in item_summaries])
+            total_trials = np.sum([s['trials'] for s in item_summaries])
+            current_perf_estimate = np.sum([s['successes'] for s in item_summaries]) / total_trials if total_trials > 0 else 0
         else:  # continuous
             # For continuous, use mean of means weighted by counts
             total_sum = np.sum([s['mean'] * s['count'] for s in item_summaries])
