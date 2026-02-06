@@ -2694,7 +2694,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             break
 
                     elif ordinal_inference == 'hybrid':
-                        from .ordinal_utils import _ordinal_hybrid_stopping_criterion
+                        from .ordinal_model import _ordinal_hybrid_stopping_criterion
                         should_stop_group, reason_group, diagnostics_group = _ordinal_hybrid_stopping_criterion(
                             np.array(all_ord_scores),
                             ordinal_max_score=ordinal_max_score,

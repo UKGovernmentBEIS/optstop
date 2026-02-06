@@ -826,6 +826,7 @@ def _ordinal_ci_hierarchical_entropy(
     # Build diagnostics dict for stabilization tracking (all values scaled)
     diagnostics = {
         'entropy_median': entropy_median_scaled,
+        'entropy_median_nats': float(np.median(entropy_samples_raw)),  # Raw nats for gate comparison
         'entropy_mean': float(np.mean(entropy_samples_scaled)),
         'entropy_samples': entropy_samples_scaled.tolist(),  # Scaled for consistency
         'max_entropy': max_entropy,  # Include for reference

@@ -990,7 +990,9 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         List of (entropy_lo, entropy_hi, entropy_width) tuples from previous checks
         Modified in-place to add current check
     entropy_threshold : float, default=1.5
-        Absolute entropy level threshold for false peak detection
+        Entropy level threshold for false peak detection, in bits (log base 2).
+        The group-level entropy (computed in nats) is converted to bits before
+        comparison so this threshold has the same meaning as at the sample level.
     conservatism : float, default=1.0
         Multiplier for CI width adjustment
     low_perf_threshold : float, default=0.2
@@ -1054,13 +1056,20 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     )
 
     entropy_median = entropy_diag.get('entropy_median', 0.5)
+    # Use raw nats value for entropy gate, converted to bits to match sample-level scale
+    # (scaled [0,1] entropy would never exceed threshold 1.5, disabling the gate)
+    entropy_median_nats = entropy_diag.get('entropy_median_nats')
+    if entropy_median_nats is not None:
+        entropy_for_gate = entropy_median_nats / np.log(2)  # nats → bits
+    else:
+        entropy_for_gate = entropy_median  # fallback for legacy callers
     n_items = len(item_ns)
     n_obs = int(np.sum(item_ns))
 
     # === PATHWAY 1: Modal CI with Entropy Validation (for peaked distributions) ===
     if modal_width < delta_item:
         # ENTROPY VALIDATION GATE: Check if distribution is truly peaked
-        if entropy_median > entropy_threshold:
+        if entropy_for_gate > entropy_threshold:
             # FALSE PEAK: Modal CI narrow but entropy high (distribution uncertain)
             diagnostics = {
                 'pathway': 0,
@@ -1068,11 +1077,12 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
                 'modal_ci': (float(modal_lo), float(modal_hi)),
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
+                'entropy_for_gate': float(entropy_for_gate),
                 'entropy_threshold': float(entropy_threshold),
                 'false_peak_detected': True,
                 'n_items': n_items,
                 'n_obs': n_obs,
-                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {entropy_threshold})'
+                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_for_gate:.2f} > {entropy_threshold} bits)'
             }
             # Fall through to Pathway 2 (don't return here)
         else:
@@ -1083,6 +1093,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
                 'modal_ci': (float(modal_lo), float(modal_hi)),
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
+                'entropy_for_gate': float(entropy_for_gate),
                 'entropy_threshold': float(entropy_threshold),
                 'threshold': float(delta_item),
                 'entropy_epochs': len(entropy_history),
