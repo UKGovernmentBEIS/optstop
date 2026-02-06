@@ -615,7 +615,8 @@ If True, run all trials without actually stopping, but track what would have sto
 **Behavior:**
 - `schedule_sample()` always returns `None` (run all trials)
 - Inference still runs and stopping decisions are tracked
-- `complete_task()` diagnostics show what would have stopped
+- `complete_task()` diagnostics include `stopped_at_trial_count` (per-grouping global trial count and completed samples at the time stopping first triggered) and a `shadow_mode_summary` block with `would_have_stopped_at` and `potential_efficiency_percent`
+- Note: `efficiency_percent` in the main metadata will be 0% in shadow mode (no trials are actually skipped). Use `shadow_mode_summary` for the counterfactual efficiency estimate
 
 ---
 
@@ -891,8 +892,10 @@ logs = eval(task, model="gpt-4")
 for log in logs:
     if log.results.early_stopping:
         diagnostics = log.results.early_stopping.metadata
-        print(f"Would have saved: {diagnostics['efficiency_percent']}%")
-        print(f"Would have stopped: {diagnostics['stopped_samples_count']} samples")
+        summary = diagnostics.get('shadow_mode_summary', {})
+        print(f"Would have stopped at trial: {summary.get('would_have_stopped_at')}")
+        print(f"Potential savings: {summary.get('potential_efficiency_percent')}%")
+        print(f"Per-grouping details: {diagnostics.get('stopped_at_trial_count')}")
 ```
 
 ### Pattern 7: Custom Metadata Grouping

@@ -164,7 +164,8 @@ class OptimalStoppingManager(EarlyStopping):
             gpu_ids: GPU IDs for computation (non-empty list enables GPU detection)
             manager_name: Name identifier for this manager
             shadow_mode: If True, schedule_sample() always returns None (run all trials).
-                Useful for comparing performance with/without early stopping.
+                Inference still runs and stopping decisions are recorded. complete_task()
+                diagnostics include stopped_at_trial_count and shadow_mode_summary.
             score_choice: Key name for specific score to extract from scores dict.
                 If None, uses first score in dict. Mutually exclusive with score_agg.
             score_agg: Aggregation method for multiple scores ('mean', 'median', 'mode', 'max').
@@ -242,6 +243,9 @@ class OptimalStoppingManager(EarlyStopping):
 
         # Track stopped groupings to prevent duplicate logging
         self._stopped_groupings: set[str] = set()
+
+        # Track when stopping was first triggered per grouping
+        self._stopped_at_trial_count: dict[str, dict] = {}
 
         # Cache for fast lookups
         self._schedule_cache: dict[tuple, bool] = {}
@@ -787,6 +791,7 @@ class OptimalStoppingManager(EarlyStopping):
         self._decision_counters = {}
         self._stopped_sample_ids = {}
         self._stopped_groupings = set()
+        self._stopped_at_trial_count = {}
         self._schedule_cache = {}
 
         # Reset all PyMC model caches (OPTIMIZATION #2)
@@ -1356,6 +1361,12 @@ class OptimalStoppingManager(EarlyStopping):
                 # Mark as stopped to prevent future duplicates
                 self._stopped_groupings.add(grouping_name)
 
+                # Record when stopping was first triggered
+                self._stopped_at_trial_count[grouping_name] = {
+                    'global_trial_count': int(self.compiled_dataset['trial_ran'].sum()),
+                    'grouping_completed_samples': self._decision_counters.get(grouping_name, 0),
+                }
+
                 # Set schedule_status=False for ALL remaining unrun trials in this grouping
                 update_mask = mask & (self.compiled_dataset['trial_ran'] == 0)
                 self.compiled_dataset.loc[update_mask, 'schedule_status'] = False
@@ -1429,6 +1440,11 @@ class OptimalStoppingManager(EarlyStopping):
         during start_task). Group-level stopping checks run automatically during
         _run_stopping_inference() calls, so no additional check is needed here.
 
+        In shadow mode, a shadow_mode_summary block is appended with
+        would_have_stopped_at (earliest global trial count across groupings)
+        and potential_efficiency_percent. Per-grouping details are in
+        stopped_at_trial_count.
+
         Returns:
             Metadata dictionary with diagnostics, stopping decisions, and efficiency stats
         """
@@ -1478,6 +1494,7 @@ class OptimalStoppingManager(EarlyStopping):
             },
             "stopped_groupings": list(self._stopped_groupings),
             "stopped_groupings_count": len(self._stopped_groupings),
+            "stopped_at_trial_count": self._stopped_at_trial_count,
             "decision_counters": {
                 grouping: {
                     'completed_samples': count,
@@ -1491,6 +1508,21 @@ class OptimalStoppingManager(EarlyStopping):
                 for k, v in self._stabilization_histories.items()
             }
         }
+
+        # Shadow mode: compute potential efficiency from recorded stopping points
+        if self.shadow_mode and self._stopped_at_trial_count:
+            stop_trials = {
+                g: info['global_trial_count']
+                for g, info in self._stopped_at_trial_count.items()
+            }
+            first_stop = min(stop_trials.values())
+            metadata["shadow_mode_summary"] = {
+                "stopped_at_trial_count": stop_trials,
+                "would_have_stopped_at": first_stop,
+                "potential_efficiency_percent": round(
+                    (1 - first_stop / total_planned) * 100, 2
+                ) if total_planned > 0 else 0.0,
+            }
 
         # Add glossary for ordinal stopping reasons
         # Only include if using discrete ordinal inference (not aggregated to continuous)

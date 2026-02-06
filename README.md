@@ -180,7 +180,9 @@ manager = OptimalStoppingManager(
 logs = eval(task, model="gpt-4")
 for log in logs:
     if log.results.early_stopping:
-        print(f"Would have saved: {log.results.early_stopping.metadata['efficiency_percent']}%")
+        summary = log.results.early_stopping.metadata.get('shadow_mode_summary', {})
+        print(f"Would have stopped at trial: {summary.get('would_have_stopped_at')}")
+        print(f"Potential savings: {summary.get('potential_efficiency_percent')}%")
 ```
 
 ### Configuration Parameters
