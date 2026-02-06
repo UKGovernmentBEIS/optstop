@@ -575,7 +575,7 @@ async def test_1_1_2c_ordinal_hybrid_peaked():
     - 20 samples, 8 epochs each
     - Single grouping: gpt-4-rating
     - Peaked ordinal data: mode=4, concentration=0.88
-    - Inference mode: 'hybrid' (entropy threshold = 1.5)
+    - Inference mode: 'hybrid' (entropy threshold = 0.7 proportion of max)
 
     Expected:
     - Hybrid should detect low entropy and use modal inference
@@ -741,7 +741,7 @@ async def test_1_1_2d_ordinal_hybrid_diffuse():
     - 20 samples, 10 epochs each (more epochs due to diffuse data)
     - Single grouping: gpt-4-rating
     - Diffuse ordinal data: uniform distribution across 1-5
-    - Inference mode: 'hybrid' (entropy threshold = 1.5)
+    - Inference mode: 'hybrid' (entropy threshold = 0.7 proportion of max)
 
     Expected:
     - Hybrid should detect high entropy and use entropy inference

@@ -746,7 +746,7 @@ def _ordinal_hybrid_stopping_criterion(
     delta_item: float,
     cred_level: float,
     entropy_history: list,
-    entropy_threshold: float = 1.5,
+    entropy_threshold: float = 0.7,
     conservatism: float = 1.0,
     low_perf_threshold: float = 0.2,
     min_epochs_for_stabilization: int = 3,
@@ -778,10 +778,11 @@ def _ordinal_hybrid_stopping_criterion(
     entropy_history : list
         List of (entropy_lo, entropy_hi, entropy_width) tuples from previous epochs
         Modified in-place to add current epoch
-    entropy_threshold : float, default=1.5
-        Absolute entropy level threshold for false peak detection
-        If modal CI narrow but entropy > threshold, continue learning (false peak protection)
-        Scale: For 11 categories, < 1.5 = peaked, > 1.5 = diffuse
+    entropy_threshold : float, default=0.7
+        Proportion of maximum entropy for false peak detection (0 to 1).
+        Scaled internally by log2(num_categories) to produce an effective
+        threshold in bits. If modal CI is narrow but entropy exceeds this
+        effective threshold, stopping is blocked (false peak protection).
     conservatism : float, default=1.0
         Multiplier for CI width adjustment
     low_perf_threshold : float, default=0.2
@@ -818,6 +819,11 @@ def _ordinal_hybrid_stopping_criterion(
     """
     from .ordinal_utils import _ordinal_ci_adaptive
 
+    # Scale entropy threshold from proportion to absolute bits
+    num_categories = ordinal_max_score + 1
+    max_entropy_bits = np.log2(num_categories)
+    effective_entropy_threshold = entropy_threshold * max_entropy_bits
+
     # === COMPUTE BOTH METRICS FIRST ===
     # Modal CI (fast, bootstrap-based)
     modal_lo, modal_hi, modal_width = _ordinal_ci_adaptive(
@@ -844,16 +850,16 @@ def _ordinal_hybrid_stopping_criterion(
     # === PATHWAY 1: Modal CI with Entropy Validation (for peaked distributions) ===
     if modal_width < delta_item:
         # ENTROPY VALIDATION GATE: Check if distribution is truly peaked
-        if entropy_median > entropy_threshold:
+        if entropy_median > effective_entropy_threshold:
             # FALSE PEAK: Modal CI narrow but entropy high (distribution uncertain)
             diagnostics = {
                 'pathway': 0,
                 'modal_ci': (float(modal_lo), float(modal_hi)),
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
-                'entropy_threshold': float(entropy_threshold),
+                'entropy_threshold': float(effective_entropy_threshold),
                 'false_peak_detected': True,
-                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {entropy_threshold})'
+                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_median:.2f} > {effective_entropy_threshold:.2f} bits)'
             }
             # logger.debug(
             #     f"False peak detected: modal_width={modal_width:.3f} < {delta_item:.3f} "
@@ -867,7 +873,7 @@ def _ordinal_hybrid_stopping_criterion(
                 'modal_ci': (float(modal_lo), float(modal_hi)),
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
-                'entropy_threshold': float(entropy_threshold),
+                'entropy_threshold': float(effective_entropy_threshold),
                 'threshold': float(delta_item),
                 'entropy_epochs': len(entropy_history),
                 'validated': True
@@ -892,7 +898,7 @@ def _ordinal_hybrid_stopping_criterion(
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_diag['entropy_median']),
-            'entropy_threshold': float(entropy_threshold),
+            'entropy_threshold': float(effective_entropy_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization
         }
@@ -918,7 +924,7 @@ def _ordinal_hybrid_stopping_criterion(
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_diag['entropy_median']),
-            'entropy_threshold': float(entropy_threshold),
+            'entropy_threshold': float(effective_entropy_threshold),
             'width_history': [float(w) for w in recent_widths],
             'relative_change': float(relative_change),
             'stabilization_threshold': float(stabilization_threshold)
@@ -937,7 +943,7 @@ def _ordinal_hybrid_stopping_criterion(
         'entropy_ci': (float(entropy_lo), float(entropy_hi)),
         'entropy_width': float(entropy_width),
         'entropy_median': float(entropy_diag['entropy_median']),
-        'entropy_threshold': float(entropy_threshold),
+        'entropy_threshold': float(effective_entropy_threshold),
         'width_history': [float(w) for w in recent_widths],
         'relative_change': float(relative_change),
         'learning': True
@@ -956,7 +962,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     delta_item: float,
     cred_level: float,
     entropy_history: list,
-    entropy_threshold: float = 1.5,
+    entropy_threshold: float = 0.7,
     conservatism: float = 1.0,
     low_perf_threshold: float = 0.2,
     current_perf: float = 0.5,
@@ -989,10 +995,11 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     entropy_history : list
         List of (entropy_lo, entropy_hi, entropy_width) tuples from previous checks
         Modified in-place to add current check
-    entropy_threshold : float, default=1.5
-        Entropy level threshold for false peak detection, in bits (log base 2).
-        The group-level entropy (computed in nats) is converted to bits before
-        comparison so this threshold has the same meaning as at the sample level.
+    entropy_threshold : float, default=0.7
+        Proportion of maximum entropy for false peak detection (0 to 1).
+        Scaled internally by log2(num_categories) to produce an effective
+        threshold in bits. The group-level entropy (computed in nats) is
+        converted to bits before comparison.
     conservatism : float, default=1.0
         Multiplier for CI width adjustment
     low_perf_threshold : float, default=0.2
@@ -1021,6 +1028,11 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         _ordinal_ci_hierarchical_modal,
         _ordinal_ci_hierarchical_entropy
     )
+
+    # Scale entropy threshold from proportion to absolute bits
+    num_categories = ordinal_max_score + 1
+    max_entropy_bits = np.log2(num_categories)
+    effective_entropy_threshold = entropy_threshold * max_entropy_bits
 
     # === COMPUTE BOTH METRICS FROM HIERARCHICAL MODEL ===
     # PERFORMANCE NOTE: Each function below calls pm.sample() independently, resulting
@@ -1057,7 +1069,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
 
     entropy_median = entropy_diag.get('entropy_median', 0.5)
     # Use raw nats value for entropy gate, converted to bits to match sample-level scale
-    # (scaled [0,1] entropy would never exceed threshold 1.5, disabling the gate)
+    # (scaled [0,1] entropy would never exceed the effective threshold, disabling the gate)
     entropy_median_nats = entropy_diag.get('entropy_median_nats')
     if entropy_median_nats is not None:
         entropy_for_gate = entropy_median_nats / np.log(2)  # nats → bits
@@ -1069,7 +1081,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     # === PATHWAY 1: Modal CI with Entropy Validation (for peaked distributions) ===
     if modal_width < delta_item:
         # ENTROPY VALIDATION GATE: Check if distribution is truly peaked
-        if entropy_for_gate > entropy_threshold:
+        if entropy_for_gate > effective_entropy_threshold:
             # FALSE PEAK: Modal CI narrow but entropy high (distribution uncertain)
             diagnostics = {
                 'pathway': 0,
@@ -1078,11 +1090,11 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
                 'entropy_for_gate': float(entropy_for_gate),
-                'entropy_threshold': float(entropy_threshold),
+                'entropy_threshold': float(effective_entropy_threshold),
                 'false_peak_detected': True,
                 'n_items': n_items,
                 'n_obs': n_obs,
-                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_for_gate:.2f} > {entropy_threshold} bits)'
+                'message': f'Modal CI narrow ({modal_width:.3f}) but entropy high ({entropy_for_gate:.2f} > {effective_entropy_threshold:.2f} bits)'
             }
             # Fall through to Pathway 2 (don't return here)
         else:
@@ -1094,7 +1106,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
                 'modal_width': float(modal_width),
                 'entropy_median': float(entropy_median),
                 'entropy_for_gate': float(entropy_for_gate),
-                'entropy_threshold': float(entropy_threshold),
+                'entropy_threshold': float(effective_entropy_threshold),
                 'threshold': float(delta_item),
                 'entropy_epochs': len(entropy_history),
                 'n_items': n_items,
@@ -1118,7 +1130,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
-            'entropy_threshold': float(entropy_threshold),
+            'entropy_threshold': float(effective_entropy_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization,
             'n_items': n_items,
@@ -1146,7 +1158,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
-            'entropy_threshold': float(entropy_threshold),
+            'entropy_threshold': float(effective_entropy_threshold),
             'width_history': [float(w) for w in recent_widths],
             'relative_change': float(relative_change),
             'stabilization_threshold': float(stabilization_threshold),
@@ -1164,7 +1176,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         'entropy_ci': (float(entropy_lo), float(entropy_hi)),
         'entropy_width': float(entropy_width),
         'entropy_median': float(entropy_median),
-        'entropy_threshold': float(entropy_threshold),
+        'entropy_threshold': float(effective_entropy_threshold),
         'width_history': [float(w) for w in recent_widths],
         'relative_change': float(relative_change),
         'n_items': n_items,

@@ -1231,7 +1231,7 @@ class OptimalStoppingManager(EarlyStopping):
                 ordinal_max_score=self.ordinal_max_score,
                 ordinal_inference=self.ordinal_inference,
                 ordinal_model_type=self.ordinal_model_type,
-                entropy_threshold=1.5,  # Could be added as init parameter if needed
+                entropy_threshold=0.7,  # Proportion of max entropy; could be added as init parameter
                 sampling_kwargs=sampling_kwargs,
                 model_caches=model_caches,  # OPTIMIZATION #2: Persist all PyMC models
                 item_entropy_histories=item_entropy_histories  # Issue #6 fix: Persist for Pathway 2

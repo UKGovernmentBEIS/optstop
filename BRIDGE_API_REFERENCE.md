@@ -1103,7 +1103,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
         "final_modal_ci_width": 0.10,         # Final modal category CI width (scaled 0-1)
         "final_modal_ci": [0.60, 0.70],       # Final modal category CI bounds (scaled 0-1)
         "final_entropy": 1.85,                # Final entropy estimate (nats)
-        "final_entropy_threshold": 1.5,       # Entropy threshold for stopping
+        "final_entropy_threshold": 2.42,      # Effective entropy threshold in bits (0.7 × log2(11))
         "final_entropy_ci_width": 0.08,       # Entropy-based CI width (if entropy pathway)
         "final_relative_change": 0.001,       # Relative change in entropy (for stabilization)
         "final_stabilization_threshold": 0.002  # Stabilization threshold for entropy convergence
@@ -1119,7 +1119,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 | `final_modal_ci_width` | float | Width of the modal category credible interval, scaled to [0,1]. Lower values indicate more certainty about the modal category. |
 | `final_modal_ci` | list[float] | [lower, upper] bounds of the modal category CI, scaled to [0,1]. E.g., `[0.60, 0.70]` means 95% confident modal category is between 6 and 7 (on a 0-10 scale). |
 | `final_entropy` | float | Shannon entropy of the categorical distribution (in nats). Lower entropy indicates more peaked/concentrated distributions. |
-| `final_entropy_threshold` | float | Entropy threshold below which distributions are considered "peaked" (used in hybrid mode). |
+| `final_entropy_threshold` | float | Effective entropy threshold in bits (entropy_threshold × log2(K), where K is number of categories). Distributions with entropy below this are considered "peaked." |
 | `final_entropy_ci_width` | float | CI width derived from entropy-based inference (used in entropy/hybrid pathways). |
 | `final_relative_change` | float | Relative change in entropy between inference calls. Used to detect stabilization. |
 | `final_stabilization_threshold` | float | Threshold for relative change below which entropy is considered stabilized (default: 0.002 = 0.2%). |

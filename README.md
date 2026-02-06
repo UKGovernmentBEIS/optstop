@@ -360,7 +360,7 @@ PyMC will use GPU acceleration via JAX/numpyro
 | `ordinal_max_score` | int | 10 | Maximum score for ordinal data (e.g., 10 for 0-10 scale) |
 | `ordinal_inference` | str | 'modal' | Inference method: `'modal'`, `'entropy'`, or `'hybrid'` (recommended) |
 | `ordinal_model_type` | str | 'ordered_logistic' | Hierarchical model type: `'ordered_logistic'` or `'dirichlet'` |
-| `entropy_threshold` | float | 1.5 | Threshold for entropy validation in hybrid mode (prevents false peaks) |
+| `entropy_threshold` | float | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
 | `continuous_tasks` | List[str] or None | None | Substrings to identify continuous bounded groupings (e.g., `['mean_score', 'avg_rating']`) |
 
 ### Model Types
@@ -430,7 +430,7 @@ pruned_df, summary = optimal_stopping_posthoc(
     ordinal_max_score=10,                                  # 0-10 scale
     ordinal_inference='hybrid',                            # RECOMMENDED
     ordinal_model_type='ordered_logistic',                 # Cumulative link model (default)
-    entropy_threshold=1.5                                  # False peak detection
+    entropy_threshold=0.7                                  # False peak detection
 )
 ```
 
@@ -467,7 +467,7 @@ result = optimal_stopping_live(
     ordinal_max_score=10,                  # 0-10 scale
     ordinal_inference='hybrid',            # RECOMMENDED
     ordinal_model_type='ordered_logistic', # Cumulative link model (default)
-    entropy_threshold=1.5                  # False peak detection
+    entropy_threshold=0.7                  # False peak detection
 )
 
 print(result['stop_sample_ids'])  # Item IDs that reached stopping criteria
@@ -578,7 +578,7 @@ optstop-posthoc --csv data.csv --output pruned.csv \
   --ordinal_tasks confidence,rating \
   --ordinal_max_score 10 \
   --ordinal_inference hybrid \
-  --entropy_threshold 1.5
+  --entropy_threshold 0.7
 
 # Live mode with continuous bounded scoring
 optstop-live --csv current_data.csv \
@@ -772,7 +772,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale)                 |
 | `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid'                         |
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
-| `entropy_threshold`      | 1.5       | All          | Threshold for entropy validation in hybrid mode (prevents false peaks)    |
+| `entropy_threshold`      | 0.7       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
 
 ### Example: Setting Parameters
@@ -1032,7 +1032,7 @@ result = convergence_posthoc(
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
-    entropy_threshold=1.5            # False peak detection
+    entropy_threshold=0.7            # False peak detection
 )
 print(result)
 ```
@@ -1184,7 +1184,7 @@ result = convergence_posthoc(
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
-    entropy_threshold=1.5            # False peak detection
+    entropy_threshold=0.7            # False peak detection
 )
 print(result)
 ```
@@ -1326,7 +1326,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 
 ### 2. Live Optimal Stopping
@@ -1360,7 +1360,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
@@ -1398,7 +1398,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Entropy threshold for false peak detection in hybrid mode (default: 1.5)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)

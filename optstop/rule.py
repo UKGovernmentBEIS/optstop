@@ -1341,7 +1341,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             ordinal_max_score = params.get('ordinal_max_score', 10)
             ordinal_inference = params.get('ordinal_inference', 'modal')
             ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
-            entropy_threshold = params.get('entropy_threshold', 1.5)
+            entropy_threshold = params.get('entropy_threshold', 0.7)
             entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
             score_type, bounds = determine_score_type_standalone(
@@ -2125,7 +2125,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
-        entropy_threshold = params.get('entropy_threshold', 1.5)
+        entropy_threshold = params.get('entropy_threshold', 0.7)
 
         # Determine score type for this grouping
         score_type, bounds = determine_score_type_standalone(
@@ -2753,7 +2753,7 @@ def optimal_stopping_posthoc(
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
     continuous_tasks: Optional[List[str]] = None,
-    entropy_threshold: float = 1.5,
+    entropy_threshold: float = 0.7,
     gpu_ids: Optional[List[int]] = None,
     max_workers: Optional[int] = None
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
@@ -2791,11 +2791,11 @@ def optimal_stopping_posthoc(
           * Example: ['mean_score', 'aggregated'] → groupings containing these strings use continuous inference
           * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
           * Priority: continuous_tasks > ordinal_tasks > binary (default)
-      - entropy_threshold: Threshold for entropy CI width when using entropy inference (default: 1.5)
-          * Only used for pure 'entropy' mode (not 'hybrid')
-          * Lower values → more aggressive stopping
-          * Higher values → more conservative stopping
-          * Recommended range: 1.0-2.0
+      - entropy_threshold: Proportion of maximum entropy for false peak detection (default: 0.7)
+          * Scaled internally by log2(num_categories) to produce a threshold in bits
+          * Lower values → more aggressive stopping (requires more concentrated distribution)
+          * Higher values → more permissive stopping
+          * Recommended range: 0.5-0.8
       - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
       - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
 
@@ -3041,7 +3041,7 @@ def optimal_stopping_live_single(
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
-    entropy_threshold: float = 1.5,
+    entropy_threshold: float = 0.7,
     sampling_kwargs: Optional[Dict[str, Any]] = None,
     model_caches: Optional[Dict[str, Dict[str, Any]]] = None,
     item_entropy_histories: Optional[Dict[Any, List]] = None
@@ -3079,7 +3079,7 @@ def optimal_stopping_live_single(
             - 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
             - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
             Falls back to 'dirichlet' if ordered_logistic sampling fails.
-        entropy_threshold: Entropy threshold for hybrid mode validation
+        entropy_threshold: Proportion of max entropy for hybrid mode false peak detection (default: 0.7)
         sampling_kwargs: Pre-configured PyMC sampling kwargs (chains, draws, etc.)
             If None, will be auto-configured based on available resources.
         model_caches: Dict of caches for PyMC model reuse across all pathways (OPTIMIZATION #2)
@@ -4311,7 +4311,7 @@ def optimal_stopping_live_single(
     }
 
 
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 1.5, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
 
@@ -4343,9 +4343,9 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             If None, continuous inference is not used. Example: ['mean_score', 'aggregated']
             Scores must be pre-aggregated floats in [0, ordinal_max_score] range.
             Priority: continuous_tasks > ordinal_tasks > binary (default)
-        entropy_threshold: Threshold for entropy validation in hybrid mode (default: 1.5).
-            Used to detect false peaks: if entropy > threshold, modal CI narrow is rejected as false peak.
-            Typical values: 1.0 for 5-point scale, 1.5 for 11-point scale, 2.0 for 21-point scale.
+        entropy_threshold: Proportion of max entropy for false peak detection (default: 0.7).
+            Scaled internally by log2(num_categories) to produce a threshold in bits.
+            If entropy exceeds this effective threshold, a narrow modal CI is rejected as a false peak.
 
         gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only
         max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count

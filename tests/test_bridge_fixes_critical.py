@@ -312,7 +312,7 @@ async def test_critical_fix_2_external_validity_standalone():
         ordinal_tasks=None,
         ordinal_max_score=10,
         ordinal_inference='modal',
-        entropy_threshold=1.5,
+        entropy_threshold=0.7,
         sampling_kwargs={'chains': 2, 'cores': 2, 'draws': 500, 'tune': 500}
     )
 
