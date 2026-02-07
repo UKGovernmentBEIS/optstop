@@ -197,6 +197,7 @@ for log in logs:
 | `ordinal_max_score` | 10 | Maximum score for ordinal tasks |
 | `ordinal_inference` | See note | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
+| `entropy_threshold` | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
 | `score_choice` | None | Extract specific score by key name |
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |

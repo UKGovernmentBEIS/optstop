@@ -125,6 +125,7 @@ class OptimalStoppingManager(EarlyStopping):
         ordinal_inference: str = 'hybrid',
         ordinal_model_type: str = 'ordered_logistic',
         gpu_ids: Optional[list[int]] = None,
+        entropy_threshold: float = 0.7,
         manager_name: str = "optstop",
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
@@ -162,6 +163,10 @@ class OptimalStoppingManager(EarlyStopping):
             ordinal_model_type: Hierarchical model type for ordinal inference
                 ('ordered_logistic' or 'dirichlet'). Default: 'ordered_logistic'
             gpu_ids: GPU IDs for computation (non-empty list enables GPU detection)
+            entropy_threshold: Proportion of max entropy for false peak detection in
+                ordinal hybrid mode (0 to 1). Scaled internally by log2(num_categories).
+                Lower values require more peaked distributions; higher values are more
+                permissive. Default: 0.7.
             manager_name: Name identifier for this manager
             shadow_mode: If True, schedule_sample() always returns None (run all trials).
                 Inference still runs and stopping decisions are recorded. complete_task()
@@ -198,6 +203,7 @@ class OptimalStoppingManager(EarlyStopping):
         self.reanalysis_interval = reanalysis_interval
         self.min_samples_per_grouping = min_samples_per_grouping
         self.manager_name = manager_name
+        self.entropy_threshold = entropy_threshold
         self.shadow_mode = shadow_mode
         self.score_choice = score_choice
         self.score_agg = score_agg
@@ -477,6 +483,7 @@ class OptimalStoppingManager(EarlyStopping):
             print(f"  • Ordinal tasks: {', '.join(self.ordinal_tasks)}")
             print(f"  • Max ordinal score: {self.ordinal_max_score}")
             print(f"  • Inference mode: {self.ordinal_inference}")
+            print(f"  • Entropy threshold: {self.entropy_threshold} (proportion of max entropy)")
         else:
             print("  • Ordinal tasks: None (binary scoring only)")
 
@@ -1231,7 +1238,7 @@ class OptimalStoppingManager(EarlyStopping):
                 ordinal_max_score=self.ordinal_max_score,
                 ordinal_inference=self.ordinal_inference,
                 ordinal_model_type=self.ordinal_model_type,
-                entropy_threshold=0.7,  # Proportion of max entropy; could be added as init parameter
+                entropy_threshold=self.entropy_threshold,
                 sampling_kwargs=sampling_kwargs,
                 model_caches=model_caches,  # OPTIMIZATION #2: Persist all PyMC models
                 item_entropy_histories=item_entropy_histories  # Issue #6 fix: Persist for Pathway 2

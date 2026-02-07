@@ -324,6 +324,7 @@ manager = OptimalStoppingManager(
     ordinal_inference: str = 'hybrid',
     ordinal_model_type: str = 'ordered_logistic',
     gpu_ids: Optional[list[int]] = None,
+    entropy_threshold: float = 0.7,
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
@@ -594,6 +595,18 @@ gpu_ids=None       # CPU-only mode (default)
 - JAX with GPU support installed: `pip install optstop[gpu]`
 
 **Note:** GPU configuration for inspect_ai runtime environments is still being validated (see roadmap).
+
+---
+
+### Entropy Threshold
+
+#### `entropy_threshold: float = 0.7`
+Proportion of maximum entropy for false peak detection in ordinal hybrid mode.
+Scaled internally by `log2(num_categories)` to produce an effective threshold in bits.
+
+- Lower values (e.g., 0.5) require more concentrated distributions to pass the entropy gate
+- Higher values (e.g., 0.8) are more permissive, allowing earlier Pathway 1 stopping
+- Only relevant when `ordinal_inference='hybrid'`
 
 ---
 
