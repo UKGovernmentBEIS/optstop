@@ -437,8 +437,8 @@ def estimate_gpu_memory_requirement(params: Dict[str, Any], num_parallel_tasks: 
     Returns:
         Estimated GPU memory in GB
     """
-    draws = params.get('draws', 6000)
-    tune = params.get('tune', 6000)
+    draws = params.get('draws', 1000)
+    tune = params.get('tune', 1000)
     chains = params.get('chains', 1)
 
     # Estimate memory per chain (rough heuristic based on empirical testing)
@@ -561,8 +561,8 @@ def should_use_gpu_for_workload(params: Dict[str, Any], num_parallel_tasks: int,
     if gpu_count == 0 or gpu_memory_gb == 0:
         return False, "No GPU memory available"
 
-    draws = params.get('draws', 6000)
-    tune = params.get('tune', 6000)
+    draws = params.get('draws', 1000)
+    tune = params.get('tune', 1000)
     chains = params.get('chains', 1)
 
     # Estimate memory requirement

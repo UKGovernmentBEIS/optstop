@@ -164,7 +164,7 @@ def suppress_all_output():
             pass
 
 # --- Diagnostic Functions ---
-def _beta_ci(successes: int, trials: int, cred_level: float = 0.95) -> Tuple[float, float]:
+def _beta_ci(successes: int, trials: int, cred_level: float = 0.97) -> Tuple[float, float]:
     """Compute beta credible interval for binomial proportion."""
     alpha_post = 1 + successes
     beta_post = 1 + trials - successes
@@ -176,7 +176,7 @@ def _beta_ci(successes: int, trials: int, cred_level: float = 0.95) -> Tuple[flo
     return lower, upper
 
 
-def _bootstrap_ci(values: np.ndarray, confidence: float = 0.95, n_bootstrap: int = 1000,
+def _bootstrap_ci(values: np.ndarray, confidence: float = 0.97, n_bootstrap: int = 1000,
                   random_state: Optional[int] = None) -> Tuple[float, float]:
     """
     Compute bootstrap confidence interval for any score distribution.
@@ -184,7 +184,7 @@ def _bootstrap_ci(values: np.ndarray, confidence: float = 0.95, n_bootstrap: int
 
     Args:
         values: Array of score values
-        confidence: Confidence level (default 0.95)
+        confidence: Confidence level (default 0.97)
         n_bootstrap: Number of bootstrap samples (default 1000)
         random_state: Random seed for reproducibility
 
@@ -446,7 +446,7 @@ def _aggregate_with_ci(df: pd.DataFrame, score_col: str = "score",
 
     return summary
 
-def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.95, score_col: str = "score") -> pd.DataFrame:
+def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.97, score_col: str = "score") -> pd.DataFrame:
     """Estimate HDI-based uncertainty across items for each grouping-task pair."""
     results = []
 
@@ -993,8 +993,8 @@ def _generate_diagnostic_plots(full_df: pd.DataFrame, pruned_df: pd.DataFrame,
 
 
 # --- Helper: Adaptive Beta CI ---
-def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.95, conservatism: float = 1.0, 
-                     low_perf_threshold: float = 0.2, base_strength: int = 2, samples: int = 10000) -> Tuple[float, float, float]:
+def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.97, conservatism: float = 10.0,
+                     low_perf_threshold: float = 0.001, base_strength: int = 2, samples: int = 10000) -> Tuple[float, float, float]:
     """
     Compute an adaptive Bayesian credible interval for a binomial proportion, with conservatism for low performance.
     """
@@ -1024,9 +1024,9 @@ def _continuous_bounded_ci_adaptive(
     scores: np.ndarray,
     lower_bound: float = 0.0,
     upper_bound: float = 1.0,
-    cred_level: float = 0.95,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    cred_level: float = 0.97,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     base_strength: int = 2,
     samples: int = 10000
 ) -> Tuple[float, float, float]:
@@ -1044,7 +1044,7 @@ def _continuous_bounded_ci_adaptive(
         scores: Array of continuous scores
         lower_bound: Lower bound of score range (default: 0.0)
         upper_bound: Upper bound of score range (default: 1.0)
-        cred_level: Credibility level (e.g., 0.95 for 95% CI)
+        cred_level: Credibility level (e.g., 0.97 for 97% CI)
         conservatism: Multiplier for CI width in low-performance scenarios (>= 1.0)
         low_perf_threshold: Performance threshold for conservatism (normalized 0-1)
         base_strength: Base prior strength for Bayesian estimation
@@ -1327,13 +1327,13 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
         try:
             delta_item = params.get('delta_item', 0.05)
             delta_cap = params.get('delta_cap', 0.05)
-            CI_delta = params.get('CI_delta', 0.00005)
-            cred_level = params.get('cred_level', 0.95)
-            conservatism = params.get('conservatism', 5)
-            low_perf_threshold = params.get('low_performance_threshold', 0.01)
+            CI_delta = params.get('CI_delta', 0.00001)
+            cred_level = params.get('cred_level', 0.97)
+            conservatism = params.get('conservatism', 10)
+            low_perf_threshold = params.get('low_performance_threshold', 0.001)
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
-            stab_window = params.get('stab_window', 10)
+            stab_window = params.get('stab_window', 15)
 
             # Determine score type for this grouping
             ordinal_tasks = params.get('ordinal_tasks', None)
@@ -2111,13 +2111,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         # Extract parameters
         delta_item = params.get('delta_item', 0.05)
         delta_cap = params.get('delta_cap', 0.05)
-        CI_delta = params.get('CI_delta', 0.00005)
-        cred_level = params.get('cred_level', 0.95)
-        conservatism = params.get('conservatism', 5)
-        low_perf_threshold = params.get('low_performance_threshold', 0.01)
+        CI_delta = params.get('CI_delta', 0.00001)
+        cred_level = params.get('cred_level', 0.97)
+        conservatism = params.get('conservatism', 10)
+        low_perf_threshold = params.get('low_performance_threshold', 0.001)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
-        stab_window = params.get('stab_window', 10)
+        stab_window = params.get('stab_window', 15)
 
         # Extract ordinal parameters
         ordinal_tasks = params.get('ordinal_tasks', None)
@@ -3142,12 +3142,12 @@ def optimal_stopping_live_single(
     # Extract parameters
     delta_item = params.get('delta_item', 0.05)
     delta_cap = params.get('delta_cap', 0.05)
-    CI_delta = params.get('CI_delta', 0.00005)
-    cred_level = params.get('cred_level', 0.95)
-    conservatism = params.get('conservatism', 5)
-    low_perf_threshold = params.get('low_performance_threshold', 0.01)
+    CI_delta = params.get('CI_delta', 0.00001)
+    cred_level = params.get('cred_level', 0.97)
+    conservatism = params.get('conservatism', 10)
+    low_perf_threshold = params.get('low_performance_threshold', 0.001)
     rep_batch_size = params.get('rep_batch_size', 1)
-    stab_window = params.get('stab_window', 10)
+    stab_window = params.get('stab_window', 15)
     # Entropy stabilization threshold for ordinal hybrid stopping
     # Default 0.002 = 0.2% relative change threshold
     entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)

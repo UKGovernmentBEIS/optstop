@@ -526,11 +526,11 @@ def _compute_entropy(probs: np.ndarray, epsilon: float = 1e-10) -> np.ndarray:
 def _ordinal_entropy_ci_adaptive(
     scores: np.ndarray,
     ordinal_max_score: int,
-    cred_level: float = 0.95,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
-    n_samples: int = 6000,
-    n_tune: int = 6000,
+    cred_level: float = 0.97,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
+    n_samples: int = 1000,
+    n_tune: int = 1000,
     model_cache: Optional[Dict[str, Any]] = None,
     compute_kwargs: Optional[Dict[str, Any]] = None
 ) -> Tuple[float, float, float, Dict[str, Any]]:
@@ -555,16 +555,16 @@ def _ordinal_entropy_ci_adaptive(
         Observed ordinal scores (integers in [0, ordinal_max_score])
     ordinal_max_score : int
         Maximum possible score (e.g., 10 for 0-10 scale)
-    cred_level : float, default=0.95
-        Credible level (e.g., 0.95 for 95% CI)
-    conservatism : float, default=1.0
+    cred_level : float, default=0.97
+        Credible level (e.g., 0.97 for 97% CI)
+    conservatism : float, default=10.0
         Multiplier to inflate effective CI width for low performance
         Higher conservatism → wider CI → more data needed
-    low_perf_threshold : float, default=0.2
+    low_perf_threshold : float, default=0.001
         Performance below this triggers conservatism
-    n_samples : int, default=6000
+    n_samples : int, default=1000
         Number of posterior samples to draw
-    n_tune : int, default=6000
+    n_tune : int, default=1000
         Number of tuning samples for MCMC
     model_cache : dict, optional
         Cache for PyMC model to avoid recompilation
@@ -593,7 +593,7 @@ def _ordinal_entropy_ci_adaptive(
     --------
     >>> scores = np.array([5, 6, 7, 7, 8, 7, 6, 7, 7, 8])
     >>> lo, hi, width, diagnostics = _ordinal_entropy_ci_adaptive(
-    ...     scores, ordinal_max_score=10, cred_level=0.95
+    ...     scores, ordinal_max_score=10, cred_level=0.97
     ... )
     >>> print(f"Entropy CI: [{lo:.2f}, {hi:.2f}], width: {width:.2f}")
     Entropy CI: [1.50, 2.20], width: 0.70
@@ -747,8 +747,8 @@ def _ordinal_hybrid_stopping_criterion(
     cred_level: float,
     entropy_history: list,
     entropy_threshold: float = 0.7,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     min_epochs_for_stabilization: int = 3,
     stabilization_threshold: float = 0.002,
     model_cache: Optional[Dict[str, Any]] = None,
@@ -783,9 +783,9 @@ def _ordinal_hybrid_stopping_criterion(
         Scaled internally by log2(num_categories) to produce an effective
         threshold in bits. If modal CI is narrow but entropy exceeds this
         effective threshold, stopping is blocked (false peak protection).
-    conservatism : float, default=1.0
+    conservatism : float, default=10.0
         Multiplier for CI width adjustment
-    low_perf_threshold : float, default=0.2
+    low_perf_threshold : float, default=0.001
         Performance threshold for conservatism adjustment
     min_epochs_for_stabilization : int, default=3
         Minimum epochs needed to assess stabilization
@@ -812,7 +812,7 @@ def _ordinal_hybrid_stopping_criterion(
     >>> entropy_hist = []
     >>> stop, reason, diag = _ordinal_hybrid_stopping_criterion(
     ...     scores, ordinal_max_score=10, delta_item=0.15,
-    ...     cred_level=0.95, entropy_history=entropy_hist
+    ...     cred_level=0.97, entropy_history=entropy_hist
     ... )
     >>> print(f"Stop: {stop}, Reason: {reason}")
     Stop: True, Reason: modal_ci_narrow
@@ -963,8 +963,8 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     cred_level: float,
     entropy_history: list,
     entropy_threshold: float = 0.7,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     current_perf: float = 0.5,
     min_epochs_for_stabilization: int = 3,
     stabilization_threshold: float = 0.002,
@@ -1000,9 +1000,9 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         Scaled internally by log2(num_categories) to produce an effective
         threshold in bits. The group-level entropy (computed in nats) is
         converted to bits before comparison.
-    conservatism : float, default=1.0
+    conservatism : float, default=10.0
         Multiplier for CI width adjustment
-    low_perf_threshold : float, default=0.2
+    low_perf_threshold : float, default=0.001
         Performance threshold for conservatism adjustment
     current_perf : float, default=0.5
         Current performance estimate (normalized to [0,1])

@@ -140,7 +140,7 @@ class OptimalStoppingManager(EarlyStopping):
                 Core stopping parameters:
                     - delta_item: Effect size threshold for item-level stopping
                     - delta_cap: Effect size threshold for capability-level stopping
-                    - cred_level: Credible interval level (e.g., 0.95)
+                    - cred_level: Credible interval level (e.g., 0.97)
                     - conservatism: Conservatism factor for stopping decisions
                 MCMC sampling parameters (optional, with sensible defaults):
                     - draws: Number of posterior samples (default: 1000 CPU, 2000 GPU)
@@ -309,24 +309,24 @@ class OptimalStoppingManager(EarlyStopping):
             raise ValueError(f"delta_cap must be > 0, got {delta_cap}")
 
         # Statistical parameters
-        cred_level = self.optstop_params.get('cred_level')  # default: 0.95
+        cred_level = self.optstop_params.get('cred_level')  # default: 0.97
         if cred_level is not None and not (0 < cred_level < 1):
             raise ValueError(f"cred_level must be between 0 and 1, got {cred_level}")
 
-        conservatism = self.optstop_params.get('conservatism')  # default: 5
+        conservatism = self.optstop_params.get('conservatism')  # default: 10
         if conservatism is not None and conservatism < 1:
             raise ValueError(f"conservatism must be >= 1, got {conservatism}")
 
-        low_perf_threshold = self.optstop_params.get('low_performance_threshold')  # default: 0.01
+        low_perf_threshold = self.optstop_params.get('low_performance_threshold')  # default: 0.001
         if low_perf_threshold is not None and not (0 <= low_perf_threshold <= 1):
             raise ValueError(f"low_performance_threshold must be between 0 and 1, got {low_perf_threshold}")
 
         # Stabilization parameters
-        CI_delta = self.optstop_params.get('CI_delta')  # default: 0.00005
+        CI_delta = self.optstop_params.get('CI_delta')  # default: 0.00001
         if CI_delta is not None and CI_delta <= 0:
             raise ValueError(f"CI_delta must be > 0, got {CI_delta}")
 
-        stab_window = self.optstop_params.get('stab_window')  # default: 10
+        stab_window = self.optstop_params.get('stab_window')  # default: 15
         if stab_window is not None and stab_window <= 0:
             raise ValueError(f"stab_window must be > 0, got {stab_window}")
 
@@ -440,15 +440,15 @@ class OptimalStoppingManager(EarlyStopping):
         params_to_show = {
             'delta_item': ('Item CI width threshold', 0.05),
             'delta_cap': ('Grouping CI width threshold', 0.05),
-            'cred_level': ('Credibility level', 0.95),
-            'conservatism': ('Conservatism factor', 5),
-            'low_performance_threshold': ('Low performance threshold', 0.01),
-            'CI_delta': ('CI stabilization slope threshold', 0.00005),
-            'stab_window': ('Stabilization window', 10),
+            'cred_level': ('Credibility level', 0.97),
+            'conservatism': ('Conservatism factor', 10),
+            'low_performance_threshold': ('Low performance threshold', 0.001),
+            'CI_delta': ('CI stabilization slope threshold', 0.00001),
+            'stab_window': ('Stabilization window', 15),
             'rep_batch_size': ('Repetition batch size', 1),
             'entropy_stabilization_threshold': ('Entropy stabilization threshold', 0.002),
-            'draws': ('MCMC draws', 6000),
-            'tune': ('MCMC tune steps', 6000),
+            'draws': ('MCMC draws', 1000),
+            'tune': ('MCMC tune steps', 1000),
             'chains': ('MCMC chains', 4),
             'cores': ('CPU cores', 4)
         }

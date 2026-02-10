@@ -1,7 +1,7 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.3.0
-**Last Updated:** 2025-12-09
+**Version:** 0.3.1
+**Last Updated:** 2026-02-10
 **Status:** Production Ready
 **Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
@@ -346,9 +346,9 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 **Common parameters:**
 - `delta_item` (float, default: 0.05): Maximum acceptable CI width for individual samples
 - `delta_cap` (float, default: 0.05): Maximum acceptable CI width for groupings/tasks
-- `cred_level` (float, default: 0.95): Credibility level for confidence intervals (0.95 = 95% CI)
-- `conservatism` (int, default: 5): Conservatism factor for rare events (higher = more conservative)
-- `low_performance_threshold` (float, default: 0.01): Success rate below which conservative stopping applies
+- `cred_level` (float, default: 0.97): Credibility level for confidence intervals (0.97 = 97% CI)
+- `conservatism` (int, default: 10): Conservatism factor for rare events (higher = more conservative)
+- `low_performance_threshold` (float, default: 0.001): Success rate below which conservative stopping applies
 
 **Advanced parameters (performance-critical):**
 - `draws` (int, default: 1000 CPU / 2000 GPU): Number of MCMC samples
@@ -365,8 +365,8 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - **Higher values** (0.95-0.99): Reduce divergences, but increase computation time
   - **Lower values** (0.80-0.90): Faster sampling, but may have more divergences
   - Automatically selected based on CPU/GPU detection
-- `CI_delta` (float, default: 0.00005): Slope threshold for CI stabilization
-- `stab_window` (int, default: 10): Window size for stabilization assessment
+- `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilization
+- `stab_window` (int, default: 15): Window size for stabilization assessment
 - `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
   - **Recommended production:** 0.001 = 0.1% relative change required to declare convergence
   - **Lower values** = more conservative (require MORE stability before stopping)
@@ -380,8 +380,8 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 optstop_params = {
     'delta_item': 0.15,      # Allow wider CI for samples (more aggressive stopping)
     'delta_cap': 0.10,       # Require tighter CI for groupings (conservative)
-    'cred_level': 0.95,      # 95% confidence intervals
-    'conservatism': 5,       # Standard conservatism
+    'cred_level': 0.97,      # 97% confidence intervals
+    'conservatism': 10,      # Standard conservatism
     'draws': 1000,            # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
     'tune': 1000,             # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
     'chains': 4,             # ← Could drop lower to increase speed.
@@ -528,7 +528,7 @@ Inference mode for ordinal tasks.
 
 **Performance warning:**
 - **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
-- With default settings (draws=6000, tune=6000), no GPU: ~60 minutes per inference call
+- Inference time scales with `draws`, `tune`, and the number of ordinal categories
 - With substantially reduced inference settings (draws=500, tune=500, chains=2) & GPU enabled: ~2 minutes per inference call
 - **Modal mode** uses bootstrap: ~0.1 seconds per inference call (always fast!), but riskier unless ordinal distributions can reasonably be expected to always peak unimodally.
 
@@ -779,7 +779,7 @@ manager = OptimalStoppingManager(
     optstop_params={
         'delta_item': 0.15,
         'delta_cap': 0.10,
-        'cred_level': 0.95,
+        'cred_level': 0.97,
     },
     grouping_columns=['model', 'task'],
     reanalysis_interval=10,
@@ -1048,9 +1048,13 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
     "stopped_groupings_count": int,      # Count of stopped groupings
     "decision_counters": dict,           # Per-grouping inference timing info
     "stabilization_histories": dict,     # Per-grouping convergence metrics
-    "item_entropy_histories": dict       # Per-sample entropy history (ordinal hybrid mode)
+    "stopped_at_trial_count": dict,      # Per-grouping trial count when stopping first triggered
 }
+# In shadow mode, an additional key is appended:
+#   "shadow_mode_summary": dict          # would_have_stopped_at, potential_efficiency_percent
 ```
+
+**Note:** `item_entropy_histories` is maintained internally by `OptimalStoppingManager` to persist per-sample entropy state across successive inference calls (used for Pathway 2 stabilisation detection). It is not included in the metadata returned by `complete_task()`.
 
 ### Stopped Samples Structure
 
@@ -1112,7 +1116,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
         "n_group_checks": 4,
 
         # Ordinal-specific fields (only for ordinal groupings)
-        "ordinal_pathway": "modal",           # Inference pathway used: 'modal', 'entropy', 'hybrid', or pathway number (1/2)
+        "ordinal_pathway": "modal_hierarchical",  # Inference pathway (see field descriptions below)
         "final_modal_ci_width": 0.10,         # Final modal category CI width (scaled 0-1)
         "final_modal_ci": [0.60, 0.70],       # Final modal category CI bounds (scaled 0-1)
         "final_entropy": 1.85,                # Final entropy estimate (nats)
@@ -1128,9 +1132,9 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ordinal_pathway` | str/int | Which inference pathway was used. Values: `'modal'`, `'entropy'`, `'hybrid'`, or `1` (modal_ci_narrow_validated), `2` (entropy_stabilized) |
+| `ordinal_pathway` | str/int | Which inference pathway was used. Values: `'modal_hierarchical'`, `'entropy_hierarchical'`, `'hybrid_hierarchical'` (before stopping resolves), or `1` (modal CI narrow + validated), `2` (entropy stabilised) when hybrid stopping triggers. |
 | `final_modal_ci_width` | float | Width of the modal category credible interval, scaled to [0,1]. Lower values indicate more certainty about the modal category. |
-| `final_modal_ci` | list[float] | [lower, upper] bounds of the modal category CI, scaled to [0,1]. E.g., `[0.60, 0.70]` means 95% confident modal category is between 6 and 7 (on a 0-10 scale). |
+| `final_modal_ci` | list[float] | [lower, upper] bounds of the modal category CI, scaled to [0,1]. E.g., `[0.60, 0.70]` means 97% confident modal category is between 6 and 7 (on a 0-10 scale). |
 | `final_entropy` | float | Shannon entropy of the categorical distribution (in nats). Lower entropy indicates more peaked/concentrated distributions. |
 | `final_entropy_threshold` | float | Effective entropy threshold in bits (entropy_threshold × log2(K), where K is number of categories). Distributions with entropy below this are considered "peaked." |
 | `final_entropy_ci_width` | float | CI width derived from entropy-based inference (used in entropy/hybrid pathways). |
@@ -1193,12 +1197,13 @@ for log in logs:
 Begin with conservative thresholds and relax them if efficiency is too low:
 
 ```python
-# Conservative (high confidence, lower efficiency)
+# Conservative defaults (high confidence, lower efficiency)
 optstop_params = {
-    'delta_item': 0.10,   # Tight CI for samples
-    'delta_cap': 0.05,    # Very tight CI for groupings
-    'cred_level': 0.95,   # 95% confidence
-    'conservatism': 5,    # Standard conservatism
+    'delta_item': 0.05,   # Default: tight CI for samples
+    'delta_cap': 0.05,    # Default: tight CI for groupings
+    'cred_level': 0.97,   # Default: 97% credible intervals
+    'conservatism': 10,   # Default: standard conservatism
+    'CI_delta': 0.00001,  # Default: strict stabilisation threshold
 }
 
 # If efficiency is 0%, try more aggressive:
@@ -1209,6 +1214,8 @@ optstop_params = {
     'conservatism': 3,    # Less conservative
 }
 ```
+
+The current defaults are optimised for **safety** - strict stopping criteria and minimum viable inference burden. To stop more aggressively, relax `delta_item`/`delta_cap` (CI width thresholds), increase `CI_delta` (stabilisation slope threshold, where higher is more aggressive), and lower `cred_level` towards 0.9. If you see many divergences or R-hat far from 1.0, increase `tune` (up to 2000). If HDIs lack precision, increase `draws` (up to 4000).
 
 ### 2. Test with Shadow Mode First
 
@@ -1230,7 +1237,9 @@ task_with(task, early_stopping=shadow_manager, epochs=10)
 logs = eval(task, model="gpt-4")
 for log in logs:
     if log.results.early_stopping:
-        print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
+        summary = log.results.early_stopping.metadata.get('shadow_mode_summary', {})
+        print(f"Would have stopped at trial: {summary.get('would_have_stopped_at')}")
+        print(f"Potential efficiency: {summary.get('potential_efficiency_percent')}%")
 
 # If efficiency looks good, run without shadow mode
 production_manager = OptimalStoppingManager(
@@ -1499,8 +1508,8 @@ questions = [
 optstop_params = {
     'delta_item': 0.15,
     'delta_cap': 0.10,
-    'cred_level': 0.95,
-    'conservatism': 5,
+    'cred_level': 0.97,
+    'conservatism': 10,
     'draws': 500,
     'tune': 500,
 }
@@ -1562,7 +1571,9 @@ logs_shadow = eval(task, model=["openai/gpt-4", "anthropic/claude-3"])
 
 for log in logs_shadow:
     if log.results.early_stopping:
-        print(f"Potential efficiency: {log.results.early_stopping.metadata['efficiency_percent']}%")
+        summary = log.results.early_stopping.metadata.get('shadow_mode_summary', {})
+        print(f"Would have stopped at trial: {summary.get('would_have_stopped_at')}")
+        print(f"Potential efficiency: {summary.get('potential_efficiency_percent')}%")
 
 # If good, run without shadow mode (create new task or reload)
 production_manager = OptimalStoppingManager(

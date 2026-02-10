@@ -43,9 +43,9 @@ except (ImportError, AttributeError):
 def _ordinal_ci_adaptive(
     scores: np.ndarray,
     ordinal_max_score: int,
-    cred_level: float = 0.95,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    cred_level: float = 0.97,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     base_strength: int = 2,
     n_bootstrap: int = 10000
 ) -> Tuple[float, float, float]:
@@ -68,7 +68,7 @@ def _ordinal_ci_adaptive(
     Args:
         scores: Array of ordinal scores (0 to ordinal_max_score)
         ordinal_max_score: Maximum possible score for scaling (e.g., 10 for 0-10 scale)
-        cred_level: Credibility level (e.g., 0.95 for 95% CI)
+        cred_level: Credibility level (e.g., 0.97 for 97% CI)
         conservatism: Multiplier for CI width in low-performance scenarios (>= 1.0)
         low_perf_threshold: Performance threshold below which conservatism is applied (0-1 scale)
         base_strength: Base prior strength (for future Bayesian enhancements, currently unused)
@@ -504,9 +504,9 @@ def _ordinal_ci_hierarchical_modal(
     item_counts: np.ndarray,
     item_ns: np.ndarray,
     ordinal_max_score: int,
-    cred_level: float = 0.95,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    cred_level: float = 0.97,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     current_perf: float = 0.5,
     model_cache: Optional[Dict] = None,
     sampling_kwargs: Optional[Dict] = None
@@ -534,7 +534,7 @@ def _ordinal_ci_hierarchical_modal(
         item_counts: Category counts per item, shape (n_items, n_categories)
         item_ns: Total observations per item, shape (n_items,)
         ordinal_max_score: Maximum category value (K-1 where K is n_categories)
-        cred_level: Credibility level for HDI (default 0.95)
+        cred_level: Credibility level for HDI (default 0.97)
         conservatism: Multiplier for CI width in low-performance scenarios
         low_perf_threshold: Performance threshold for conservatism
         current_perf: Current performance estimate (for conservatism check)
@@ -680,9 +680,9 @@ def _ordinal_ci_hierarchical_entropy(
     item_counts: np.ndarray,
     item_ns: np.ndarray,
     ordinal_max_score: int,
-    cred_level: float = 0.95,
-    conservatism: float = 1.0,
-    low_perf_threshold: float = 0.2,
+    cred_level: float = 0.97,
+    conservatism: float = 10.0,
+    low_perf_threshold: float = 0.001,
     current_perf: float = 0.5,
     model_cache: Optional[Dict] = None,
     sampling_kwargs: Optional[Dict] = None
