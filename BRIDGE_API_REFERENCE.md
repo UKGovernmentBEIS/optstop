@@ -1,9 +1,12 @@
 # OptimalStoppingManager API Reference
 
 **Version:** 0.3.1
+
 **Last Updated:** 2026-02-11
+
 **Status:** Beta
-**Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
+
+
 
 ---
 
@@ -145,17 +148,18 @@ The computational cost of early stopping inference varies dramatically based on 
 
 #### 1. **Inference Pathway Performance**
 
-| Pathway | Typical Time | Complexity |
-|---------|--------------|-----------|
-| **Binary** | ~3-4s | MCMC hierarchical Binomial model |
-| **Continuous** | ~5-6s | MCMC hierarchical Beta model (mu_group, sigma_group, phi_group) |
-| **Ordinal (modal)** | ~0.1s | Bootstrap |
-| **Ordinal (entropy)** | ~5-10 min | MCMC OrderedLogistic |
-| **Ordinal (hybrid)** | ~5-10 min | BOTH modal + entropy |
+| Pathway | Typical Time per Call | Complexity |
+|---------|----------------------|-----------|
+| **Binary** | ~10-30s | 1 group-level hierarchical MCMC run |
+| **Continuous** | ~10-30s | 1 group-level hierarchical MCMC run |
+| **Ordinal (modal)** | ~0.1s | Bootstrap (no MCMC) |
+| **Ordinal (entropy/hybrid)** | ~2-3 min | Per-item MCMC (n_items=1, cached) + 2 group-level MCMC runs |
 
-*Note: Timings assume ~100 completed trials per inference call with default MCMC settings (draws=1000, tune=1000). Times scale with data size and MCMC parameters.*
+*All timings are approximate estimates based on default MCMC settings (draws=1000, tune=1000, chains=4) with ~100 completed items. Ordinal timings assume 5-11 categories. Model caching eliminates recompilation after the first inference call. Times scale with data size, MCMC parameters, and number of ordinal categories.*
 
-Discrete ordinal inference is a far more complex, intensive process, hence the ramp up in time taken. If you are seeking to run a task in which you want ordinal discrete scoring, then it is important to consider the trade-off between expected time taken per trial, and frequency of early stopping inference checked (see Ordinal Stopping Mode Selection below).
+Inference runs in a **background thread** (`ThreadPoolExecutor`) that overlaps with LLM processing. With a `reanalysis_interval` of 10 and typical LLM trial durations (10-30 seconds), there is sufficient processing time between inference triggers to absorb even ordinal hybrid inference. In comparative testing (WritingBench, 100 samples, 5 epochs), ordinal and continuous evaluations completed in virtually identical wall time (~134 min vs ~138 min), confirming that inference overhead adds no observable delay in typical LLM evaluation settings.
+
+The more important distinction between ordinal and other pathways is **convergence behaviour**: ordinal's entropy validation gate requires more data to confirm a genuinely peaked distribution, resulting in lower efficiency (e.g., ~63% vs ~96% in comparative testing at the same precision threshold).
 
 ---
 
@@ -186,70 +190,55 @@ optstop_params = {
 
 **Impact on performance:**
 - Higher draws/tune values provide better posterior estimates but scale linearly with inference time
-- For ordinal (hybrid) inference on CPU, 1000/1000 draws/tune takes ~5-10 minutes per inference
-- Using GPU with 2000/2000 draws/tune can achieve similar times with better precision
+- GPU with 2000/2000 draws/tune can achieve better precision without meaningful impact on total evaluation time
 
 **Quality trade-off:**
-- Need to assess carefully about adequate precision vs speed.
 - Validate convergence: check R-hat < 1.01, ESS > 400
+- If convergence warnings appear, increase draws/tune or target_accept
 
 ---
 
-### 3. **Reanalysis Interval vs. Inference Time (Critical)**
+### 3. **Reanalysis Interval and Background Inference**
 
-**Rule:** `inference_time` must be **less than** time between inference triggers.
+Inference runs in a background thread that overlaps with LLM processing. The time between inference triggers is determined by:
 
-**Calculation:**
 ```
-time_between_triggers = reanalysis_interval × trial_duration / parallelism
+time_between_triggers = reanalysis_interval × avg_trial_duration
 ```
 
-**Example scenario:**
-- 100 samples, 3 groupings (~33 per grouping)
-- reanalysis_interval = 25
-- Trial duration = 5 min
-- Parallelism = 5 trials at once
-- Time between any grouping hitting threshold: ~25 minutes
+With default settings (`reanalysis_interval=10`) and typical LLM trial durations (10-30 seconds), there is 100-300 seconds between triggers - sufficient to absorb inference for all pathways including ordinal hybrid (~2-3 minutes).
 
-**If inference takes 60 minutes:**
-- Queue backs up (60min >> 25min)
-- Stopping decisions arrive too late
-- 0% efficiency (all trials complete before first inference finishes)
-
-**If inference takes 3 minutes:**
-- No bottleneck (3min << 25min)
-- Stopping decisions arrive in time
-- 40-60% efficiency achieved
+**Edge case - potential bottleneck:** If your evaluation has very fast-completing trials (< 5 seconds), a large number of ordinal categories (20+), or both, inference may not complete before the next trigger. In this scenario, consider:
+- Increasing `reanalysis_interval` (e.g., 20-30) to allow more time between triggers
+- Enabling GPU acceleration (2-4x MCMC speedup)
+- Using `modal` inference mode if your ordinal distributions are reliably peaked
 
 ---
 
-### 4. **Ordinal Inference Mode Selection (Critical)**
+### 4. **Ordinal Inference Mode Selection**
 
-| Mode | Speed | Use Case | Performance |
-|------|-------|----------|-------------|
-| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended only when confident of ordinal distribution regularity. Hybrid more conservative.** |
-| **entropy** | ~5-10 min | Diffuse distributions (spread across many categories) | **Review bottleneck considerations** |
-| **hybrid** | ~5-10 min | Combines modal and entropy | **Review bottleneck considerations** |
+| Mode | Time per Call | Use Case | Recommendation |
+|------|-------------|----------|----------------|
+| **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | Use only when confident distributions will be reliably peaked |
+| **entropy** | ~2-3 min | Diffuse distributions (spread across many categories) | Full Bayesian entropy-based stopping |
+| **hybrid** | ~2-3 min | General purpose (peaked or diffuse) | **Recommended**, particularly for new evaluations |
 
-**Why hybrid is slow:**
-- Computes BOTH modal (fast) AND entropy (slow) every time
-- No early exit optimization (always runs both)
-- Designed for maximum safety, not performance
+*Timings for 5-11 category scales with ~100 items. Model caching eliminates recompilation after the first call. Times increase with larger ordinal scales (20+ categories).*
 
-**Typical per-inference timing (CPU, ~100 completed trials):**
-| Pathway | Time per Inference | Notes |
-|---------|-------------------|-------|
-| Binary discrete | ~3-4 seconds | Fast, suitable for real-time stopping |
-| Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
-| Ordinal discrete (hybrid) | ~5-10 minutes | Slow, may bottleneck fast evaluations |
+**How hybrid works:**
+- Computes both modal (fast) and entropy (MCMC) on every call
+- Pathway 1 (peaked data): stops when modal CI is narrow and entropy confirms genuine concentration
+- Pathway 2 (diffuse data): stops when entropy stabilises, even if modal CI remains wide
 
-**Trade-off:**
-- Modal: May not stop for truly diffuse distributions (stays wide forever)
-- Hybrid: Catches all cases but many times slower
-- For most LLM evaluations, modal may be sufficient (models are typically consistent or consistently inconsistent), but hybrid is the more conservative and *strongly recommended* (particularly recommended for new evals).
+**Key trade-offs:**
+- **Modal**: Fast but may never stop for truly diffuse distributions (CI stays wide indefinitely)
+- **Hybrid**: Handles all distribution shapes; the additional inference time is absorbed by background threading and does not delay overall evaluation progress
 
-**GPU Recommendation for Ordinal Tasks:**
-If your evaluation trials complete quickly (< 5 minutes per trial), ordinal inference may become a bottleneck. **GPU acceleration is strongly recommended** for ordinal discrete tasks, providing a typical **2-4× speedup** for MCMC sampling:
+**Convergence behaviour (the practical difference):**
+In comparative testing (WritingBench, 100 samples, 5 epochs, delta_item=0.05, delta_cap=0.05), ordinal hybrid achieved ~63% efficiency vs ~96% for continuous on the same data. This difference reflects the entropy validation gate requiring more data to confirm distributional peakedness - not inference speed.
+
+**GPU acceleration:**
+GPU provides a 2-4x MCMC speedup and is beneficial for evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), where inference may not complete between reanalysis triggers:
 
 ```python
 manager = OptimalStoppingManager(
@@ -257,12 +246,11 @@ manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating'],
     ordinal_inference='hybrid',
-    gpu_ids=[0]  # Enable GPU for faster ordinal inference (2-4× speedup)
+    gpu_ids=[0]  # 2-4× MCMC speedup
 )
 ```
 
-**Alternative without GPU:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway - though careful attention should be paid regarding choice of scoring.
-Ultimately, choice should be based on the user's assessment of score importance and expected variability - high priority scores with high variance (or extremely low expected performance) should typically be chosen.
+**Alternative approach:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway. This achieves faster convergence but imposes interval-scale assumptions on ordinal data. Choice should be based on the user's assessment of score importance and expected variability.
 
 ---
 
@@ -274,27 +262,12 @@ INFO - Running optimal stopping inference on 25 completed trials for 'gpt-4-math
 INFO - Inference completed in 2.3 minutes
 ```
 
-**If inference is too slow:**
+**If inference time exceeds time between triggers** (visible as queued inference calls in logs):
 
-1. **Utilise GPU resources:**
-   - See guidelines above.
-
-2. **Check MCMC parameters:**
-   - Reduce draws/tune (1000/1000 recommended)
-   - Reduce chains (4 recommended)
-   - May be able to halve both, but will need to watch logs for valid convergence.
-
-3. **Check for bottleneck:**
-   - Is `inference_time > time_between_triggers`?
-   - If yes: **critical** - queue backs up, stopping fails
-   - Solution: Reduce inference time or increase reanalysis_interval
-
-4. **Increase reanalysis_interval:**
-   - More time between inferences
-   - Trade-off: May miss early stopping opportunities
-
-5. **Check ordinal mode:**
-   - Switch from hybrid → modal. Only do this if you can be confident of ordinal distribution regularity in all groupings of interest.
+1. **Increase reanalysis_interval** to allow more time between triggers
+2. **Enable GPU** for 2-4x MCMC speedup (see guidelines above)
+3. **Reduce MCMC parameters** (draws/tune) if convergence diagnostics allow (check R-hat < 1.01, ESS > 400)
+4. **Switch ordinal mode** from hybrid to modal, if you are confident distributions will be reliably peaked
 
 ---
 
@@ -302,8 +275,8 @@ INFO - Inference completed in 2.3 minutes
 
 | Symptom | Cause | Solution |
 |---------|-------|----------|
-| All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode |
-| Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce draws, tune, and chains - but monitor changes in convergence warnings. |
+| All trials complete, 0% efficiency | Stopping criteria too strict for data variance (most common), or inference not completing between triggers (rare with background threading) | Relax delta_item/delta_cap, lower cred_level; if timing-related, check inference logs |
+| Stopping decisions arrive late, lower efficiency than expected | Very fast trials (< 5s) combined with ordinal hybrid inference | Increase reanalysis_interval, reduce draws/tune, or use modal mode |
 | "Inference still running" after task complete | Queue backed up | Check inference_time < reanalysis_interval × trial_duration |
 | Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune (e.g., 1500/1500 or 2000/2000) |
 
@@ -522,20 +495,20 @@ Inference mode for ordinal tasks.
 
 **Valid values:**
 - `'modal'`: Fast (~0.1s), bootstrap-based modal category estimation. Best for peaked distributions.
-- `'entropy'`: Conservative (~5-10 min with defaults on CPU), full Bayesian entropy-based stopping. Best for diffuse distributions.
-- `'hybrid'` (default): Automatically selects modal or entropy based on distribution characteristics (~5-10 min with defaults on CPU).
+- `'entropy'`: Full Bayesian entropy-based stopping (~2-3 min per call for 5-11 category scales). Best for diffuse distributions.
+- `'hybrid'` (default): Runs both modal and entropy on each call (~2-3 min per call). Stops via whichever pathway is satisfied first.
 
-**Performance warning:**
-- **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
-- Inference time scales with `draws`, `tune`, and the number of ordinal categories
-- With substantially reduced inference settings (draws=500, tune=500, chains=2) & GPU enabled: ~2 minutes per inference call
-- **Modal mode** uses bootstrap: ~0.1 seconds per inference call (always fast!), but riskier unless ordinal distributions can reasonably be expected to always peak unimodally.
+**Performance notes:**
+- Inference time scales with `draws`, `tune`, and the number of ordinal categories. Larger scales (20+ categories) will increase per-call time.
+- Model caching eliminates recompilation after the first inference call, reducing subsequent calls.
+- Inference runs in a background thread that overlaps with LLM processing. In typical evaluations, ordinal inference adds no observable delay to overall evaluation time.
+- **Modal mode** uses bootstrap only (~0.1 seconds per call), but may never stop for truly diffuse distributions.
 
 **Trade-offs:**
-- **Modal:** May not stop for truly diffuse distributions (wide CIs persist), but fast enough for real-time use
-- **Hybrid/Entropy:** Catches all distribution types, but can create inference bottlenecks that prevent stopping decisions from arriving in time
+- **Modal:** Fast, but cannot handle diffuse distributions (CI stays wide indefinitely)
+- **Hybrid/Entropy:** Handles all distribution types. The key practical difference is **convergence behaviour** - ordinal's entropy validation gate requires more data to converge, resulting in lower efficiency than binary or continuous pathways at the same precision threshold.
 
-**Performance Note:** Ordinal discrete inference is significantly slower than binary/continuous pathways. For fast-completing trials (< 5 minutes), GPU acceleration is strongly recommended. See [Performance Considerations - Ordinal Inference Mode Selection](#4-ordinal-inference-mode-selection-critical) for detailed guidance on GPU setup, alternative approaches, and bottleneck analysis.
+For evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), GPU acceleration (2-4x MCMC speedup) may be beneficial. See [Performance Considerations - Ordinal Inference Mode Selection](#4-ordinal-inference-mode-selection) for details.
 
 #### `ordinal_model_type: str = 'ordered_logistic'`
 Statistical model for ordinal inference.

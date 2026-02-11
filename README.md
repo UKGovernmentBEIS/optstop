@@ -144,14 +144,14 @@ OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     ordinal_tasks=['confidence', 'rating'],  # Tasks with ordinal scores
     ordinal_max_score=10,                    # 0-10 scale (scores: 0,1,2,...,10)
-    ordinal_inference='hybrid'               # Recommended: balances speed/safety
+    ordinal_inference='hybrid'               # Recommended: handles all distribution shapes
 )
 ```
 
 **Note:** Ordinal scores are expected to be **0-indexed** (range [0, ordinal_max_score]). If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), transform them to 0-indexed before use, or contact the developer.
 
 **Performance Note for Ordinal Discrete Tasks:**
-Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive (~5-10 minutes per inference on CPU vs ~3-4 seconds for binary). For fast-completing evaluation trials, GPU acceleration is strongly recommended (2-4× speedup). See [GPU Acceleration](#gpu-acceleration) for setup details.
+Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are more computationally intensive than binary or continuous pathways (~2-3 minutes per inference call vs ~10-30 seconds, for typical 5-11 category scales with ~100 items). However, inference runs in a background thread that overlaps with LLM processing, so in practice ordinal inference adds no observable delay to overall evaluation time (in comparative testing, ordinal and continuous evaluations completed in virtually identical wall time). The more important difference is **convergence behaviour**: ordinal's entropy validation gate typically requires more data to converge, resulting in lower efficiency than binary or continuous pathways at the same precision threshold. GPU acceleration (2-4x speedup) may help for evaluations with very fast-completing trials or large ordinal scales (20+ categories). See [GPU Acceleration](#gpu-acceleration) for setup details.
 
 ```python
 # Enable GPU for ordinal evaluations
@@ -160,7 +160,7 @@ manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating'],
     ordinal_inference='hybrid',
-    gpu_ids=[0]  # 2-4× faster
+    gpu_ids=[0]  # 2-4× MCMC speedup
 )
 ```
 
@@ -325,7 +325,7 @@ optstop-posthoc --csv data.csv --output pruned.csv --disable_gpu [other options]
 ```
 
 ### Performance Benefits
-- **2-4x faster** sampling for typical workloads
+- **2-4x MCMC speedup** for typical workloads
 - **Even greater speedups** for large datasets and complex models
 - Automatic optimization of chain/core parameters for GPU
 
@@ -384,18 +384,21 @@ PyMC will use GPU acceleration via JAX/numpyro
 **Modal Mode** (Fast):
 - Bootstrap-based modal category estimation
 - Suitable for clearly peaked ordinal distributions
-- Typical processing time: seconds per grouping
+- Typical processing time: ~0.1 seconds per call
 
 **Entropy Mode** (Conservative):
 - OrderedLogistic Bayesian model with full distribution entropy
 - Suitable for diffuse ordinal distributions
-- Typical processing time: minutes per grouping
+- Typical processing time: ~2-3 minutes per call (5-11 category scales, ~100 items)
 
 **Hybrid Mode** (RECOMMENDED):
 - **Pathway 1**: Modal CI narrow + entropy validation (peaked data) → Fast stopping
 - **Pathway 2**: Entropy stabilization (diffuse data) → Safe stopping
 - Prevents false peaks via `entropy_threshold`
-- Balances efficiency and safety
+- Typical processing time: ~2-3 minutes per call (same as entropy, since hybrid runs both modal and entropy components)
+- Inference runs in a background thread, overlapping with LLM processing
+
+All inference modes run in a background thread when used via `OptimalStoppingManager`, overlapping with LLM processing. The timings above reflect inference computation, not evaluation delays. See the Performance Note above for details.
 
 ### Example Usage: Post-hoc with Ordinal Data
 
@@ -513,7 +516,7 @@ pruned_df, summary = optimal_stopping_posthoc(
 **When to use continuous bounded scoring:**
 - Scores are already aggregated means (e.g., accuracy averaged across sub-items)
 - Scores are naturally in the [0, 1] range
-- You want fast inference (~5-6 seconds per analysis vs ~5-10 minutes for ordinal)
+- You want faster convergence (continuous typically achieves higher efficiency than ordinal at the same precision threshold, because the entropy validation gate in ordinal inference requires more data)
 
 **Hierarchical Model Details:**
 The continuous bounded pathway uses a hierarchical Beta model with the following structure:

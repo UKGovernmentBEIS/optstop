@@ -61,8 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 | Dataset | Type | Runtime | Efficiency |
 |---------|------|---------|------------|
 | Binary | Discrete | 6.89 min | 48.26% |
-| Ordinal (numpyro) | Discrete | 575 min | 54.1% |
+| Ordinal (numpyro) | Discrete | 575 min* | 54.1% |
 | Continuous | Bounded | 8.73 min | 59.98% |
+
+*Total wall time for standalone posthoc mode (synchronous inference). In bridge mode with background threading, ordinal evaluations complete in virtually identical wall time to other pathways - see Performance Considerations in BRIDGE_API_REFERENCE.md.
 
 - Ordinal inference with numpyro: ~1.9× faster per MCMC call vs baseline
 - Overall ordinal runtime: ~26% faster than PyMC default
