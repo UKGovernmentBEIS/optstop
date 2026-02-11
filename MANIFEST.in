@@ -8,7 +8,6 @@ include LICENSE
 
 # Include API documentation
 include BRIDGE_API_REFERENCE.md
-include early_stopping_api.md
 
 # Exclude development and testing artifacts
 exclude *.log

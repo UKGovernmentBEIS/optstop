@@ -1,8 +1,8 @@
 # OptimalStoppingManager API Reference
 
 **Version:** 0.3.1
-**Last Updated:** 2026-02-10
-**Status:** Production Ready
+**Last Updated:** 2026-02-11
+**Status:** Beta
 **Performance:** Ordered Logistic model for ordinal inference, Numpyro/JAX integration available
 
 ---
@@ -150,10 +150,10 @@ The computational cost of early stopping inference varies dramatically based on 
 | **Binary** | ~3-4s | MCMC hierarchical Binomial model |
 | **Continuous** | ~5-6s | MCMC hierarchical Beta model (mu_group, sigma_group, phi_group) |
 | **Ordinal (modal)** | ~0.1s | Bootstrap |
-| **Ordinal (entropy)** | ~5 min | MCMC OrderedLogistic |
-| **Ordinal (hybrid)** | ~5 min | BOTH modal + entropy |
+| **Ordinal (entropy)** | ~5-10 min | MCMC OrderedLogistic |
+| **Ordinal (hybrid)** | ~5-10 min | BOTH modal + entropy |
 
-*Note: Timings assume ~100 completed trials per inference call with reduced MCMC settings (draws=1000, tune=1000). Times scale with data size and MCMC parameters.*
+*Note: Timings assume ~100 completed trials per inference call with default MCMC settings (draws=1000, tune=1000). Times scale with data size and MCMC parameters.*
 
 Discrete ordinal inference is a far more complex, intensive process, hence the ramp up in time taken. If you are seeking to run a task in which you want ordinal discrete scoring, then it is important to consider the trade-off between expected time taken per trial, and frequency of early stopping inference checked (see Ordinal Stopping Mode Selection below).
 
@@ -164,7 +164,7 @@ Discrete ordinal inference is a far more complex, intensive process, hence the r
 The `draws` and `tune` parameters have **linear impact** on inference time:
 
 ```python
-# Current defaults (CPU-aware, as of Fix 4)
+# Current defaults (CPU/GPU-aware)
 # CPU: draws=1000, tune=1000, target_accept=0.90
 # GPU: draws=2000, tune=2000, target_accept=0.95
 
@@ -228,8 +228,8 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 | Mode | Speed | Use Case | Performance |
 |------|-------|----------|-------------|
 | **modal** | ~0.1s | Peaked distributions (most data in 1-2 categories) | **Recommended only when confident of ordinal distribution regularity. Hybrid more conservative.** |
-| **entropy** | ~60min | Diffuse distributions (spread across many categories) | **Review bottleneck considerations** |
-| **hybrid** | ~60min | Combines modal and entropy | **Review bottleneck considerations** |
+| **entropy** | ~5-10 min | Diffuse distributions (spread across many categories) | **Review bottleneck considerations** |
+| **hybrid** | ~5-10 min | Combines modal and entropy | **Review bottleneck considerations** |
 
 **Why hybrid is slow:**
 - Computes BOTH modal (fast) AND entropy (slow) every time
@@ -241,7 +241,7 @@ time_between_triggers = reanalysis_interval × trial_duration / parallelism
 |---------|-------------------|-------|
 | Binary discrete | ~3-4 seconds | Fast, suitable for real-time stopping |
 | Continuous bounded | ~5-6 seconds | Fast, suitable for real-time stopping |
-| Ordinal discrete (hybrid) | ~7-8 minutes | Slow, may bottleneck fast evaluations |
+| Ordinal discrete (hybrid) | ~5-10 minutes | Slow, may bottleneck fast evaluations |
 
 **Trade-off:**
 - Modal: May not stop for truly diffuse distributions (stays wide forever)
@@ -305,7 +305,7 @@ INFO - Inference completed in 2.3 minutes
 | All trials complete, 0% efficiency | Inference too slow, arrives after completion | Reduce draws/tune, use modal mode |
 | Long pauses during evaluation | High draws/tune, ordinal hybrid | Reduce draws, tune, and chains - but monitor changes in convergence warnings. |
 | "Inference still running" after task complete | Queue backed up | Check inference_time < reanalysis_interval × trial_duration |
-| Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune slightly (500/500) |
+| Slow convergence warnings | Insufficient MCMC iterations | Increase draws/tune (e.g., 1500/1500 or 2000/2000) |
 
 ---
 
@@ -329,8 +329,7 @@ manager = OptimalStoppingManager(
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
     score_agg: Optional[str] = None,
-    random_seed: Optional[int] = None,
-    use_preallocation: bool = True
+    random_seed: Optional[int] = None
 )
 ```
 
@@ -347,7 +346,7 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `delta_item` (float, default: 0.05): Maximum acceptable CI width for individual samples
 - `delta_cap` (float, default: 0.05): Maximum acceptable CI width for groupings/tasks
 - `cred_level` (float, default: 0.97): Credibility level for confidence intervals (0.97 = 97% CI)
-- `conservatism` (int, default: 10): Conservatism factor for rare events (higher = more conservative)
+- `conservatism` (float, default: 10): Conservatism factor for rare events (higher = more conservative)
 - `low_performance_threshold` (float, default: 0.001): Success rate below which conservative stopping applies
 
 **Advanced parameters (performance-critical):**
@@ -368,7 +367,7 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilization
 - `stab_window` (int, default: 15): Window size for stabilization assessment
 - `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
-  - **Recommended production:** 0.001 = 0.1% relative change required to declare convergence
+  - Default 0.002 is suitable for most use cases. For high-stakes evaluations, consider 0.001 (0.1% relative change)
   - **Lower values** = more conservative (require MORE stability before stopping)
   - **Higher values** = more aggressive (stop with LESS stability)
   - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
@@ -523,8 +522,8 @@ Inference mode for ordinal tasks.
 
 **Valid values:**
 - `'modal'`: Fast (~0.1s), bootstrap-based modal category estimation. Best for peaked distributions.
-- `'entropy'`: Conservative (~60+ min with defaults), full Bayesian entropy-based stopping. Best for diffuse distributions.
-- `'hybrid'` (default): Automatically selects modal or entropy based on distribution characteristics (~60+ min with defaults).
+- `'entropy'`: Conservative (~5-10 min with defaults on CPU), full Bayesian entropy-based stopping. Best for diffuse distributions.
+- `'hybrid'` (default): Automatically selects modal or entropy based on distribution characteristics (~5-10 min with defaults on CPU).
 
 **Performance warning:**
 - **Hybrid and entropy modes** run full MCMC OrderedLogistic inference, which is **100-1000× slower** than modal mode!
@@ -575,6 +574,8 @@ manager = OptimalStoppingManager(
     ordinal_model_type='dirichlet'  # Fallback option
 )
 ```
+
+**Unusual scoring configurations?** If your evaluation involves very large rubric scales (e.g., >20 categories), peculiar response distributions (e.g., models can only produce scores of 1, 3, 8, and 10 on a 0-10 scale), or you are uncertain about how to select or balance multiple scorer priorities for applying optimal stopping, please reach out to the package owner (Toby Pilditch on AISI Slack) for guidance on configuring optstop for your use case.
 
 ---
 
@@ -697,23 +698,24 @@ The manager automatically routes to different inference algorithms based on conf
 └──────────────┬──────────────────────────────┘
                │
                ▼
-        Has score_agg?
+        Has score_agg in
+        ['mean', 'median']?
                │
         ┌──────┴──────┐
         │             │
-       YES            NO
+       YES            NO (includes mode/max or no score_agg)
         │             │
         ▼             ▼
-   Is score_agg    Has ordinal_tasks
-   in ['mean',     substring match?
-   'median']?          │
-        │         ┌────┴────┐
-       YES        │         │
-        │        YES        NO
-        ▼         │         │
-   CONTINUOUS     ▼         ▼
-   BOUNDED     ORDINAL   BINARY
-   (Beta)     (Ord.Log) (Binom)
+   CONTINUOUS    Has ordinal_tasks
+   BOUNDED       substring match?
+   (Beta)             │
+                 ┌────┴────┐
+                 │         │
+                YES        NO
+                 │         │
+                 ▼         ▼
+              ORDINAL   BINARY
+             (Ord.Log) (Binom)
 ```
 
 ### Routing Rules
@@ -936,7 +938,7 @@ manager = OptimalStoppingManager(
 
 The `OptimalStoppingManager` implements the `EarlyStopping` protocol with four methods:
 
-### `start_task(task, samples, epochs) -> str`
+### `async start_task(task, samples, epochs) -> str`
 
 Called once at the beginning of evaluation to initialize the manager.
 
@@ -955,7 +957,7 @@ Called once at the beginning of evaluation to initialize the manager.
 
 **User action:** None required (called automatically by inspect_ai)
 
-### `schedule_sample(id, epoch) -> EarlyStop | None`
+### `async schedule_sample(id, epoch) -> EarlyStop | None`
 
 Called before each trial to determine if it should run or be stopped.
 
@@ -984,7 +986,7 @@ class EarlyStop(BaseModel):
 
 **User action:** None required (called automatically by inspect_ai)
 
-### `complete_sample(id, epoch, scores) -> None`
+### `async complete_sample(id, epoch, scores) -> None`
 
 Called after each trial completes to update scores and potentially trigger inference.
 
@@ -1007,7 +1009,7 @@ Called after each trial completes to update scores and potentially trigger infer
 
 **User action:** None required (called automatically by inspect_ai)
 
-### `complete_task() -> dict[str, JsonValue]`
+### `async complete_task() -> dict[str, JsonValue]`
 
 Called once at the end of evaluation to generate final diagnostics.
 
@@ -1119,7 +1121,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
         "ordinal_pathway": "modal_hierarchical",  # Inference pathway (see field descriptions below)
         "final_modal_ci_width": 0.10,         # Final modal category CI width (scaled 0-1)
         "final_modal_ci": [0.60, 0.70],       # Final modal category CI bounds (scaled 0-1)
-        "final_entropy": 1.85,                # Final entropy estimate (nats)
+        "final_entropy": 1.85,                # Final entropy estimate (bits for flat, scaled [0,1] for hierarchical)
         "final_entropy_threshold": 2.42,      # Effective entropy threshold in bits (0.7 × log2(11))
         "final_entropy_ci_width": 0.08,       # Entropy-based CI width (if entropy pathway)
         "final_relative_change": 0.001,       # Relative change in entropy (for stabilization)
@@ -1135,7 +1137,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 | `ordinal_pathway` | str/int | Which inference pathway was used. Values: `'modal_hierarchical'`, `'entropy_hierarchical'`, `'hybrid_hierarchical'` (before stopping resolves), or `1` (modal CI narrow + validated), `2` (entropy stabilised) when hybrid stopping triggers. |
 | `final_modal_ci_width` | float | Width of the modal category credible interval, scaled to [0,1]. Lower values indicate more certainty about the modal category. |
 | `final_modal_ci` | list[float] | [lower, upper] bounds of the modal category CI, scaled to [0,1]. E.g., `[0.60, 0.70]` means 97% confident modal category is between 6 and 7 (on a 0-10 scale). |
-| `final_entropy` | float | Shannon entropy of the categorical distribution (in nats). Lower entropy indicates more peaked/concentrated distributions. |
+| `final_entropy` | float | Shannon entropy of the categorical distribution. Units depend on inference path: bits (log2) for flat ordinal, or scaled [0,1] (proportion of max entropy) for hierarchical ordinal. Lower values indicate more peaked/concentrated distributions. |
 | `final_entropy_threshold` | float | Effective entropy threshold in bits (entropy_threshold × log2(K), where K is number of categories). Distributions with entropy below this are considered "peaked." |
 | `final_entropy_ci_width` | float | CI width derived from entropy-based inference (used in entropy/hybrid pathways). |
 | `final_relative_change` | float | Relative change in entropy between inference calls. Used to detect stabilization. |
@@ -1811,9 +1813,6 @@ manager = OptimalStoppingManager(
 
 ## Related Documentation
 
-- **User Guide:** `BRIDGE_USAGE_GUIDE.md` (coming soon)
-- **Testing Roadmap:** `BRIDGE_TESTING_AND_DEVELOPMENT_ROADMAP.md`
-- **Testing Summary:** `BRIDGE_TESTING_SUMMARY.md`
 - **Main README:** `README.md`
 - **Package Documentation:** Core optstop functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, `convergence_posthoc`)
 
@@ -1826,9 +1825,9 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2026-02-02
-**Document Version:** 1.5
-**Phase:** Production Ready (Phase 1-3 Complete)
+**Last Updated:** 2026-02-11
+**Document Version:** 1.6
+**Phase:** Beta (Phase 1-3 Complete)
 
 **v1.5 Changes:** Added v0.3.1 version history entry documenting continuous score type support, CI extraction methodology fix (mean(Theta) for correct between-item variance handling), and diagnostic logging additions.
 

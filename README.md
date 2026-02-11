@@ -12,11 +12,11 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Post-hoc (batch) optimal stopping for retrospective analysis and dataset pruning
 - Live (incremental) optimal stopping for real-time data collection
 - Flexible, parameterized stopping criteria
-- **Flexible column mapping for groupings, sample IDs, and epochs**
+- Flexible column mapping for groupings, sample IDs, and epochs
 - Bayesian and frequentist hybrid methodology
-- **GPU acceleration support** via JAX/numpyro for significantly faster PyMC sampling
-- **Ordinal scoring support** for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
-- **inspect_ai integration** for LLM evaluation workflows with adaptive early stopping
+- GPU acceleration support via JAX/numpyro for significantly faster PyMC sampling
+- Ordinal scoring support for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
+- inspect_ai integration for LLM evaluation workflows with adaptive early stopping
 
 ## Using optstop with inspect_ai
 
@@ -151,7 +151,7 @@ OptimalStoppingManager(
 **Note:** Ordinal scores are expected to be **0-indexed** (range [0, ordinal_max_score]). If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), transform them to 0-indexed before use, or contact the developer.
 
 **Performance Note for Ordinal Discrete Tasks:**
-Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive (~7-8 minutes per inference on CPU vs ~3-4 seconds for binary). For fast-completing evaluation trials, **GPU acceleration is strongly recommended** (2-4× speedup). See [GPU Acceleration](#gpu-acceleration) for setup details.
+Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are computationally intensive (~5-10 minutes per inference on CPU vs ~3-4 seconds for binary). For fast-completing evaluation trials, GPU acceleration is strongly recommended (2-4× speedup). See [GPU Acceleration](#gpu-acceleration) for setup details.
 
 ```python
 # Enable GPU for ordinal evaluations
@@ -196,6 +196,7 @@ for log in logs:
 | `ordinal_tasks` | None | List of task names using ordinal scoring |
 | `ordinal_max_score` | 10 | Maximum score for ordinal tasks |
 | `ordinal_inference` | See note | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
+| `ordinal_model_type` | 'ordered_logistic' | Hierarchical model: 'ordered_logistic' or 'dirichlet' |
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
 | `entropy_threshold` | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
@@ -247,12 +248,12 @@ for log in logs:
 2. **Test with shadow mode**: Run once with `shadow_mode=True` to see potential savings
 3. **Set appropriate groupings**: More granular groupings = more targeted stopping
 4. **Monitor efficiency**: If efficiency is 0%, your stopping criteria may be too strict
-5. **Check compatibility**: Verify inspect_ai version with `optstop.check_inspect_ai_compatibility()`
+5. **Check compatibility**: Verify inspect_ai version with `optstop.check_inspect_ai_compatibility("0.3.5")`
 6. **Sample ID Randomisation**: Ensure evals are constructed such that order of sample IDs is randomised (i.e., avoid systematic influences of sample ID order on potential performance)
 
 ### Compatibility
 
-- **optstop version**: 0.3.0+
+- **optstop version**: 0.3.1
 - **inspect_ai version**: 0.3.0+
 - **Python version**: 3.10+
 
@@ -307,11 +308,11 @@ You can override automatic detection:
 
 #### Python API
 ```python
-params = {
-    'use_gpu': True,          # Force GPU usage
-    'use_gpu': False,         # Disable GPU acceleration
-    # ... other parameters
-}
+# Force GPU usage:
+params = {'use_gpu': True, ...}
+
+# Disable GPU acceleration:
+params = {'use_gpu': False, ...}
 ```
 
 #### CLI
@@ -340,9 +341,6 @@ PyMC will use GPU acceleration via JAX/numpyro
 ========================
 ```
 
-## Performance Optimizations
-
-`optstop` includes several performance optimizations that significantly improve processing speed, especially for convergence analysis with ordinal scoring.
 ## Ordinal Scoring Support
 
 `optstop` supports both **binary scoring** (0/1) and **ordinal scoring** (e.g., 0-10) for both post-hoc and live optimal stopping modes.
@@ -363,6 +361,8 @@ PyMC will use GPU acceleration via JAX/numpyro
 | `ordinal_model_type` | str | 'ordered_logistic' | Hierarchical model type: `'ordered_logistic'` or `'dirichlet'` |
 | `entropy_threshold` | float | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
 | `continuous_tasks` | List[str] or None | None | Substrings to identify continuous bounded groupings (e.g., `['mean_score', 'avg_rating']`) |
+
+**Unusual scoring configurations?** If your evaluation involves very large rubric scales (e.g., >20 categories), peculiar response distributions (e.g., models can only produce scores of 1, 3, 8, and 10 on a 0-10 scale), or you are uncertain about how to select or balance multiple scorer priorities for applying optimal stopping, please reach out to the package owner (Toby Pilditch on AISI Slack) for guidance on configuring optstop for your use case.
 
 ### Model Types
 
@@ -513,7 +513,7 @@ pruned_df, summary = optimal_stopping_posthoc(
 **When to use continuous bounded scoring:**
 - Scores are already aggregated means (e.g., accuracy averaged across sub-items)
 - Scores are naturally in the [0, 1] range
-- You want fast inference (~5-6 seconds per analysis vs ~7-8 minutes for ordinal)
+- You want fast inference (~5-6 seconds per analysis vs ~5-10 minutes for ordinal)
 
 **Hierarchical Model Details:**
 The continuous bounded pathway uses a hierarchical Beta model with the following structure:
@@ -767,6 +767,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
 | `stab_window`            | 15         | Both         | Window size for assessing CI stabilization                                  |
 | `CI_delta`               | 0.00001    | Both         | Slope threshold for determining CI stabilization                            |
+| `target_accept`          | 0.90 (CPU) / 0.95 (GPU) | Both | NUTS sampler target acceptance rate (higher = fewer divergences, slower) |
 | `use_gpu`                | Auto      | Both         | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
 | `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
 | `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |
@@ -774,6 +775,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid'                         |
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
 | `entropy_threshold`      | 0.7       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
+| `entropy_stabilization_threshold` | 0.002 | All     | Relative change threshold for ordinal entropy stabilisation (Pathway 2)  |
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
 
 ### Example: Setting Parameters
@@ -794,7 +796,7 @@ params = {
     'rep_batch_size': 2,              # (post-hoc only) Process 2 reps at a time
     'pymc_refresh_every': 1,          # (post-hoc only) Run PyMC every item
     'stab_window': 15,                # Stabilization window size
-    'CI_delta': 0.0001,               # Stabilization threshold
+    'CI_delta': 0.00001,              # Stabilization threshold
 }
 ```
 
@@ -1029,7 +1031,7 @@ result = convergence_posthoc(
     epoch_column='trial_num',
     score_column='score',
 
-    # Ordinal parameters (benefits from Phase 1 optimizations):
+    # Ordinal parameters:
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
@@ -1181,7 +1183,7 @@ result = convergence_posthoc(
     epoch_column='trial_num',
     score_column='score',
 
-    # Ordinal parameters (benefits from ~30% performance boost):
+    # Ordinal parameters:
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
@@ -1190,7 +1192,7 @@ result = convergence_posthoc(
 print(result)
 ```
 
-The resulting DataFrame contains all the convergence metrics for each grouping-task. The analysis is parallelized for speed and includes Phase 1 performance optimizations (~30% faster for ordinal tasks).
+The resulting DataFrame contains all the convergence metrics for each grouping-task. The analysis is parallelized for speed.
 
 ## Convergence Diagnostics
 

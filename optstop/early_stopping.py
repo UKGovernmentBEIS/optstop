@@ -980,7 +980,7 @@ class OptimalStoppingManager(EarlyStopping):
             if self.ordinal_tasks:
                 # Check if task name matches any ordinal task pattern
                 for ordinal_pattern in self.ordinal_tasks:
-                    if ordinal_pattern in str(task_name):
+                    if ordinal_pattern.lower() in str(task_name).lower():
                         is_ordinal = True
                         break
 
