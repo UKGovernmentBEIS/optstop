@@ -15,7 +15,7 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Flexible column mapping for groupings, sample IDs, and epochs
 - Bayesian and frequentist hybrid methodology
 - GPU acceleration support via JAX/numpyro for significantly faster PyMC sampling
-- Ordinal scoring support for ordinal data (e.g., 0-10) in addition to binary (0/1) scoring
+- Ordinal scoring support for ordinal data (e.g., 0-10), bounded continuous support (e.g., for bounded aggregates), in addition to binary (0/1) scoring
 - inspect_ai integration for LLM evaluation workflows with adaptive early stopping
 
 ## Using optstop with inspect_ai
@@ -1483,6 +1483,7 @@ optstop-convergence --help
 - **If you encounter errors, check the FAQ and log file for troubleshooting tips.** 
 
 **Note:** After running any of the main functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, or `convergence_posthoc`), you will see a message printed to the console reminding you where to find the log file with all details and warnings. This log file contains all stopping decisions, errors, and PyMC warnings, even if the terminal output is quiet. 
+
 
 
 
