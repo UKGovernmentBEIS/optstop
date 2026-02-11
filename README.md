@@ -1058,6 +1058,54 @@ The package provides functions for adaptive optimal stopping, allowing you to de
 
 For detailed best practices including parameter settings, grouping strategies, and reproducibility guidance, see [Best Practices & Recommendations](#best-practices--recommendations).
 
+### Data Format Requirements
+
+The `optimal_stopping_posthoc` function (and `optstop-posthoc` CLI) expects a pandas DataFrame (or CSV file) in **long format** - one row per observation. The DataFrame must contain four key columns, which you map to your data via function parameters:
+
+| Required Column Role | Parameter | Description |
+|---------------------|-----------|-------------|
+| **Grouping** | `grouping_columns` | One or more columns defining independent evaluation groups (e.g., model, task). Stopping decisions are made independently per unique combination. |
+| **Sample ID** | `sample_id_column` | Identifies distinct evaluation samples/items within a grouping. Each unique value represents a different test item. |
+| **Epoch** | `epoch_column` | Identifies repeated evaluations of the same sample. Must be integer-convertible. Each sample should have sequential epoch values (1, 2, 3, ...). |
+| **Score** | `score_column` | The outcome for each observation. Binary (0/1), ordinal integers (e.g., 0-10), or continuous floats depending on the inference pathway. |
+
+**Example header and first rows:**
+
+```
+model,      task,        item_id,  epoch,  score
+gpt-4o,     truthfulqa,  q_001,    1,      1
+gpt-4o,     truthfulqa,  q_001,    2,      1
+gpt-4o,     truthfulqa,  q_001,    3,      0
+gpt-4o,     truthfulqa,  q_002,    1,      1
+gpt-4o,     truthfulqa,  q_002,    2,      1
+gpt-4o,     reasoning,   r_001,    1,      7
+gpt-4o,     reasoning,   r_001,    2,      8
+claude-4,   truthfulqa,  q_001,    1,      1
+claude-4,   truthfulqa,  q_001,    2,      1
+...
+```
+
+This would be called as:
+
+```python
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['model', 'task'],   # 4 groupings: gpt-4o×truthfulqa, gpt-4o×reasoning, etc.
+    sample_id_column='item_id',
+    epoch_column='epoch',
+    score_column='score',
+    ordinal_tasks=['reasoning'],          # 'reasoning' groupings use ordinal inference
+    ordinal_max_score=10
+)
+```
+
+**Key requirements:**
+- **Long format**: Each row is one observation (one model's response to one item on one epoch). Do not pass wide-format or pivoted data.
+- **Complete epoch labelling**: Every observation needs a valid epoch value. If your data has only one epoch per sample, the sample-level stopping criteria will have limited data to work with.
+- **Consistent score ranges**: All samples within an ordinal grouping should share the same score scale. Set `ordinal_max_score` to match your rubric maximum (e.g., 10 for a 0-10 scale, 5 for a 1-5 scale).
+- **Sample ordering**: For post-hoc analysis, samples are processed in order of their first appearance in the DataFrame. If your data is sorted by some systematic property (e.g., item difficulty), consider shuffling before analysis to satisfy the exchangeability assumption described in the package documentation.
+- **Additional columns** are preserved in the output but are not used by the algorithm.
+
 ### Example Usage (Post-hoc)
 ```python
 import pandas as pd
