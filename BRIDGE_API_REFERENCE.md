@@ -298,6 +298,7 @@ manager = OptimalStoppingManager(
     ordinal_model_type: str = 'ordered_logistic',
     gpu_ids: Optional[list[int]] = None,
     entropy_threshold: float = 0.7,
+    prior_mu: float = 0.0,
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
@@ -581,6 +582,27 @@ Scaled internally by `log2(num_categories)` to produce an effective threshold in
 - Lower values (e.g., 0.5) require more concentrated distributions to pass the entropy gate
 - Higher values (e.g., 0.8) are more permissive, allowing earlier Pathway 1 stopping
 - Only relevant when `ordinal_inference='hybrid'`
+
+---
+
+### Prior Configuration
+
+#### `prior_mu: float = 0.0`
+Centre of the group-level Normal prior on the logit scale. This parameter affects the Bayesian hierarchical model's prior assumption about typical performance.
+
+**Interpretation on probability scale:**
+- `prior_mu=0.0` → 50% probability centre (assumption-free default)
+- `prior_mu=2.0` → ~88% probability centre
+- `prior_mu=-2.0` → ~12% probability centre
+
+**When to adjust:**
+- Leave at default (0.0) for most evaluations - this is an uninformative prior that lets data drive inference
+- Consider adjusting if you have strong prior knowledge about typical performance in your domain
+- For benchmarks known to have very high or very low baseline performance, adjusting the prior can improve early convergence
+
+**Technical note:** The prior is `mu_group ~ Normal(prior_mu, sigma)` where sigma=1.5 for binary/continuous pathways and sigma=2.0 for ordinal. The sigma values are not user-configurable.
+
+**Model choice rationale (binary pathway):** The logit-normal hierarchical model was chosen over a Beta-Binomial alternative after controlled simulation comparison. Under a Beta-Binomial data generating process with κ=10 (inherently favouring that model), the two approaches are statistically indistinguishable in bias, coverage, and stopping behaviour across the mid-range (0.1-0.9). At exact boundaries (0.0 or 1.0), the Beta-Binomial has ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models exhibit reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations when sparse binary data cannot distinguish true homogeneity from sampling coincidence. Because the stopping algorithm triggers when CI width falls below `delta_cap`, the Beta-Binomial's narrower intervals cause earlier stopping on less data in precisely the regime where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC divergences at boundaries, indicating worse posterior geometry. The logit-normal's wider boundary intervals therefore function as implicit conservatism - the appropriate default for evaluation contexts where premature termination is costlier than collecting additional data.
 
 ---
 

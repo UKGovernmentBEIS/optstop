@@ -1343,6 +1343,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
             entropy_threshold = params.get('entropy_threshold', 0.7)
             entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
+            prior_mu = params.get('prior_mu', 0.0)
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
             score_type, bounds = determine_score_type_standalone(
                 grouping_name,
@@ -1446,7 +1447,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             if score_type == 'binary':
                 # Binary hierarchical model
                 with pm.Model() as model:
-                    mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                    mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
                     sigma_group = pm.Exponential("sigma_group", lam=1.0)
                     successes_data = pm.Data("successes", np.array([0]))
                     n_items = pm.Data("n_items", np.array(1, dtype="int64"))
@@ -1474,6 +1475,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         ordinal_group_model = _create_ordered_logistic_hierarchical(
                             n_categories=n_categories,
                             n_items=n_items_total,
+                            mu_group_prior=(prior_mu, 2.0),
                             use_preallocation=False  # Posthoc: exact size, no padding
                         )
                     except Exception as e:
@@ -1530,7 +1532,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
                 with pm.Model() as continuous_model:
                     # Group-level parameters (logit scale for mean)
-                    mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+                    mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)  # Group mean (logit scale)
                     sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
                     phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
 
@@ -2126,6 +2128,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
         entropy_threshold = params.get('entropy_threshold', 0.7)
+        prior_mu = params.get('prior_mu', 0.0)
 
         # Determine score type for this grouping
         score_type, bounds = determine_score_type_standalone(
@@ -2224,7 +2227,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         # PyMC model for group-level (binary only)
         if score_type == 'binary':
             with pm.Model() as model:
-                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)
                 successes_data = pm.Data("successes", np.array([0]))
                 n_items = pm.Data("n_items", np.array(1, dtype="int64"))
@@ -2246,7 +2249,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
 
             with pm.Model() as continuous_model:
                 # Group-level parameters (logit scale for mean)
-                mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)  # Group mean (logit scale)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
                 phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
 
@@ -2754,6 +2757,7 @@ def optimal_stopping_posthoc(
     ordinal_model_type: str = 'ordered_logistic',
     continuous_tasks: Optional[List[str]] = None,
     entropy_threshold: float = 0.7,
+    prior_mu: float = 0.0,
     gpu_ids: Optional[List[int]] = None,
     max_workers: Optional[int] = None
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
@@ -2796,6 +2800,11 @@ def optimal_stopping_posthoc(
           * Lower values → more aggressive stopping (requires more concentrated distribution)
           * Higher values → more permissive stopping
           * Recommended range: 0.5-0.8
+      - prior_mu: Centre of the Normal prior on mu_group (default: 0.0)
+          * 0.0 corresponds to 50% on the probability scale (assumption-free default)
+          * Positive values bias toward higher expected performance
+          * Negative values bias toward lower expected performance
+          * For users with domain-specific performance expectations
       - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
       - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
 
@@ -2852,6 +2861,7 @@ def optimal_stopping_posthoc(
     params_with_context['ordinal_inference'] = ordinal_inference
     params_with_context['ordinal_model_type'] = ordinal_model_type
     params_with_context['entropy_threshold'] = entropy_threshold
+    params_with_context['prior_mu'] = prior_mu
 
     # Validate ordinal scores upfront for all ordinal groupings
     if ordinal_tasks is not None:
@@ -3042,6 +3052,7 @@ def optimal_stopping_live_single(
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
     entropy_threshold: float = 0.7,
+    prior_mu: float = 0.0,
     sampling_kwargs: Optional[Dict[str, Any]] = None,
     model_caches: Optional[Dict[str, Dict[str, Any]]] = None,
     item_entropy_histories: Optional[Dict[Any, List]] = None
@@ -3080,6 +3091,10 @@ def optimal_stopping_live_single(
             - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
             Falls back to 'dirichlet' if ordered_logistic sampling fails.
         entropy_threshold: Proportion of max entropy for hybrid mode false peak detection (default: 0.7)
+        prior_mu: Centre of the Normal prior on mu_group (logit scale for binary/continuous,
+            latent scale for ordinal). Default 0.0 corresponds to 50% on the probability scale.
+            Users with domain-specific performance expectations can adjust this:
+            positive values bias toward higher performance, negative toward lower.
         sampling_kwargs: Pre-configured PyMC sampling kwargs (chains, draws, etc.)
             If None, will be auto-configured based on available resources.
         model_caches: Dict of caches for PyMC model reuse across all pathways (OPTIMIZATION #2)
@@ -3275,7 +3290,7 @@ def optimal_stopping_live_single(
         if 'model' not in binary_group_cache:
             with pm.Model() as model:
                 # Group-level priors (unchanged)
-                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)
 
                 if use_preallocation:
@@ -3375,7 +3390,7 @@ def optimal_stopping_live_single(
         if 'model' not in continuous_group_cache:
             with pm.Model() as continuous_model:
                 # Group-level parameters (logit scale for mean)
-                mu_group = pm.Normal("mu_group", mu=0, sigma=1.5)  # Group mean (logit scale)
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)  # Group mean (logit scale)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)  # Between-item SD
                 phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)  # Group-level precision
 
@@ -3489,6 +3504,7 @@ def optimal_stopping_live_single(
                     ordinal_model = _create_ordered_logistic_hierarchical(
                         n_categories=n_categories,
                         n_items=model_n_items,
+                        mu_group_prior=(prior_mu, 2.0),
                         use_preallocation=use_preallocation
                     )
                 except Exception as e:
@@ -4311,7 +4327,7 @@ def optimal_stopping_live_single(
     }
 
 
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, prior_mu: float = 0.0, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
 
@@ -4346,6 +4362,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         entropy_threshold: Proportion of max entropy for false peak detection (default: 0.7).
             Scaled internally by log2(num_categories) to produce a threshold in bits.
             If entropy exceeds this effective threshold, a narrow modal CI is rejected as a false peak.
+        prior_mu: Centre of the group-level Normal prior on the logit scale (default: 0.0 = 50% probability).
 
         gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only
         max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count
@@ -4403,6 +4420,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         params_with_context['ordinal_inference'] = ordinal_inference
         params_with_context['ordinal_model_type'] = ordinal_model_type
         params_with_context['entropy_threshold'] = entropy_threshold
+        params_with_context['prior_mu'] = prior_mu
 
         # Validate ordinal scores upfront and log score type routing
         for grouping in df['grouping'].unique():

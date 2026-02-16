@@ -12,9 +12,9 @@
     "model-A-task-1": {
       "success_rate": 0.95,
       "total_planned": 160,
-      "total_ran": 80,
-      "total_skipped": 80,
-      "efficiency": 50.0
+      "total_ran": 60,
+      "total_skipped": 100,
+      "efficiency": 62.5
     },
     "model-A-task-2": {
       "success_rate": 0.7,
@@ -26,9 +26,9 @@
     "model-B-task-1": {
       "success_rate": 1.0,
       "total_planned": 160,
-      "total_ran": 25,
-      "total_skipped": 135,
-      "efficiency": 84.375
+      "total_ran": 35,
+      "total_skipped": 125,
+      "efficiency": 78.125
     },
     "model-B-task-2": {
       "success_rate": 0.6,
@@ -40,9 +40,9 @@
   },
   "overall_diagnostics": {
     "total_planned": 640,
-    "total_ran": 425,
-    "total_skipped": 215,
-    "efficiency": 33.59
+    "total_ran": 415,
+    "total_skipped": 225,
+    "efficiency": 35.16
   },
   "validation": {
     "routing_verified": false,

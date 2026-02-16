@@ -139,7 +139,7 @@ Temp_Dev_Files/
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
 #Q4_Development_Files/
-
+boundary_estimation_doc.md
 # Claude Code configuration
 .claude/
 

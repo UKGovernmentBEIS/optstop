@@ -66,6 +66,7 @@ def main():
         parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
         parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=0.7, help='Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)')
+        parser.add_argument('--prior_mu', type=float, default=0.0, help='Centre of group-level Normal prior on logit scale (default: 0.0 = 50%% probability). Positive values bias toward higher performance, negative toward lower.')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -118,7 +119,8 @@ def main():
             ordinal_inference=args.ordinal_inference,
             ordinal_model_type=args.ordinal_model_type,
             continuous_tasks=continuous_tasks,
-            entropy_threshold=args.entropy_threshold
+            entropy_threshold=args.entropy_threshold,
+            prior_mu=args.prior_mu
         )
         pruned_df.to_csv(args.output, index=False)
         if args.summary:
@@ -174,6 +176,7 @@ def main_live():
         parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
         parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=0.7, help='Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)')
+        parser.add_argument('--prior_mu', type=float, default=0.0, help='Centre of group-level Normal prior on logit scale (default: 0.0 = 50%% probability). Positive values bias toward higher performance, negative toward lower.')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -223,7 +226,8 @@ def main_live():
             ordinal_inference=args.ordinal_inference,
             ordinal_model_type=args.ordinal_model_type,
             continuous_tasks=continuous_tasks,
-            entropy_threshold=args.entropy_threshold
+            entropy_threshold=args.entropy_threshold,
+            prior_mu=args.prior_mu
         )
         print("Sample IDs to stop:", result['stop_sample_ids'])
         print("Stop task/grouping?", result['stop_task'])
@@ -281,6 +285,7 @@ def main_convergence():
         parser.add_argument('--ordinal_model_type', type=str, default='ordered_logistic', choices=['ordered_logistic', 'dirichlet'], help='Hierarchical model type for ordinal data (default: ordered_logistic)')
         parser.add_argument('--continuous_tasks', type=str, default=None, help='Comma-separated list of substrings to identify continuous bounded groupings (e.g., "mean_score,aggregated")')
         parser.add_argument('--entropy_threshold', type=float, default=0.7, help='Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)')
+        parser.add_argument('--prior_mu', type=float, default=0.0, help='Centre of group-level Normal prior on logit scale (default: 0.0 = 50%% probability). Positive values bias toward higher performance, negative toward lower.')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -334,7 +339,8 @@ def main_convergence():
             ordinal_inference=args.ordinal_inference,
             ordinal_model_type=args.ordinal_model_type,
             continuous_tasks=continuous_tasks,
-            entropy_threshold=args.entropy_threshold
+            entropy_threshold=args.entropy_threshold,
+            prior_mu=args.prior_mu
         )
         result.to_csv(args.output, index=False)
         print(f"Convergence stats saved to {args.output}")

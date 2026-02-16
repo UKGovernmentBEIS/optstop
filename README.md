@@ -203,6 +203,7 @@ for log in logs:
 | `score_choice` | None | Extract specific score by key name |
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
 | `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
+| `prior_mu` | 0.0 | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
 
 **Note on `ordinal_inference` defaults:**
 - **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` — prioritizes safety in automated evaluation contexts where stopping decisions have real cost implications.
@@ -518,7 +519,10 @@ pruned_df, summary = optimal_stopping_posthoc(
 - Scores are naturally in the [0, 1] range
 - You want faster convergence (continuous typically achieves higher efficiency than ordinal at the same precision threshold, because the entropy validation gate in ordinal inference requires more data)
 
-**Hierarchical Model Details:**
+**Binary Model Details:**
+The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, 1.5)` on the logit scale). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.
+
+**Continuous Bounded Model Details:**
 The continuous bounded pathway uses a hierarchical Beta model with the following structure:
 - **mu_group**: Group-level mean (logit scale)
 - **sigma_group**: Between-item standard deviation (captures item-level variability)
@@ -779,6 +783,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
 | `entropy_threshold`      | 0.7       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
 | `entropy_stabilization_threshold` | 0.002 | All     | Relative change threshold for ordinal entropy stabilisation (Pathway 2)  |
+| `prior_mu`               | 0.0       | All          | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
 
 ### Example: Setting Parameters
@@ -1389,6 +1394,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 
 ### 2. Live Optimal Stopping
@@ -1423,6 +1429,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
@@ -1461,6 +1468,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)

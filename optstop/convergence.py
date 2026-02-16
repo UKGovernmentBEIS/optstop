@@ -249,6 +249,7 @@ def _process_grouping(args):
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
         entropy_threshold = params.get('entropy_threshold', 0.7)
+        prior_mu = params.get('prior_mu', 0.0)
 
         # Determine score type for this grouping
         grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
@@ -376,7 +377,7 @@ def _process_grouping(args):
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
             with pm.Model() as model:
-                mu_group = pm.Normal("mu_group", mu=2, sigma=1.5)
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
                 sigma_group = pm.Exponential("sigma_group", lam=1.0)
                 successes_data = pm.Data("successes", np.array([0]))
                 n_items = pm.Data("n_items", np.array(1, dtype="int64"))
@@ -790,7 +791,7 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
 # Removed _configure_multiprocessing_environment to prevent race conditions
 # Worker processes now handle their own environment setup via initializers
 
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, prior_mu: float = 0.0):
     """
     Post-hoc convergence analysis, parallelized across groupings.
 
@@ -820,6 +821,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
           * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
           * Priority: continuous_tasks > ordinal_tasks > binary (default)
       - entropy_threshold: Proportion of max entropy for false peak detection in hybrid mode. Default: 0.7.
+      - prior_mu: Centre of the group-level Normal prior on the logit scale. Default: 0.0 (50% probability).
 
     Returns a DataFrame of convergence statistics.
 

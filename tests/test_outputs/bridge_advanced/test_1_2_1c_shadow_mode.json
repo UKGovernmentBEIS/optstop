@@ -19,8 +19,8 @@
   },
   "normal_mode": {
     "total_planned": 320,
-    "total_ran": 185,
-    "efficiency": 42.19,
+    "total_ran": 205,
+    "efficiency": 35.94,
     "stopped_samples_count": 0
   },
   "shadow_mode": {
@@ -36,6 +36,6 @@
     "normal_stopped_samples": false,
     "shadow_stopped_nothing": true,
     "shadow_effect_clear": true,
-    "efficiency_difference": 42.19
+    "efficiency_difference": 35.94
   }
 }

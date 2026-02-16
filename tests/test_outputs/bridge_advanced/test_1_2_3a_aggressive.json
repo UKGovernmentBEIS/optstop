@@ -9,8 +9,8 @@
   },
   "diagnostics": {
     "total_planned": 50,
-    "total_ran": 25,
-    "efficiency": 50.0,
+    "total_ran": 20,
+    "efficiency": 60.0,
     "stopped_samples": 0
   },
   "validation": {
