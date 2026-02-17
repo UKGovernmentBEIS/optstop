@@ -1618,6 +1618,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold
                         )
+                        # Normalize width to [0,1] for consistent comparison with delta_item
+                        width = width / (cont_upper - cont_lower)
                     else:  # ordinal
                         accumulated_scores.extend(batch[score_column].values)
 
@@ -2367,6 +2369,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         conservatism=current_conservatism,
                         low_perf_threshold=low_perf_threshold
                     )
+                    # Normalize width to [0,1] for consistent comparison with delta_item
+                    width = width / (cont_upper - cont_lower)
                     ci_record.append(width)
 
                     if width < delta_item:

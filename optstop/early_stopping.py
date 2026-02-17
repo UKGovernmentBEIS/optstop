@@ -130,6 +130,7 @@ class OptimalStoppingManager(EarlyStopping):
         manager_name: str = "optstop",
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
+        score_value_key: Optional[str] = None,
         score_agg: Optional[str] = None,
         random_seed: Optional[int] = None,
         use_preallocation: bool = True,  # Fix 1: Pre-allocation flag
@@ -176,8 +177,15 @@ class OptimalStoppingManager(EarlyStopping):
             shadow_mode: If True, schedule_sample() always returns None (run all trials).
                 Inference still runs and stopping decisions are recorded. complete_task()
                 diagnostics include stopped_at_trial_count and shadow_mode_summary.
-            score_choice: Key name for specific score to extract from scores dict.
+            score_choice: Scorer name to select from the scores dict (outer dict key).
                 If None, uses first score in dict. Mutually exclusive with score_agg.
+            score_value_key: Key to extract from dict-valued Score.value objects.
+                Many inspect_ai scorers return Score.value as a dict (e.g.,
+                {"healthbench_score": 0.35, "criteria_met": 5}). This parameter
+                specifies which key holds the numeric value for inference.
+                If Score.value is already a scalar, this parameter is ignored.
+                If Score.value is a dict and this parameter is None, the sample
+                is skipped with a warning.
             score_agg: Aggregation method for multiple scores ('mean', 'median', 'mode', 'max').
                 If None, uses single score. Mutually exclusive with score_choice.
             random_seed: Random seed for MCMC sampling reproducibility.
@@ -212,6 +220,7 @@ class OptimalStoppingManager(EarlyStopping):
         self.prior_mu = prior_mu
         self.shadow_mode = shadow_mode
         self.score_choice = score_choice
+        self.score_value_key = score_value_key
         self.score_agg = score_agg
 
         # Random seed handling: generate if not provided, always store for reproducibility
@@ -483,6 +492,8 @@ class OptimalStoppingManager(EarlyStopping):
             print(f"  • Aggregation method: {self.score_agg}")
         else:
             print("  • Mode: Default (use first score from dict)")
+        if self.score_value_key is not None:
+            print(f"  • Dict value key: '{self.score_value_key}'")
 
         # Ordinal Configuration
         print("\n Ordinal Scoring Configuration:")
@@ -609,8 +620,11 @@ class OptimalStoppingManager(EarlyStopping):
 
         Supports three modes based on initialization parameters:
         1. Default (both None): Take first score from dict
-        2. score_choice: Extract specific score by key name
+        2. score_choice: Select specific scorer by name
         3. score_agg: Aggregate all scores using specified method
+
+        If score_value_key is set, dict-valued Score.value objects are
+        resolved to the specified key before conversion in all modes.
 
         Uses inspect_ai's value_to_float() for type conversion if needed.
         The converter is cached at initialization to avoid repeated import attempts.
@@ -630,6 +644,34 @@ class OptimalStoppingManager(EarlyStopping):
 
         def convert_to_float(value: Any) -> float | None:
             """Convert a value to float, handling strings and other types."""
+            # Extract from dict if score_value_key is configured
+            if isinstance(value, dict):
+                if self.score_value_key is not None:
+                    if self.score_value_key in value:
+                        value = value[self.score_value_key]
+                    else:
+                        logger.warning(
+                            f"score_value_key '{self.score_value_key}' not found in "
+                            f"Score.value dict. Available keys: {list(value.keys())}"
+                        )
+                        return None
+                else:
+                    logger.warning(
+                        f"Score.value is a dict but no score_value_key specified. "
+                        f"Available keys: {list(value.keys())}. "
+                        f"Set score_value_key to extract the intended numeric value."
+                    )
+                    return None
+
+            # Guard against other non-scalar types (e.g. lists)
+            if isinstance(value, list):
+                logger.warning(
+                    f"Score.value is a list (length {len(value)}). "
+                    f"Expected a scalar value (float, int, or str). "
+                    f"Ensure your scorer returns a scalar, not a list."
+                )
+                return None
+
             # If already a float or int, return it
             if isinstance(value, (float, int)):
                 return float(value)

@@ -37,6 +37,9 @@ from .ordinal_utils import (
     determine_score_type_standalone
 )
 
+# Import continuous scoring utilities
+from .rule import _continuous_bounded_ci_adaptive
+
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
 logging.getLogger('arviz').setLevel(logging.ERROR)
@@ -376,17 +379,18 @@ def _process_grouping(args):
             item_shortfalls = []
             initial_perf = df_part[score_column].mean()
             current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
-            with pm.Model() as model:
-                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
-                sigma_group = pm.Exponential("sigma_group", lam=1.0)
-                successes_data = pm.Data("successes", np.array([0]))
-                n_items = pm.Data("n_items", np.array(1, dtype="int64"))
-                trials_data = pm.Data("trials", np.array([1]))
-                z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
-                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
-                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
-                pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
+            if score_type == 'binary':
+                with pm.Model() as model:
+                    mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=1.5)
+                    sigma_group = pm.Exponential("sigma_group", lam=1.0)
+                    successes_data = pm.Data("successes", np.array([0]))
+                    n_items = pm.Data("n_items", np.array(1, dtype="int64"))
+                    trials_data = pm.Data("trials", np.array([1]))
+                    z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
+                    mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             item_ids = list(df_part['sample_id_num'].unique())
             np.random.shuffle(item_ids)
             for item_idx, item_id in enumerate(item_ids):
@@ -401,6 +405,8 @@ def _process_grouping(args):
                         if score_type == 'binary':
                             successes = 0
                             trials = 0
+                        elif score_type in ['continuous_01', 'continuous_bounded']:
+                            accumulated_scores = []
                         else:  # ordinal
                             accumulated_scores = []
                             entropy_history_epoch = []  # Track entropy for this epoch sequence (must be fresh)
@@ -432,6 +438,22 @@ def _process_grouping(args):
                                 )
                                 epoch_CI_widths.append(width)
                                 curr_perf_estimate = successes / trials
+                            elif score_type in ['continuous_01', 'continuous_bounded']:
+                                accumulated_scores.extend(batch[score_column].values)
+                                cont_lower = bounds.get('lower', 0.0)
+                                cont_upper = bounds.get('upper', 1.0)
+                                _, _, width = _continuous_bounded_ci_adaptive(
+                                    np.array(accumulated_scores),
+                                    lower_bound=cont_lower,
+                                    upper_bound=cont_upper,
+                                    cred_level=cred_level,
+                                    conservatism=current_conservatism,
+                                    low_perf_threshold=low_perf_threshold
+                                )
+                                # Normalize width to [0,1] for consistent comparison with delta_item
+                                width = width / (cont_upper - cont_lower)
+                                epoch_CI_widths.append(width)
+                                curr_perf_estimate = (np.mean(accumulated_scores) - cont_lower) / (cont_upper - cont_lower)
                             else:  # ordinal
                                 accumulated_scores.extend(batch[score_column].values)
 
@@ -521,12 +543,24 @@ def _process_grouping(args):
                         # Track performance based on score type
                         if score_type == 'binary':
                             sample_ID_performances.append(successes / trials if trials > 0 else 0)
+                        elif score_type in ['continuous_01', 'continuous_bounded']:
+                            cont_lower = bounds.get('lower', 0.0)
+                            cont_upper = bounds.get('upper', 1.0)
+                            sample_ID_performances.append(
+                                (np.mean(accumulated_scores) - cont_lower) / (cont_upper - cont_lower) if accumulated_scores else 0
+                            )
                         else:  # ordinal
                             sample_ID_performances.append(np.mean(accumulated_scores) / ordinal_max_score if accumulated_scores else 0)
 
                 # Add item summary based on score type
                 if score_type == 'binary':
                     item_summaries.append({'successes': successes, 'trials': trials})
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    item_summaries.append({
+                        'scores': list(accumulated_scores),
+                        'n_obs': len(accumulated_scores),
+                        'mean_raw': float(np.mean(accumulated_scores)) if accumulated_scores else 0.0
+                    })
                 else:  # ordinal
                     # For ordinal, store sum of scores and count (to mimic binary structure for compatibility)
                     item_summaries.append({'successes': int(np.sum(accumulated_scores)), 'trials': len(accumulated_scores)})
@@ -535,6 +569,15 @@ def _process_grouping(args):
                 # Calculate current performance estimate based on score type
                 if score_type == 'binary':
                     current_perf_estimate = sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)
+                elif score_type in ['continuous_01', 'continuous_bounded']:
+                    cont_lower = bounds.get('lower', 0.0)
+                    cont_upper = bounds.get('upper', 1.0)
+                    total_obs = sum(s['n_obs'] for s in item_summaries)
+                    if total_obs > 0:
+                        weighted_mean = sum(s['mean_raw'] * s['n_obs'] for s in item_summaries) / total_obs
+                        current_perf_estimate = (weighted_mean - cont_lower) / (cont_upper - cont_lower)
+                    else:
+                        current_perf_estimate = 0.0
                 else:  # ordinal - normalize by max score
                     current_perf_estimate = (sum(s['successes'] for s in item_summaries) / sum(s['trials'] for s in item_summaries)) / ordinal_max_score
 
@@ -580,6 +623,32 @@ def _process_grouping(args):
                             effective_width = theta_width
                             if current_perf_estimate < low_perf_threshold:
                                 effective_width = theta_width * current_conservatism
+
+                    elif score_type in ['continuous_01', 'continuous_bounded']:
+                        # === CONTINUOUS GROUP-LEVEL STOPPING ===
+                        # Collect all continuous scores from all items processed so far
+                        cont_lower = bounds.get('lower', 0.0)
+                        cont_upper = bounds.get('upper', 1.0)
+                        all_cont_scores = []
+                        for used_df in used_reps_dfs:
+                            all_cont_scores.extend(used_df[score_column].values)
+
+                        theta_lo, theta_hi, width = _continuous_bounded_ci_adaptive(
+                            np.array(all_cont_scores),
+                            lower_bound=cont_lower,
+                            upper_bound=cont_upper,
+                            cred_level=cred_level,
+                            conservatism=1.0,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                        # Normalize width to [0,1]
+                        theta_width = width / (cont_upper - cont_lower)
+                        CI_record.append(theta_width)
+                        # Apply conservatism externally (consistent with binary/ordinal group-level pattern)
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                        # Normalize CI bounds to [0,1] for consistent reporting
+                        theta_lo = (theta_lo - cont_lower) / (cont_upper - cont_lower)
+                        theta_hi = (theta_hi - cont_lower) / (cont_upper - cont_lower)
 
                     else:
                         # === ORDINAL GROUP-LEVEL STOPPING ===
@@ -698,7 +767,13 @@ def _process_grouping(args):
         # Calculate n_items_used, percent_items_used, avg_reps_per_item
         n_items_used = len(item_summaries)
         percent_items_used = n_items_used / len(df_part['sample_id_num'].unique()) if len(df_part['sample_id_num'].unique()) > 0 else 0
-        avg_reps_per_item = np.mean([s['trials'] for s in item_summaries]) if item_summaries else 0
+        if item_summaries:
+            if score_type in ['continuous_01', 'continuous_bounded']:
+                avg_reps_per_item = np.mean([s['n_obs'] for s in item_summaries])
+            else:
+                avg_reps_per_item = np.mean([s['trials'] for s in item_summaries])
+        else:
+            avg_reps_per_item = 0
 
         # theta_lo, theta_hi, theta_width are from the last PyMC run
         # task_performance is set above
@@ -795,8 +870,8 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     """
     Post-hoc convergence analysis, parallelized across groupings.
 
-    Now supports BOTH binary (0/1) and ordinal (Likert scale, e.g., 0-10) scoring,
-    including mixed datasets with both types.
+    Supports binary (0/1), ordinal (Likert scale, e.g., 0-10), and continuous
+    bounded scoring, including mixed datasets with multiple types.
 
     The user must specify:
       - grouping_columns: list of column names to combine for grouping (can be a single string or list of strings)

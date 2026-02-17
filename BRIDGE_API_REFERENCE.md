@@ -302,6 +302,7 @@ manager = OptimalStoppingManager(
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
+    score_value_key: Optional[str] = None,
     score_agg: Optional[str] = None,
     random_seed: Optional[int] = None
 )
@@ -397,18 +398,42 @@ grouping_columns=['model', 'tag.category']
 
 **CRITICAL:** These parameters determine how the manager extracts scores from inspect_ai's scores dictionary and how it routes to inference algorithms.
 
-#### `score_choice: Optional[str] = None`
-Extract a specific score by key name from the scores dictionary.
+inspect_ai delivers scores as a two-level structure:
 
-**Use when:** You have multiple scorers but only want to use one for stopping decisions. Note that the choice of which score should be based on expected required sampling and perceived importance. For example, if you care about all 3 scores per trial, then your score_choice should be based on the lowest performing (or highest variance) among them. As the chosen score is the *sole basis for stopping* in this case, you should pick conservatively.
+```
+scores: dict[str, SampleScore]        ← Level 1: keyed by scorer name
+                 └── .score.value     ← Level 2: usually a scalar, but can be a dict
+```
+
+`score_choice` and `score_agg` operate on **Level 1** (which scorer to use). `score_value_key` operates on **Level 2** (extracting from a dict-valued `Score.value`).
+
+#### `score_choice: Optional[str] = None`
+Select a specific scorer by name from the Level 1 scores dictionary.
+
+**Use when:** You have multiple scorers but only want to use one for stopping decisions. The choice should be based on expected required sampling and perceived importance. For example, if you care about all 3 scores per trial, then your `score_choice` should be based on the lowest performing (or highest variance) among them. As the chosen score is the *sole basis for stopping* in this case, you should pick conservatively.
 
 **Example:**
 ```python
-# Sample has scores: {'accuracy': 0.8, 'f1': 0.75, 'recall': 0.9}
-score_choice='f1'  # Use only the 'f1' score
+# scores = {'accuracy': SampleScore(score=Score(value=0.8)), 'f1': SampleScore(score=Score(value=0.75))}
+score_choice='f1'  # Selects scores["f1"] → uses 0.75
 ```
 
 **Mutually exclusive with** `score_agg`.
+
+#### `score_value_key: Optional[str] = None`
+Extract a specific field from a dict-valued `Score.value`.
+
+Some inspect_ai scorers return `Score.value` as a dict containing multiple fields alongside the primary numeric score (e.g., HealthBench returns `{"healthbench_score": 0.72, "criteria_met": 5, "total_criteria": 12}`). This parameter specifies which key holds the numeric value for inference.
+
+If `Score.value` is already a scalar (float, int, string), this parameter is ignored. If `Score.value` is a dict and this parameter is not set, the sample is skipped with a warning.
+
+**Example:**
+```python
+# scores = {'healthbench': SampleScore(score=Score(value={"healthbench_score": 0.72, "criteria_met": 5}))}
+score_value_key='healthbench_score'  # Extracts value["healthbench_score"] → uses 0.72
+```
+
+**Composable with** `score_choice` and `score_agg`. When combined with `score_choice`, the scorer is selected first (Level 1), then the key is extracted from its dict value (Level 2). When combined with `score_agg`, the key is extracted from each scorer's dict value before aggregation.
 
 #### `score_agg: Optional[str] = None`
 Aggregate multiple scores using the specified method.
@@ -424,8 +449,8 @@ Aggregate multiple scores using the specified method.
 
 **Example:**
 ```python
-# Sample has scores: {'s1': 1, 's2': 0, 's3': 1, 's4': 1}
-score_agg='mean'  # Mean = 0.75 → continuous bounded inference
+# scores = {'s1': SampleScore(score=Score(value=1)), 's2': SampleScore(score=Score(value=0)), 's3': SampleScore(score=Score(value=1))}
+score_agg='mean'  # Mean = 0.67 → continuous bounded inference
 ```
 
 **Mutually exclusive with** `score_choice`.
@@ -876,6 +901,26 @@ manager = OptimalStoppingManager(
 # → Uses only accuracy = 1 → binary discrete inference
 ```
 
+### Pattern 5b: Dict-Valued Score Extraction
+
+**Use case:** Scorer returns `Score.value` as a dict with multiple fields (e.g., HealthBench, HLE).
+
+```python
+manager = OptimalStoppingManager(
+    optstop_params={
+        'delta_item': 0.15,
+        'delta_cap': 0.10,
+    },
+    grouping_columns=['model', 'task'],
+    score_value_key='healthbench_score',  # Extract from dict-valued Score.value
+    score_agg='mean',                     # Route to continuous inference
+    reanalysis_interval=10,
+)
+
+# If sample has scores {'healthbench': SampleScore(score=Score(value={"healthbench_score": 0.72, "criteria_met": 5}))}
+# → Extracts 0.72 from the dict → continuous bounded inference
+```
+
 ### Pattern 6: Shadow Mode for Validation
 
 **Use case:** Want to measure potential efficiency gains without actually stopping.
@@ -993,7 +1038,7 @@ Called after each trial completes to update scores and potentially trigger infer
 **Returns:** None
 
 **Behavior:**
-1. Extracts score value using `score_choice` or `score_agg`
+1. Extracts score value using `score_choice`, `score_value_key`, and/or `score_agg`
 2. Validates score (type, range)
 3. Updates `compiled_dataset` with score and marks trial as complete
 4. Increments per-grouping counter
@@ -1316,16 +1361,18 @@ ordinal_inference='hybrid'  # Automatic selection
 
 ### 7. Validate Score Extraction
 
-When using `score_choice` or `score_agg`, verify extraction is correct:
+When using `score_choice`, `score_value_key`, or `score_agg`, verify extraction is correct:
 
 ```python
 manager = OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model', 'task'],
-    score_agg='mean',  # Check logs to confirm correct extraction
+    score_value_key='healthbench_score',  # For dict-valued Score.value
+    score_agg='mean',
 )
 
-# Check logs for: "Using score extraction mode: aggregation (mean)"
+# Check startup output for: "Dict value key: 'healthbench_score'"
+# Check logs for warnings about missing keys or unexpected dict values
 # Verify extracted scores are in expected range
 ```
 
@@ -1430,7 +1477,30 @@ manager = OptimalStoppingManager(
 
 **Solution:** Choose one or neither, never both.
 
-### 6. Forgetting to Mark Ordinal Tasks
+### 6. Dict-Valued Scores Without `score_value_key`
+
+**Problem:** Scorer returns `Score.value` as a dict, but `score_value_key` is not set. Samples are skipped with a warning.
+
+```python
+# Wrong: HealthBench returns {"healthbench_score": 0.72, "criteria_met": 5}
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    # Missing: score_value_key parameter
+)
+```
+
+**Solution:** Set `score_value_key` to the dict key containing the primary numeric value.
+
+```python
+manager = OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    score_value_key='healthbench_score',
+)
+```
+
+### 7. Forgetting to Mark Ordinal Tasks
 
 **Problem:** Ordinal scores (1-5) treated as binary, causing validation errors.
 

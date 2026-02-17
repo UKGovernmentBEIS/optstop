@@ -114,23 +114,41 @@ grouping_columns=['model', 'metadata.difficulty']
 grouping_columns=['model', 'tag.category']
 ```
 
-#### 2. Multiple Score Handling
+#### 2. Score Extraction
 
-Handle evaluations with multiple scorers:
+inspect_ai delivers scores as a two-level structure: an outer dict keyed by **scorer name**, where each entry contains a `Score` object whose `.value` is typically a scalar but can also be a **dict** when the scorer returns structured results.
 
 ```python
-# Extract specific score
+# scores = {
+#     "accuracy": SampleScore(score=Score(value=1.0)),          # scalar value
+#     "healthbench": SampleScore(score=Score(value={"healthbench_score": 0.72, "criteria_met": 5}))
+# }                                                               # dict value
+```
+
+`score_choice` selects which **scorer** to use (outer dict key). `score_value_key` extracts a specific field from a **dict-valued** `Score.value` (inner dict key). They address different levels and can be combined.
+
+```python
+# Multiple scorers with scalar values: pick one by scorer name
 OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model'],
-    score_choice='accuracy'  # Use only the 'accuracy' score
+    score_choice='accuracy'  # Selects scores["accuracy"]
 )
 
-# Aggregate multiple scores
+# Multiple scorers with scalar values: aggregate all
 OptimalStoppingManager(
     optstop_params=params,
     grouping_columns=['model'],
-    score_agg='mean'  # Average all scores (supports: mean, median, mode, max)
+    score_agg='mean'  # Averages all scorers (supports: mean, median, mode, max)
+)
+
+# Scorer returns a dict as Score.value (e.g., HealthBench):
+# extract the numeric field by key
+OptimalStoppingManager(
+    optstop_params=params,
+    grouping_columns=['model', 'task'],
+    score_value_key='healthbench_score',  # Extracts value["healthbench_score"]
+    score_agg='mean',
 )
 ```
 
@@ -200,7 +218,8 @@ for log in logs:
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
 | `entropy_threshold` | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
-| `score_choice` | None | Extract specific score by key name |
+| `score_choice` | None | Select scorer by name from the outer scores dict |
+| `score_value_key` | None | Extract a field from dict-valued `Score.value` (inner dict key) |
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
 | `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
 | `prior_mu` | 0.0 | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
