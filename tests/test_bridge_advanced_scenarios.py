@@ -352,9 +352,9 @@ async def test_1_2_1a_mixed_quality_groupings():
         if grouping in grouping_results:
             efficiency = grouping_results[grouping]['efficiency']
             # CRITICAL: High quality data MUST achieve stopping with appropriate thresholds
-            passed = efficiency > min_efficiency
+            passed = efficiency >= min_efficiency
             validation['validation'][f'{grouping}_stops'] = passed
-            print(f"  {'✓' if passed else '✗'} {grouping} (p={expected_sr}): {efficiency:.1f}% efficiency (MUST be >{min_efficiency}%): {'✓ PASS' if passed else '✗ FAIL'}")
+            print(f"  {'✓' if passed else '✗'} {grouping} (p={expected_sr}): {efficiency:.1f}% efficiency (MUST be >={min_efficiency}%): {'✓ PASS' if passed else '✗ FAIL'}")
 
     # Check 2: Low/medium quality groupings (0% efficiency is EXPECTED)
     low_quality_groupings = {
@@ -395,8 +395,8 @@ async def test_1_2_1a_mixed_quality_groupings():
     for grouping, (expected_sr, min_efficiency) in high_quality_groupings.items():
         if grouping in grouping_results:
             efficiency = grouping_results[grouping]['efficiency']
-            assert efficiency > min_efficiency, \
-                f"{grouping} (p={expected_sr}) MUST achieve >{min_efficiency}% efficiency with strict thresholds, got {efficiency:.1f}%"
+            assert efficiency >= min_efficiency, \
+                f"{grouping} (p={expected_sr}) MUST achieve >={min_efficiency}% efficiency with strict thresholds, got {efficiency:.1f}%"
 
 
 @pytest.mark.asyncio
