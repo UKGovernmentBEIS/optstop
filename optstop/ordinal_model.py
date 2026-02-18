@@ -607,6 +607,9 @@ def _ordinal_entropy_ci_adaptive(
     if np.any(scores < 0) or np.any(scores > ordinal_max_score):
         raise ValueError(f"Scores must be in [0, {ordinal_max_score}]")
 
+    # Round to nearest integer and clip to valid category range
+    scores_int = np.clip(np.round(scores).astype("int64"), 0, ordinal_max_score)
+
     n_categories = ordinal_max_score + 1
     # FIX: All scores come from a single distribution, not separate items
     # Using n_items=len(scores) caused memory explosion (39GB+ arrays)
@@ -621,7 +624,7 @@ def _ordinal_entropy_ci_adaptive(
         # Update data
         with model:
             pm.set_data({"n_items": np.array(n_items, dtype="int64")})
-            pm.set_data({"scores": scores.astype("int64")})
+            pm.set_data({"scores": scores_int})
 
         # logger.debug(f"Reusing OrderedLogistic model (updated from {n_items_last} to {n_items} items)")
     else:
@@ -633,7 +636,7 @@ def _ordinal_entropy_ci_adaptive(
 
         # Update scores data
         with model:
-            pm.set_data({"scores": scores.astype("int64")})
+            pm.set_data({"scores": scores_int})
 
         # logger.debug(f"Created new OrderedLogistic model for {n_items} items")
 
@@ -915,7 +918,7 @@ def _ordinal_hybrid_stopping_criterion(
     else:
         relative_change = 1.0  # Default to "not stabilized"
 
-    # Stabilization criterion: CI width has converged (< 5% change)
+    # Stabilization criterion: CI width has converged (< 0.2% relative change by default)
     if relative_change < stabilization_threshold:
         diagnostics = {
             'pathway': 2,

@@ -1725,7 +1725,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     })
                 else:  # ordinal
                     # Store category counts for hierarchical Dirichlet-Multinomial model
-                    counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
+                    scores_rounded = np.clip(np.round(np.array(accumulated_scores)).astype(int), 0, ordinal_max_score)
+                    counts = np.bincount(scores_rounded, minlength=ordinal_max_score + 1)
                     item_summaries.append({
                         'counts': counts,
                         'n_obs': len(accumulated_scores),
@@ -2488,7 +2489,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 entropy_history_per_item[item_id] = entropy_history
                 used_reps_dfs[item_id] = pd.DataFrame(used_reps, columns=df_item.columns)
                 # Store category counts for hierarchical Dirichlet-Multinomial model
-                counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
+                scores_rounded = np.clip(np.round(np.array(accumulated_scores)).astype(int), 0, ordinal_max_score)
+                counts = np.bincount(scores_rounded, minlength=ordinal_max_score + 1)
                 item_summaries.append({
                     'counts': counts,
                     'n_obs': len(accumulated_scores),
@@ -3695,7 +3697,8 @@ def optimal_stopping_live_single(
 
             entropy_history_per_item[item_id] = entropy_history
             # Store category counts for hierarchical Dirichlet-Multinomial model
-            counts = np.bincount(np.array(accumulated_scores).astype(int), minlength=ordinal_max_score + 1)
+            scores_rounded = np.clip(np.round(np.array(accumulated_scores)).astype(int), 0, ordinal_max_score)
+            counts = np.bincount(scores_rounded, minlength=ordinal_max_score + 1)
             item_summaries.append({
                 'counts': counts,                              # Vector of length K for hierarchical model
                 'n_obs': len(accumulated_scores),              # Total observations for this item

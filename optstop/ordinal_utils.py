@@ -95,8 +95,16 @@ def _ordinal_ci_adaptive(
         trace_message(logger, "OrdinalUtils", "Empty scores array provided to _ordinal_ci_adaptive")
         return 0.0, 1.0, 1.0
 
-    # Ensure scores are integers
-    scores_int = scores.astype(int)
+    # Round to nearest integer for categorical inference (astype(int) truncates, introducing downward bias)
+    if not np.allclose(scores, np.round(scores)):
+        if not getattr(_ordinal_ci_adaptive, '_warned_non_integer', False):
+            logger.info(
+                "Non-integer scores detected in ordinal pathway (e.g., %.2f); "
+                "rounding to nearest integer for categorical inference",
+                scores[0]
+            )
+            _ordinal_ci_adaptive._warned_non_integer = True
+    scores_int = np.clip(np.round(scores).astype(int), 0, ordinal_max_score)
 
     # Single observation - return wide interval
     if len(scores) == 1:
@@ -266,7 +274,7 @@ def validate_ordinal_scores(
     if not np.allclose(valid_scores, np.round(valid_scores)):
         logger.info(
             f"Ordinal grouping '{grouping_name}' contains non-integer scores. "
-            f"These will be used as-is, but ordinal scoring typically expects integers."
+            f"These will be rounded to nearest integer for categorical inference."
         )
 
     # logger.debug(
