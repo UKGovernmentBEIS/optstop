@@ -1162,6 +1162,20 @@ class OptimalStoppingManager(EarlyStopping):
             f"({n_completed} samples) for '{grouping_name}'"
         )
 
+        # Check for ordinal category sparsity (bridge path - validate_ordinal_scores
+        # is not called here, so we need an explicit check)
+        is_aggregated = self.score_agg in ['mean', 'median']
+        if self.ordinal_tasks and not is_aggregated:
+            grouping_name_lower = grouping_name.lower()
+            for task in self.ordinal_tasks:
+                if task.lower() in grouping_name_lower:
+                    from .ordinal_utils import check_ordinal_sparsity
+                    scores = completed_data[self._SCORE_COLUMN].dropna().values
+                    check_ordinal_sparsity(
+                        scores, self.ordinal_max_score, grouping_name
+                    )
+                    break
+
         # Import the new function
         from .rule import optimal_stopping_live_single
 

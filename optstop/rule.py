@@ -43,6 +43,7 @@ from . import cleanup_utils
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
     validate_ordinal_scores,
+    check_ordinal_sparsity,
     determine_score_type,
     determine_score_type_standalone,
     counts_to_scores,
@@ -2885,6 +2886,11 @@ def optimal_stopping_posthoc(
                     ordinal_max_score,
                     grouping_name
                 )
+                check_ordinal_sparsity(
+                    grouping_data[score_column].values,
+                    ordinal_max_score,
+                    grouping_name
+                )
                 logger.info(f"Validated ordinal scores for grouping '{grouping_name}' (using {ordinal_inference} inference)")
             elif score_type in ('continuous_bounded', 'continuous_01'):
                 logger.info(f"Grouping '{grouping_name}' will use continuous bounded inference (Beta distribution)")
@@ -4443,6 +4449,11 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                     df_grouping[score_column].values,
                     ordinal_max_score,
                     grouping_name=grouping
+                )
+                check_ordinal_sparsity(
+                    df_grouping[score_column].values,
+                    ordinal_max_score,
+                    grouping
                 )
                 logger.info(f"Grouping '{grouping}' identified as ORDINAL (using {ordinal_inference} inference)")
             elif score_type in ('continuous_bounded', 'continuous_01'):

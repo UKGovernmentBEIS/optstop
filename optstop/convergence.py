@@ -33,6 +33,7 @@ from . import cleanup_utils
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
     validate_ordinal_scores,
+    check_ordinal_sparsity,
     determine_score_type,
     determine_score_type_standalone
 )
@@ -978,6 +979,11 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
             if score_type == 'ordinal':
                 grouping_data = df[df['grouping'] == grouping_name]
                 validate_ordinal_scores(
+                    grouping_data[score_column].values,
+                    ordinal_max_score,
+                    grouping_name
+                )
+                check_ordinal_sparsity(
                     grouping_data[score_column].values,
                     ordinal_max_score,
                     grouping_name

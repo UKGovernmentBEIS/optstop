@@ -12,9 +12,9 @@
     "model-A-task-1": {
       "success_rate": 0.95,
       "total_planned": 160,
-      "total_ran": 65,
-      "total_skipped": 95,
-      "efficiency": 59.375
+      "total_ran": 60,
+      "total_skipped": 100,
+      "efficiency": 62.5
     },
     "model-A-task-2": {
       "success_rate": 0.7,
@@ -40,14 +40,14 @@
   },
   "overall_diagnostics": {
     "total_planned": 640,
-    "total_ran": 425,
-    "total_skipped": 215,
-    "efficiency": 33.59
+    "total_ran": 420,
+    "total_skipped": 220,
+    "efficiency": 34.38
   },
   "validation": {
     "routing_verified": false,
     "model-A-task-1_stops": true,
-    "model-B-task-1_stops": false,
+    "model-B-task-1_stops": true,
     "model-A-task-2_efficiency": 0.0,
     "model-B-task-2_efficiency": 0.0,
     "independent_groupings": true,

@@ -250,7 +250,15 @@ manager = OptimalStoppingManager(
 )
 ```
 
-**Alternative approach:** Use `score_agg='mean'` to aggregate ordinal scores, routing to the continuous bounded pathway. This achieves faster convergence but imposes interval-scale assumptions on ordinal data. Choice should be based on the user's assessment of score importance and expected variability.
+**Choosing between ordinal and continuous pathways:**
+
+Integer-valued scores can be routed to either pathway. The choice depends on scoring design and category coverage:
+
+- **Aggregated scores** (`score_agg='mean'` or `score_agg='median'`): Routes to continuous bounded automatically. This is the natural fit when scores are averaged across sub-criteria.
+- **Raw discrete scores with well-populated categories**: The ordinal pathway (`ordinal_tasks`) preserves rank structure without interval-scale assumptions. Requires all categories observed and items per grouping >= 5x the number of categories.
+- **Raw discrete scores with sparse categories**: Ordinal models can produce biased estimates and miscalibrated CIs (coverage as low as 25% at nominal 97%). Consider aggregating scores or adjusting evaluation design for better category coverage. Routing raw sparse scores via `continuous_tasks` is possible but imposes interval-scale assumptions.
+
+The package logs a warning when category sparsity is detected under ordinal inference.
 
 ---
 
@@ -622,8 +630,7 @@ Centre of the group-level Normal prior on the logit scale. This parameter affect
 
 **When to adjust:**
 - Leave at default (0.0) for most evaluations - this is an uninformative prior that lets data drive inference
-- Consider adjusting if you have strong prior knowledge about typical performance in your domain
-- For benchmarks known to have very high or very low baseline performance, adjusting the prior can improve early convergence
+- If you have recent results for the same model on the same benchmark (e.g., from a previous evaluation run), setting `prior_mu` to the logit of that known performance improves the accuracy of early point estimates and credible interval placement. For example, a model previously measured at ~75% accuracy corresponds to `prior_mu=1.1` (`scipy.special.logit(0.75)`). Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. The prior width (sigma=1.5 for binary/continuous, 2.0 for ordinal) is broad enough that a mis-specified prior is overridden by data within approximately 15-20 items
 
 **Technical note:** The prior is `mu_group ~ Normal(prior_mu, sigma)` where sigma=1.5 for binary/continuous pathways and sigma=2.0 for ordinal. The sigma values are not user-configurable.
 

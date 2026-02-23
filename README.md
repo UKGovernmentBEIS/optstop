@@ -224,6 +224,8 @@ for log in logs:
 | `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
 | `prior_mu` | 0.0 | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
 
+**Using informed priors:** If you have recent results for the same model on the same benchmark, setting `prior_mu` to the logit of that known performance (e.g., `scipy.special.logit(0.75)` ≈ 1.1 for 75% accuracy) improves the accuracy of early point estimates and credible interval placement. Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. The prior width (sigma=1.5 for binary/continuous, 2.0 for ordinal) ensures that a mis-specified prior is overridden by data within approximately 15-20 items.
+
 **Note on `ordinal_inference` defaults:**
 - **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` — prioritizes safety in automated evaluation contexts where stopping decisions have real cost implications.
 - **Standalone functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, CLI)**: Defaults to `'modal'` — prioritizes speed for interactive/exploratory analysis where users can iterate quickly.
@@ -533,10 +535,15 @@ pruned_df, summary = optimal_stopping_posthoc(
 )
 ```
 
-**When to use continuous bounded scoring:**
-- Scores are already aggregated means (e.g., accuracy averaged across sub-items)
-- Scores are naturally in the [0, 1] range
-- You want faster convergence (continuous typically achieves higher efficiency than ordinal at the same precision threshold, because the entropy validation gate in ordinal inference requires more data)
+**Choosing between ordinal and continuous pathways:**
+
+Integer-valued scores (Likert scales, rubric scores, quality ratings) can be routed to either the ordinal or continuous bounded pathway. The right choice depends on your data and scoring design:
+
+- **Aggregated scores** (e.g., mean of multiple sub-rubric criteria via `score_agg='mean'`): Use the continuous bounded pathway. Aggregation produces effectively continuous values on a bounded interval, making this a natural fit.
+- **Raw discrete scores with well-populated categories** (all categories observed, items per grouping >= 5x the number of categories): The ordinal pathway (`ordinal_tasks`) preserves rank structure without imposing interval-scale assumptions, and is the more principled choice when these conditions hold.
+- **Raw discrete scores with sparse categories** (some categories rarely or never observed): The ordinal pathway can produce biased estimates and miscalibrated credible intervals under category sparsity (empirically observed: CI coverage as low as 25% at 97% nominal level for ordered logistic; 70% for Dirichlet-Multinomial). In this situation, consider whether scores can be aggregated (e.g., mean across sub-criteria) to route through the continuous pathway, or whether the evaluation design can be adjusted to ensure better category coverage. Routing raw sparse scores through the continuous pathway via `continuous_tasks` is possible but imposes interval-scale assumptions that may not be warranted for all ordinal data.
+
+The package logs a warning when category sparsity is detected under ordinal inference.
 
 **Binary Model Details:**
 The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, 1.5)` on the logit scale). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.

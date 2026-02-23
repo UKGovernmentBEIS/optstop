@@ -227,6 +227,77 @@ def _ordinal_ci_adaptive(
     return lo, hi, effective_width
 
 
+# Module-level guard: track which groupings have already received a sparsity warning
+_warned_sparsity_groupings: set = set()
+
+
+def check_ordinal_sparsity(
+    scores: np.ndarray,
+    ordinal_max_score: int,
+    grouping_name: str = "unknown",
+    min_observations: int = 20
+) -> None:
+    """
+    Check for category sparsity in ordinal scores and warn if detected.
+
+    Ordinal models (ordered logistic, Dirichlet-Multinomial) can produce biased
+    estimates and miscalibrated credible intervals when score categories are
+    sparse or empty. This function detects such conditions and logs a warning
+    suggesting possible remediation (score aggregation or scale adjustment).
+
+    Args:
+        scores: Array of ordinal scores (0 to ordinal_max_score)
+        ordinal_max_score: Maximum possible score
+        grouping_name: Name of grouping (for warning message)
+        min_observations: Minimum number of observations before checking
+            (avoids false alarms on early/incomplete data)
+    """
+    logger = logging.getLogger('optstop.ordinal_utils')
+
+    # Skip if already warned for this grouping
+    if grouping_name in _warned_sparsity_groupings:
+        return
+
+    # Skip if too few observations to assess sparsity reliably
+    valid_scores = scores[~np.isnan(scores)]
+    if len(valid_scores) < min_observations:
+        return
+
+    # Compute category counts
+    scores_int = np.clip(np.round(valid_scores).astype(int), 0, ordinal_max_score)
+    counts = np.bincount(scores_int, minlength=ordinal_max_score + 1)
+    n_categories = ordinal_max_score + 1
+    n_total = len(valid_scores)
+
+    # Check for empty categories
+    empty_categories = int(np.sum(counts == 0))
+
+    # Check for sparse categories (<5% of observations)
+    sparse_threshold = 0.05 * n_total
+    sparse_categories = int(np.sum(counts < sparse_threshold))
+
+    # Warn when sparsity is substantial: multiple empty categories, or more than
+    # half of all categories are sparse. A single empty tail category on a wide
+    # scale (e.g., score 10 on a 0-10 rubric) is not unusual and does not trigger.
+    if empty_categories >= 2 or sparse_categories > n_categories / 2:
+        _warned_sparsity_groupings.add(grouping_name)
+
+        if empty_categories >= 2:
+            detail = f"{empty_categories} of {n_categories} categories have zero observations"
+            if sparse_categories > empty_categories:
+                detail += f", {sparse_categories} total have <5% of observations"
+        else:
+            detail = f"{sparse_categories} of {n_categories} categories have <5% of observations"
+
+        logger.warning(
+            f"Ordinal inference for grouping '{grouping_name}': category sparsity detected - "
+            f"{detail}. "
+            f"Ordinal models may produce biased estimates under these conditions. "
+            f"Consider whether scores can be aggregated (score_agg='mean') to route "
+            f"through the continuous pathway, or whether ordinal_max_score should be reduced."
+        )
+
+
 def validate_ordinal_scores(
     scores: np.ndarray,
     ordinal_max_score: int,
@@ -277,10 +348,6 @@ def validate_ordinal_scores(
             f"These will be rounded to nearest integer for categorical inference."
         )
 
-    # logger.debug(
-    #     f"Validated ordinal scores for '{grouping_name}': "
-    #     f"range=[{min_score}, {max_score}], n={len(valid_scores)}"
-    # )
 
 
 def determine_score_type(
