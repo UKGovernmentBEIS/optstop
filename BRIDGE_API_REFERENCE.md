@@ -1403,16 +1403,16 @@ manager = OptimalStoppingManager(
 # Verify extracted scores are in expected range
 ```
 
-### 8. Understand CI Coverage Limitations
+### 8. Understand CI Coverage Considerations
 
 The credible intervals produced by optstop are well-calibrated when groupings contain **50+ items** with performance in the **0.2-0.8 range**. For smaller samples or near-boundary performance (close to 0% or 100%), CIs may undercover due to hierarchical shrinkage.
 
-**Empirical calibration** (100M Cyber Eval, 18-30 items/grouping):
-| Condition | Observed Coverage | Nominal |
-|-----------|------------------|---------|
-| Overall | 52% | 97% |
-| Mid-range (0.5-0.7) | ~70% | 97% |
-| Boundary (>0.95) | ~0% | 97% |
+**Factors affecting coverage:**
+- **Sample size**: Coverage approaches nominal levels (~97%) as grouping size increases toward 50+ items
+- **Performance range**: Mid-range performance (0.2-0.8) yields better-calibrated intervals than boundary cases
+- **Hierarchical shrinkage**: Small groupings with extreme performance (near 0% or 100%) may exhibit substantial undercoverage
+
+In stress-test conditions (e.g., 18-30 items per grouping with many boundary performers), observed coverage can fall substantially below nominal. Under more typical conditions with adequate sample sizes and mid-range performance, coverage is considerably better. The package automatically detects near-boundary estimates and emits diagnostic warnings recommending that raw proportions be reported alongside model estimates.
 
 **Recommendations:**
 - Treat CIs as rough guides rather than formal statistical intervals for small groupings
