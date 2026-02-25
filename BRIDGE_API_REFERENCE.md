@@ -307,6 +307,7 @@ manager = OptimalStoppingManager(
     gpu_ids: Optional[list[int]] = None,
     entropy_threshold: float = 0.7,
     prior_mu: float = 0.0,
+    prior_sigma: Optional[float] = None,
     manager_name: str = "optstop",
     shadow_mode: bool = False,
     score_choice: Optional[str] = None,
@@ -632,7 +633,26 @@ Centre of the group-level Normal prior on the logit scale. This parameter affect
 - Leave at default (0.0) for most evaluations - this is an uninformative prior that lets data drive inference
 - If you have recent results for the same model on the same benchmark (e.g., from a previous evaluation run), setting `prior_mu` to the logit of that known performance improves the accuracy of early point estimates and credible interval placement. For example, a model previously measured at ~75% accuracy corresponds to `prior_mu=1.1` (`scipy.special.logit(0.75)`). Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. The prior width (sigma=1.5 for binary/continuous, 2.0 for ordinal) is broad enough that a mis-specified prior is overridden by data within approximately 15-20 items
 
-**Technical note:** The prior is `mu_group ~ Normal(prior_mu, sigma)` where sigma=1.5 for binary/continuous pathways and sigma=2.0 for ordinal. The sigma values are not user-configurable.
+**Technical note:** The prior is `mu_group ~ Normal(prior_mu, sigma)` where sigma is determined by `prior_sigma`. If `prior_sigma` is None (default), pathway-specific defaults apply: 1.5 for binary/continuous, 2.0 for ordinal. If `prior_sigma` is explicitly set, that value applies to all pathways.
+
+---
+
+#### `prior_sigma: Optional[float] = None`
+Scale (standard deviation) of the group-level Normal prior on the logit scale. Controls the prior's informativeness.
+
+**Interpretation:**
+- `prior_sigma=None` (default) → Uses pathway-specific defaults: 1.5 for binary/continuous, 2.0 for ordinal
+- `prior_sigma=1.0` → More informative, provides stronger regularization toward `prior_mu` (all pathways)
+- `prior_sigma=1.5` → Weakly informative for binary/continuous (matches default)
+- `prior_sigma=2.0` → More diffuse, matches ordinal default
+
+**When to adjust:**
+- Most users should not need to change this. The pathway-specific defaults provide appropriate regularization while allowing data to dominate after 15-20 items.
+- Set explicitly if you want the same sigma across all pathways.
+- Smaller values (e.g., 1.0) may be useful when you have strong prior knowledge and want faster convergence.
+- Larger values (e.g., 2.0) may be useful when you expect high variability across items within a grouping.
+
+**Note:** When None, binary/continuous use 1.5 and ordinal uses 2.0. When explicitly set, the value applies to all pathways including ordinal.
 
 **Model choice rationale (binary pathway):** The logit-normal hierarchical model was chosen over a Beta-Binomial alternative after controlled simulation comparison. Under a Beta-Binomial data generating process with κ=10 (inherently favouring that model), the two approaches are statistically indistinguishable in bias, coverage, and stopping behaviour across the mid-range (0.1-0.9). At exact boundaries (0.0 or 1.0), the Beta-Binomial has ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models exhibit reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations when sparse binary data cannot distinguish true homogeneity from sampling coincidence. Because the stopping algorithm triggers when CI width falls below `delta_cap`, the Beta-Binomial's narrower intervals cause earlier stopping on less data in precisely the regime where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC divergences at boundaries, indicating worse posterior geometry. The logit-normal's wider boundary intervals therefore function as implicit conservatism - the appropriate default for evaluation contexts where premature termination is costlier than collecting additional data.
 
@@ -1382,6 +1402,24 @@ manager = OptimalStoppingManager(
 # Check logs for warnings about missing keys or unexpected dict values
 # Verify extracted scores are in expected range
 ```
+
+### 8. Understand CI Coverage Limitations
+
+The credible intervals produced by optstop are well-calibrated when groupings contain **50+ items** with performance in the **0.2-0.8 range**. For smaller samples or near-boundary performance (close to 0% or 100%), CIs may undercover due to hierarchical shrinkage.
+
+**Empirical calibration** (100M Cyber Eval, 18-30 items/grouping):
+| Condition | Observed Coverage | Nominal |
+|-----------|------------------|---------|
+| Overall | 52% | 97% |
+| Mid-range (0.5-0.7) | ~70% | 97% |
+| Boundary (>0.95) | ~0% | 97% |
+
+**Recommendations:**
+- Treat CIs as rough guides rather than formal statistical intervals for small groupings
+- Report raw proportions alongside model estimates for transparency
+- For formal inference with small samples, consider collecting more data
+
+This limitation affects all optstop inference modes equally, as it is structural to hierarchical Bayesian models.
 
 ---
 

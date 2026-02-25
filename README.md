@@ -223,8 +223,9 @@ for log in logs:
 | `score_agg` | None | Aggregate scores: 'mean', 'median', 'mode', 'max' |
 | `random_seed` | None | Random seed for reproducibility (auto-generates if not specified) |
 | `prior_mu` | 0.0 | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
+| `prior_sigma` | None | Scale of group-level Normal prior. If None, uses pathway-specific defaults (binary/continuous: 1.5, ordinal: 2.0) |
 
-**Using informed priors:** If you have recent results for the same model on the same benchmark, setting `prior_mu` to the logit of that known performance (e.g., `scipy.special.logit(0.75)` ≈ 1.1 for 75% accuracy) improves the accuracy of early point estimates and credible interval placement. Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. The prior width (sigma=1.5 for binary/continuous, 2.0 for ordinal) ensures that a mis-specified prior is overridden by data within approximately 15-20 items.
+**Using informed priors:** If you have recent results for the same model on the same benchmark, setting `prior_mu` to the logit of that known performance (e.g., `scipy.special.logit(0.75)` ≈ 1.1 for 75% accuracy) improves the accuracy of early point estimates and credible interval placement. Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. When `prior_sigma` is not specified (None), pathway-specific defaults apply: 1.5 for binary/continuous, 2.0 for ordinal. If you explicitly set `prior_sigma`, that value applies to all pathways. The default values ensure that a mis-specified prior is overridden by data within approximately 15-20 items.
 
 **Note on `ordinal_inference` defaults:**
 - **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` — prioritizes safety in automated evaluation contexts where stopping decisions have real cost implications.
@@ -546,7 +547,7 @@ Integer-valued scores (Likert scales, rubric scores, quality ratings) can be rou
 The package logs a warning when category sparsity is detected under ordinal inference.
 
 **Binary Model Details:**
-The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, 1.5)` on the logit scale). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.
+The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, sigma)` on the logit scale, where sigma defaults to 1.5 when `prior_sigma` is None). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.
 
 **Continuous Bounded Model Details:**
 The continuous bounded pathway uses a hierarchical Beta model with the following structure:
@@ -810,7 +811,10 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `entropy_threshold`      | 0.7       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
 | `entropy_stabilization_threshold` | 0.002 | All     | Relative change threshold for ordinal entropy stabilisation (Pathway 2)  |
 | `prior_mu`               | 0.0       | All          | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
+| `prior_sigma`            | None      | All          | Scale of group-level Normal prior. None→pathway defaults (binary/cont: 1.5, ordinal: 2.0)|
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
+| `shuffle_items`          | False     | Post-hoc     | Randomize item order within each grouping before processing (recommended to avoid selection bias from sorted input) |
+| `shuffle_seed`           | None      | Post-hoc     | Random seed for reproducible shuffling (only used with `shuffle_items=True`) |
 
 ### Example: Setting Parameters
 
@@ -1315,6 +1319,12 @@ See the CLI help (`optstop-convergence --help`) for all options.
 - **Group labels:** If you want human-readable group labels in your output, include a `grouping` column (e.g., system/model name) in addition to your grouping columns.
 - **Parallelization:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
 
+### Input Ordering and Selection Bias (Post-hoc)
+- **Items are processed in dataframe order.** If your input data is sorted (e.g., alphabetically by sample ID), early stopping may select a biased subsample if early-alphabet items happen to have systematically different scores than late-alphabet items.
+- **Use `shuffle_items=True`** to randomize item order within each grouping before processing. This is recommended for unbiased post-hoc analysis.
+- **Use `shuffle_seed`** with `shuffle_items=True` for reproducible shuffling.
+- **The package warns automatically** if sorted input is detected and `shuffle_items=False`, but using explicit shuffling is recommended.
+
 ### Recommended Parameter Settings
 - **draws & tune:** 1000 (default) is sufficient for standard analysis. Increase `tune` up to 2000 if you see many divergences, poor adaptation messages, or R-hat far from 1.0. Increase `draws` up to 4000 if HDIs lack sufficient precision. Values below 1000 (e.g., 50) are only for debugging.
 - **chains & cores:** Default values of `chains=4` and `cores=4` are suitable for most analyses. Increase `chains` for more robust MCMC sampling and `cores` for faster parallel sampling (up to your system's CPU core count).
@@ -1355,6 +1365,25 @@ The current defaults are optimised for **safety** - strict stopping criteria and
 - **To stop more aggressively**, relax decision criteria: widen `delta_item` and `delta_cap` (CI width thresholds for samples and groupings respectively), increase `CI_delta` (stabilisation slope threshold, where higher values allow earlier stopping), and lower `cred_level` towards 0.9.
 - **If you see many divergences, poor adaptation messages, or R-hat far from 1.0**, increase `tune` (up to 2000).
 - **If HDIs lack sufficient precision**, increase `draws` (up to 4000).
+
+### Credible Interval Coverage Limitations
+
+The credible intervals produced by optstop are well-calibrated when groupings contain **50+ items** with performance in the **0.2-0.8 range**. For smaller samples or near-boundary performance (close to 0% or 100%), CIs may undercover due to hierarchical shrinkage - a known property of Bayesian hierarchical models.
+
+**Empirical calibration** (100M Cyber Eval, 18-30 items/grouping):
+| Condition | Observed Coverage | Nominal |
+|-----------|------------------|---------|
+| Overall | 52% | 97% |
+| Mid-range (0.5-0.7) | ~70% | 97% |
+| Boundary (>0.95) | ~0% | 97% |
+
+**Recommendations for small samples or boundary performance:**
+1. **Treat CIs as rough guides** rather than formal statistical intervals
+2. **Report raw proportions** alongside model estimates for transparency
+3. **Run multiple shuffled orderings** (use `shuffle_items=True` with different seeds) to assess estimate stability
+4. **For formal inference**, consider collecting more data or using methods designed for small samples
+
+This limitation affects both live and post-hoc modes equally, as it is structural to hierarchical Bayesian models rather than a bug in the implementation.
 
 ## License
 MIT
@@ -1421,6 +1450,9 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
+- **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
+- **--shuffle_items**: Randomize item order within each grouping before processing. Recommended to avoid selection bias from sorted input.
+- **--shuffle_seed**: Random seed for reproducible shuffling (only used with --shuffle_items)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 
 ### 2. Live Optimal Stopping
@@ -1456,6 +1488,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
+- **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - Prints which sample IDs (with grouping prefix) and/or groupings can be stopped.
 
@@ -1495,6 +1528,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
+- **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
@@ -1511,6 +1545,7 @@ optstop-convergence --help
 - **Progress bar is shown by default.** Use `--no_progress` to disable it for silent or script-based runs.
 - **Always check your input CSV for required columns:** Make sure the columns you specify for grouping, sample ID, and epoch exist in your data.
 - **Set a random seed** (`--random_seed`) for reproducible pruned DataFrames.
+- **Consider using `--shuffle_items` for post-hoc analysis** to avoid selection bias from sorted input. If your input data is sorted (e.g., alphabetically by sample ID), early stopping may select a biased subsample if early-alphabet items happen to have systematically different scores. The package will warn you if sorted input is detected, but using `--shuffle_items` (optionally with `--shuffle_seed` for reproducibility) is recommended for unbiased results.
 - **Use recommended parameter values** for real analyses (see Best Practices above).
 - **Check the log file** for detailed stopping decisions, errors, and parameter validation.
 - **For large datasets, run on a machine with sufficient CPU and memory.**

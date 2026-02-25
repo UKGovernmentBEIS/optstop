@@ -127,6 +127,7 @@ class OptimalStoppingManager(EarlyStopping):
         gpu_ids: Optional[list[int]] = None,
         entropy_threshold: float = 0.7,
         prior_mu: float = 0.0,
+        prior_sigma: Optional[float] = None,
         manager_name: str = "optstop",
         shadow_mode: bool = False,
         score_choice: Optional[str] = None,
@@ -173,6 +174,11 @@ class OptimalStoppingManager(EarlyStopping):
                 corresponds to 50% on the probability scale (assumption-free default).
                 Positive values bias toward higher performance, negative toward lower.
                 Useful for users with domain-specific performance expectations.
+            prior_sigma: Scale (standard deviation) of the Normal prior on mu_group.
+                If None (default), uses pathway-specific defaults: 1.5 for binary/continuous,
+                2.0 for ordinal. If explicitly set, applies to all pathways.
+                Controls how diffuse the prior is on the logit scale. Smaller values
+                provide stronger regularization toward prior_mu.
             manager_name: Name identifier for this manager
             shadow_mode: If True, schedule_sample() always returns None (run all trials).
                 Inference still runs and stopping decisions are recorded. complete_task()
@@ -218,6 +224,7 @@ class OptimalStoppingManager(EarlyStopping):
         self.manager_name = manager_name
         self.entropy_threshold = entropy_threshold
         self.prior_mu = prior_mu
+        self.prior_sigma = prior_sigma
         self.shadow_mode = shadow_mode
         self.score_choice = score_choice
         self.score_value_key = score_value_key
@@ -472,6 +479,8 @@ class OptimalStoppingManager(EarlyStopping):
             value = self.optstop_params.get(key, default)
             print(f"  • {label}: {value}")
         print(f"  • Prior mu (group-level): {self.prior_mu}")
+        prior_sigma_display = self.prior_sigma if self.prior_sigma is not None else "pathway-specific (binary/cont: 1.5, ordinal: 2.0)"
+        print(f"  • Prior sigma (group-level): {prior_sigma_display}")
 
         # Inference Control
         print("\n  Inference Control:")
@@ -1303,6 +1312,7 @@ class OptimalStoppingManager(EarlyStopping):
                 ordinal_model_type=self.ordinal_model_type,
                 entropy_threshold=self.entropy_threshold,
                 prior_mu=self.prior_mu,
+                prior_sigma=self.prior_sigma,
                 sampling_kwargs=sampling_kwargs,
                 model_caches=model_caches,  # OPTIMIZATION #2: Persist all PyMC models
                 item_entropy_histories=item_entropy_histories  # Issue #6 fix: Persist for Pathway 2
