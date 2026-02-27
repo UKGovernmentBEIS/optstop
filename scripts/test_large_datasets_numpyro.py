@@ -11,7 +11,7 @@ v0.2.2 UPDATES:
 
 v0.2.1 UPDATES:
 - Added random_seed for reproducible MCMC sampling (seed=42)
-- Added entropy_stabilization_threshold=0.001 for stricter ordinal hybrid stopping
+- Added entropy_convergence_threshold=0.05 for stricter ordinal hybrid stopping
 
 EXPECTED PERFORMANCE (all PyMC default on CPU):
 - Dataset 1 (binary): ~6-8 min
@@ -460,7 +460,7 @@ async def main():
     print("  • GPU path still uses numpyro for acceleration when available")
     print("\nv0.2.1 PARAMETERS (still active):")
     print("  • random_seed=42 for reproducible MCMC sampling")
-    print("  • entropy_stabilization_threshold=0.001 (stricter than default 0.002)")
+    print("  • entropy_convergence_threshold=0.05 (stricter than default 0.10)")
     print("\nSAMPLER SELECTION:")
     print("  • Dataset 1 → Binary discrete inference (PyMC default)")
     print("  • Dataset 2 → Ordinal discrete inference (PyMC default)")
@@ -480,7 +480,7 @@ async def main():
     # FIX Issue #4: MCMC 6000→500 (4x speedup from Section 1.1.2 findings)
 
     # Optstop inference parameters (nested dict)
-    # v0.2.1: Added random_seed for reproducibility and entropy_stabilization_threshold
+    # v0.2.1: Added random_seed for reproducibility; entropy_convergence_threshold for P2 tuning
     optstop_params = {
         'delta_item': 0.15,
         'delta_cap': 0.10,
@@ -488,9 +488,9 @@ async def main():
         'conservatism': 10,  # Default conservatism
         'draws': 500,  # Optimized (Section 1.1.2: 4x speedup)
         'tune': 500,
-        # NEW v0.2.1: Stricter entropy stabilization threshold for ordinal hybrid
-        # Default is 0.002 (0.2%), using 0.001 (0.1%) for more conservative stopping
-        'entropy_stabilization_threshold': 0.001,
+        # Stricter entropy convergence threshold for ordinal hybrid Pathway 2
+        # Default is 0.10 (absolute entropy CI width on [0,1] scale), using 0.05 for more conservative stopping
+        'entropy_convergence_threshold': 0.05,
     }
 
     # NEW v0.2.1: Random seed for reproducibility
@@ -595,7 +595,7 @@ async def main():
     print(f"  Efficiency: {100*(results2['execution']['total_planned']-results2['execution']['trial_count'])/results2['execution']['total_planned']:.1f}%")
     print(f"  Group-level stopping: {'✓ Used' if results2['group_level_stopping']['used_group_level_stopping'] else 'Not used'}")
     print(f"  Runtime: {results2['execution']['run_time_min']:.2f} min ({results2['execution']['run_time_sec']/3600:.2f} hours)")
-    print(f"  Entropy threshold: {results2['configuration']['optstop_params'].get('entropy_stabilization_threshold', 'N/A')}")
+    print(f"  Entropy threshold: {results2['configuration']['optstop_params'].get('entropy_convergence_threshold', 'N/A')}")
     print(f"  Random seed: {results2['configuration'].get('random_seed', 'N/A')}")
 
     print(f"\nDataset 3 (Continuous Bounded - PyMC default):")
@@ -610,7 +610,7 @@ async def main():
     print(f"\n📁 All diagnostics saved to: {output_dir}")
     print("\nv0.2.2 Verification:")
     print("  1. random_seed should be logged and included in diagnostics")
-    print("  2. entropy_stabilization_threshold=0.001 for stricter ordinal stopping")
+    print("  2. entropy_convergence_threshold=0.05 for stricter ordinal stopping")
     print("  3. ALL score types use PyMC default on CPU (binary, ordinal, continuous)")
 
 

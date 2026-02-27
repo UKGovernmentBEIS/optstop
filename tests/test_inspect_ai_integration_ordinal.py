@@ -340,7 +340,7 @@ async def run_ordinal_inference_test(
         'conservatism': 2.0,      # Conservatism factor for low performance
         'low_performance_threshold': 0.2,
         'CI_delta': 0.0005,       # Slope threshold for grouping-level stopping
-        'entropy_threshold': 0.002,  # Entropy stabilization threshold (0.2% relative change)
+        'entropy_convergence_threshold': 0.10,  # Absolute entropy CI width threshold on [0,1] scale
         'tune': 500,              # MCMC tuning
         'draws': 500,             # MCMC samples
         'chains': 2,

@@ -125,7 +125,7 @@ class OptimalStoppingManager(EarlyStopping):
         ordinal_inference: str = 'hybrid',
         ordinal_model_type: str = 'ordered_logistic',
         gpu_ids: Optional[list[int]] = None,
-        entropy_threshold: float = 0.7,
+        entropy_threshold: float = 0.8,
         prior_mu: float = 0.0,
         prior_sigma: Optional[float] = None,
         manager_name: str = "optstop",
@@ -169,7 +169,7 @@ class OptimalStoppingManager(EarlyStopping):
             entropy_threshold: Proportion of max entropy for false peak detection in
                 ordinal hybrid mode (0 to 1). Scaled internally by log2(num_categories).
                 Lower values require more peaked distributions; higher values are more
-                permissive. Default: 0.7.
+                permissive. Default: 0.8.
             prior_mu: Centre of the Normal prior on mu_group (logit scale). Default 0.0
                 corresponds to 50% on the probability scale (assumption-free default).
                 Positive values bias toward higher performance, negative toward lower.
@@ -356,10 +356,34 @@ class OptimalStoppingManager(EarlyStopping):
         if rep_batch_size is not None and rep_batch_size <= 0:
             raise ValueError(f"rep_batch_size must be > 0, got {rep_batch_size}")
 
-        # Entropy stabilization threshold for ordinal hybrid stopping
-        entropy_stab = self.optstop_params.get('entropy_stabilization_threshold')  # default: 0.002
-        if entropy_stab is not None and entropy_stab <= 0:
-            raise ValueError(f"entropy_stabilization_threshold must be > 0, got {entropy_stab}")
+        # Entropy convergence threshold for ordinal hybrid stopping (Pathway 2)
+        # Accepts both new name and deprecated old name for backward compatibility
+        entropy_conv = self.optstop_params.get('entropy_convergence_threshold')
+        entropy_stab_deprecated = self.optstop_params.get('entropy_stabilization_threshold')
+        if entropy_conv is not None and entropy_stab_deprecated is not None:
+            logger.warning(
+                "Both entropy_convergence_threshold and entropy_stabilization_threshold provided; "
+                "using entropy_convergence_threshold. Remove entropy_stabilization_threshold from your config."
+            )
+            del self.optstop_params['entropy_stabilization_threshold']
+        elif entropy_conv is None and entropy_stab_deprecated is not None:
+            logger.warning(
+                "entropy_stabilization_threshold is deprecated; use entropy_convergence_threshold instead. "
+                "Note: the mechanism has changed from relative-change (default 0.002) to absolute entropy "
+                "CI width on [0,1] scale (default 0.10)."
+            )
+            if entropy_stab_deprecated < 0.01:
+                logger.warning(
+                    f"Your value {entropy_stab_deprecated} appears to be on the old relative-change scale. "
+                    f"The new default is 0.10 (absolute entropy CI width on [0,1] scale). "
+                    f"Consider removing this parameter to use the new default."
+                )
+            entropy_conv = entropy_stab_deprecated
+            del self.optstop_params['entropy_stabilization_threshold']
+        if entropy_conv is not None and entropy_conv <= 0:
+            raise ValueError(f"entropy_convergence_threshold must be > 0, got {entropy_conv}")
+        if entropy_conv is not None:
+            self.optstop_params['entropy_convergence_threshold'] = entropy_conv
 
         # PyMC sampling parameters (passed to sampling_kwargs)
         tune = self.optstop_params.get('tune')  # default: auto-configured by gpu_utils
@@ -468,7 +492,7 @@ class OptimalStoppingManager(EarlyStopping):
             'CI_delta': ('CI stabilization slope threshold', 0.00001),
             'stab_window': ('Stabilization window', 15),
             'rep_batch_size': ('Repetition batch size', 1),
-            'entropy_stabilization_threshold': ('Entropy stabilization threshold', 0.002),
+            'entropy_convergence_threshold': ('Entropy convergence threshold (P2)', 0.10),
             'draws': ('MCMC draws', 1000),
             'tune': ('MCMC tune steps', 1000),
             'chains': ('MCMC chains', 4),
@@ -1507,8 +1531,7 @@ class OptimalStoppingManager(EarlyStopping):
                 'final_entropy': history.get('final_entropy'),
                 'final_entropy_threshold': history.get('final_entropy_threshold'),
                 'final_entropy_ci_width': history.get('final_entropy_ci_width'),
-                'final_relative_change': history.get('final_relative_change'),
-                'final_stabilization_threshold': history.get('final_stabilization_threshold'),
+                'final_convergence_threshold': history.get('final_convergence_threshold'),
                 'ordinal_pathway': history.get('ordinal_pathway'),
             })
 
@@ -1615,14 +1638,19 @@ class OptimalStoppingManager(EarlyStopping):
                     'interpretation': 'Distribution is peaked (most responses in same category) with high certainty',
                     'metrics': 'modal_width < threshold AND entropy < entropy_threshold'
                 },
-                'entropy_stabilized': {
-                    'description': 'Distribution entropy converged, indicating stable ordinal estimates',
-                    'interpretation': 'Additional data provides diminishing returns (entropy not changing)',
-                    'metrics': 'relative_change < stabilization_threshold (default 0.002 = 0.2%)'
+                'entropy_converged': {
+                    'description': 'Entropy CI width narrow enough for precise distribution estimate',
+                    'interpretation': 'Entropy known to within ±5% of max (width < 0.10 on [0,1] scale)',
+                    'metrics': 'entropy_width_scaled < entropy_convergence_threshold (default 0.10)'
+                },
+                'entropy_converged_hierarchical': {
+                    'description': 'Hierarchical entropy CI width narrow enough for precise distribution estimate',
+                    'interpretation': 'Entropy known to within ±5% of max (width < 0.10 on [0,1] scale)',
+                    'metrics': 'entropy_width < entropy_convergence_threshold (default 0.10)'
                 },
                 'continue_insufficient_history': {
-                    'description': 'Need more epochs to assess stabilization',
-                    'interpretation': 'Collecting more data to establish convergence pattern',
+                    'description': 'Need more entropy checks before Pathway 2 can fire',
+                    'interpretation': 'Collecting more data for reliable entropy CI estimates',
                     'metrics': 'epochs_tracked < min_epochs_for_stabilization (default 3)'
                 }
             }

@@ -216,7 +216,7 @@ for log in logs:
 | `ordinal_inference` | See note | Ordinal inference mode: 'modal', 'entropy', 'hybrid' |
 | `ordinal_model_type` | 'ordered_logistic' | Hierarchical model: 'ordered_logistic' or 'dirichlet' |
 | `gpu_ids` | None | List of GPU IDs to use (e.g., [0, 1]) |
-| `entropy_threshold` | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
+| `entropy_threshold` | 0.8 | Proportion of max entropy for false peak detection in hybrid mode |
 | `shadow_mode` | False | If True, run all trials but track stopping decisions |
 | `score_choice` | None | Select scorer by name from the outer scores dict |
 | `score_value_key` | None | Extract a field from dict-valued `Score.value` (inner dict key) |
@@ -236,7 +236,7 @@ Both modes are valid; choose based on your use case. Use `'hybrid'` when accurac
 **Additional `optstop_params` options:**
 | Key | Default | Description |
 |-----|---------|-------------|
-| `entropy_stabilization_threshold` | 0.002 | Relative change threshold for ordinal entropy stabilization |
+| `entropy_convergence_threshold` | 0.10 | Absolute entropy CI width threshold on [0,1] scale for ordinal Pathway 2 convergence |
 
 ### Diagnostics and Efficiency Metrics
 
@@ -382,7 +382,7 @@ PyMC will use GPU acceleration via JAX/numpyro
 | `ordinal_max_score` | int | 10 | Maximum score for ordinal data (e.g., 10 for 0-10 scale) |
 | `ordinal_inference` | str | 'modal' | Inference method: `'modal'`, `'entropy'`, or `'hybrid'` (recommended) |
 | `ordinal_model_type` | str | 'ordered_logistic' | Hierarchical model type: `'ordered_logistic'` or `'dirichlet'` |
-| `entropy_threshold` | float | 0.7 | Proportion of max entropy for false peak detection in hybrid mode |
+| `entropy_threshold` | float | 0.8 | Proportion of max entropy for false peak detection in hybrid mode |
 | `continuous_tasks` | List[str] or None | None | Substrings to identify continuous bounded groupings (e.g., `['mean_score', 'avg_rating']`) |
 
 **Unusual scoring configurations?** If your evaluation involves very large rubric scales (e.g., >20 categories), peculiar response distributions (e.g., models can only produce scores of 1, 3, 8, and 10 on a 0-10 scale), or you are uncertain about how to select or balance multiple scorer priorities for applying optimal stopping, please reach out to the package owner (Toby Pilditch on AISI Slack) for guidance on configuring optstop for your use case.
@@ -416,7 +416,7 @@ PyMC will use GPU acceleration via JAX/numpyro
 
 **Hybrid Mode** (RECOMMENDED):
 - **Pathway 1**: Modal CI narrow + entropy validation (peaked data) → Fast stopping
-- **Pathway 2**: Entropy stabilization (diffuse data) → Safe stopping
+- **Pathway 2**: Entropy convergence (diffuse data) → Safe stopping
 - Prevents false peaks via `entropy_threshold`
 - Typical processing time: ~2-3 minutes per call (same as entropy, since hybrid runs both modal and entropy components)
 - Inference runs in a background thread, overlapping with LLM processing
@@ -457,7 +457,7 @@ pruned_df, summary = optimal_stopping_posthoc(
     ordinal_max_score=10,                                  # 0-10 scale
     ordinal_inference='hybrid',                            # RECOMMENDED
     ordinal_model_type='ordered_logistic',                 # Cumulative link model (default)
-    entropy_threshold=0.7                                  # False peak detection
+    entropy_threshold=0.8                                  # False peak detection
 )
 ```
 
@@ -494,7 +494,7 @@ result = optimal_stopping_live(
     ordinal_max_score=10,                  # 0-10 scale
     ordinal_inference='hybrid',            # RECOMMENDED
     ordinal_model_type='ordered_logistic', # Cumulative link model (default)
-    entropy_threshold=0.7                  # False peak detection
+    entropy_threshold=0.8                  # False peak detection
 )
 
 print(result['stop_sample_ids'])  # Item IDs that reached stopping criteria
@@ -613,7 +613,7 @@ optstop-posthoc --csv data.csv --output pruned.csv \
   --ordinal_tasks confidence,rating \
   --ordinal_max_score 10 \
   --ordinal_inference hybrid \
-  --entropy_threshold 0.7
+  --entropy_threshold 0.8
 
 # Live mode with continuous bounded scoring
 optstop-live --csv current_data.csv \
@@ -808,8 +808,8 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `ordinal_max_score`      | 10        | All          | Maximum score for ordinal data (e.g., 10 for 0-10 scale)                 |
 | `ordinal_inference`      | 'modal'   | All          | Inference method: 'modal', 'entropy', or 'hybrid'                         |
 | `ordinal_model_type`     | 'ordered_logistic' | All   | Hierarchical model: 'ordered_logistic' (default) or 'dirichlet'         |
-| `entropy_threshold`      | 0.7       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
-| `entropy_stabilization_threshold` | 0.002 | All     | Relative change threshold for ordinal entropy stabilisation (Pathway 2)  |
+| `entropy_threshold`      | 0.8       | All          | Proportion of max entropy for false peak detection in hybrid mode         |
+| `entropy_convergence_threshold` | 0.10  | All          | Absolute entropy CI width on [0,1] scale for ordinal Pathway 2 convergence |
 | `prior_mu`               | 0.0       | All          | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
 | `prior_sigma`            | None      | All          | Scale of group-level Normal prior. None→pathway defaults (binary/cont: 1.5, ordinal: 2.0)|
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
@@ -1073,7 +1073,7 @@ result = convergence_posthoc(
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
-    entropy_threshold=0.7            # False peak detection
+    entropy_threshold=0.8            # False peak detection
 )
 print(result)
 ```
@@ -1273,7 +1273,7 @@ result = convergence_posthoc(
     ordinal_tasks=['confidence'],    # Identify ordinal groupings
     ordinal_max_score=10,            # 0-10 scale
     ordinal_inference='hybrid',      # RECOMMENDED (fastest with optimizations)
-    entropy_threshold=0.7            # False peak detection
+    entropy_threshold=0.8            # False peak detection
 )
 print(result)
 ```
@@ -1448,7 +1448,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.8)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--shuffle_items**: Randomize item order within each grouping before processing. Recommended to avoid selection bias from sorted input.
@@ -1486,7 +1486,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.8)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
@@ -1526,7 +1526,7 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
 - **--ordinal_model_type**: Hierarchical model type: ordered_logistic or dirichlet (default: ordered_logistic)
-- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.7)
+- **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.8)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")

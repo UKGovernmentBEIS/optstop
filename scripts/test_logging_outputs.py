@@ -412,7 +412,7 @@ async def main():
         'conservatism': 10,
         'draws': 500,
         'tune': 500,
-        'entropy_stabilization_threshold': 0.001,
+        'entropy_convergence_threshold': 0.05,  # Stricter than default 0.10 (absolute entropy CI width on [0,1] scale)
     }
 
     base_config = {

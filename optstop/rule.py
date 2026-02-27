@@ -1379,8 +1379,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             ordinal_max_score = params.get('ordinal_max_score', 10)
             ordinal_inference = params.get('ordinal_inference', 'modal')
             ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
-            entropy_threshold = params.get('entropy_threshold', 0.7)
-            entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
+            entropy_threshold = params.get('entropy_threshold', 0.8)
+            entropy_convergence_threshold = params.get('entropy_convergence_threshold', 0.10)
             prior_mu = params.get('prior_mu', 0.0)
             prior_sigma = params.get('prior_sigma')  # None means use pathway-specific default
             grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
@@ -1695,6 +1695,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 cred_level=cred_level,
                                 entropy_history=entropy_history,
                                 entropy_threshold=entropy_threshold,
+                                entropy_convergence_threshold=entropy_convergence_threshold,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
                                 model_cache=ordinal_item_cache,
@@ -1909,10 +1910,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 cred_level=cred_level,
                                 entropy_history=group_entropy_history,
                                 entropy_threshold=entropy_threshold,
+                                entropy_convergence_threshold=entropy_convergence_threshold,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
                                 current_perf=current_perf_normalized,
-                                stabilization_threshold=entropy_stabilization_threshold,
                                 model_cache=group_ordinal_model_cache,
                                 sampling_kwargs=sampling_kwargs
                             )
@@ -2180,7 +2181,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
-        entropy_threshold = params.get('entropy_threshold', 0.7)
+        entropy_threshold = params.get('entropy_threshold', 0.8)
+        entropy_convergence_threshold = params.get('entropy_convergence_threshold', 0.10)
         prior_mu = params.get('prior_mu', 0.0)
         prior_sigma = params.get('prior_sigma')  # None means use pathway-specific default
 
@@ -2528,6 +2530,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             cred_level=cred_level,
                             entropy_history=entropy_history,
                             entropy_threshold=entropy_threshold,
+                            entropy_convergence_threshold=entropy_convergence_threshold,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
                             model_cache=ordinal_item_cache,
@@ -2764,6 +2767,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             cred_level=cred_level,
                             entropy_history=group_entropy_history,
                             entropy_threshold=entropy_threshold,
+                            entropy_convergence_threshold=entropy_convergence_threshold,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
                             model_cache=ordinal_item_cache,
@@ -2815,7 +2819,7 @@ def optimal_stopping_posthoc(
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
     continuous_tasks: Optional[List[str]] = None,
-    entropy_threshold: float = 0.7,
+    entropy_threshold: float = 0.8,
     prior_mu: float = 0.0,
     prior_sigma: Optional[float] = None,
     shuffle_items: bool = False,
@@ -2857,7 +2861,7 @@ def optimal_stopping_posthoc(
           * Example: ['mean_score', 'aggregated'] → groupings containing these strings use continuous inference
           * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
           * Priority: continuous_tasks > ordinal_tasks > binary (default)
-      - entropy_threshold: Proportion of maximum entropy for false peak detection (default: 0.7)
+      - entropy_threshold: Proportion of maximum entropy for false peak detection (default: 0.8)
           * Scaled internally by log2(num_categories) to produce a threshold in bits
           * Lower values → more aggressive stopping (requires more concentrated distribution)
           * Higher values → more permissive stopping
@@ -3198,7 +3202,7 @@ def optimal_stopping_live_single(
     ordinal_max_score: int = 10,
     ordinal_inference: str = 'modal',
     ordinal_model_type: str = 'ordered_logistic',
-    entropy_threshold: float = 0.7,
+    entropy_threshold: float = 0.8,
     prior_mu: float = 0.0,
     prior_sigma: Optional[float] = None,
     sampling_kwargs: Optional[Dict[str, Any]] = None,
@@ -3238,7 +3242,7 @@ def optimal_stopping_live_single(
             - 'ordered_logistic': Cumulative link model with identified cutpoints (recommended)
             - 'dirichlet': Dirichlet-Multinomial (treats categories as exchangeable)
             Falls back to 'dirichlet' if ordered_logistic sampling fails.
-        entropy_threshold: Proportion of max entropy for hybrid mode false peak detection (default: 0.7)
+        entropy_threshold: Proportion of max entropy for hybrid mode false peak detection (default: 0.8)
         prior_mu: Centre of the Normal prior on mu_group (logit scale for binary/continuous,
             latent scale for ordinal). Default 0.0 corresponds to 50% on the probability scale.
             Users with domain-specific performance expectations can adjust this:
@@ -3316,9 +3320,9 @@ def optimal_stopping_live_single(
     low_perf_threshold = params.get('low_performance_threshold', 0.001)
     rep_batch_size = params.get('rep_batch_size', 1)
     stab_window = params.get('stab_window', 15)
-    # Entropy stabilization threshold for ordinal hybrid stopping
-    # Default 0.002 = 0.2% relative change threshold
-    entropy_stabilization_threshold = params.get('entropy_stabilization_threshold', 0.002)
+    # Entropy convergence threshold for ordinal hybrid stopping (Pathway 2)
+    # Default 0.10 = entropy CI width on [0,1] scale (±5% precision)
+    entropy_convergence_threshold = params.get('entropy_convergence_threshold', 0.10)
 
     # Determine score type for this grouping
     is_aggregated = params.get('is_aggregated', False)
@@ -3830,9 +3834,9 @@ def optimal_stopping_live_single(
                     cred_level=cred_level,
                     entropy_history=entropy_history,
                     entropy_threshold=entropy_threshold,
+                    entropy_convergence_threshold=entropy_convergence_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
-                    stabilization_threshold=entropy_stabilization_threshold,
                     model_cache=ordinal_item_cache,
                     compute_kwargs=sampling_kwargs
                 )
@@ -4208,10 +4212,10 @@ def optimal_stopping_live_single(
                     cred_level=cred_level,
                     entropy_history=group_entropy_history,
                     entropy_threshold=entropy_threshold,
+                    entropy_convergence_threshold=entropy_convergence_threshold,
                     conservatism=current_conservatism,
                     low_perf_threshold=low_perf_threshold,
                     current_perf=current_perf_normalized,
-                    stabilization_threshold=entropy_stabilization_threshold,
                     model_cache=ordinal_group_cache,
                     sampling_kwargs=sampling_kwargs
                 )
@@ -4243,10 +4247,8 @@ def optimal_stopping_live_single(
                         stabilization_history['final_entropy_threshold'] = float(diagnostics_group['entropy_threshold'])
                     if 'entropy_width' in diagnostics_group:
                         stabilization_history['final_entropy_ci_width'] = float(diagnostics_group['entropy_width'])
-                    if 'relative_change' in diagnostics_group:
-                        stabilization_history['final_relative_change'] = float(diagnostics_group['relative_change'])
-                    if 'stabilization_threshold' in diagnostics_group:
-                        stabilization_history['final_stabilization_threshold'] = float(diagnostics_group['stabilization_threshold'])
+                    if 'convergence_threshold' in diagnostics_group:
+                        stabilization_history['final_convergence_threshold'] = float(diagnostics_group['convergence_threshold'])
 
                 if should_stop_group:
                     stop_this_grouping.append(grouping_name)
@@ -4484,7 +4486,7 @@ def optimal_stopping_live_single(
     }
 
 
-def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, prior_mu: float = 0.0, prior_sigma: Optional[float] = None, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
+def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.8, prior_mu: float = 0.0, prior_sigma: Optional[float] = None, gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None) -> Dict[str, Any]:
     """
     Run optimal stopping in live mode on current data for multiple groupings, parallelizing across groupings.
 
@@ -4516,7 +4518,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
             If None, continuous inference is not used. Example: ['mean_score', 'aggregated']
             Scores must be pre-aggregated floats in [0, ordinal_max_score] range.
             Priority: continuous_tasks > ordinal_tasks > binary (default)
-        entropy_threshold: Proportion of max entropy for false peak detection (default: 0.7).
+        entropy_threshold: Proportion of max entropy for false peak detection (default: 0.8).
             Scaled internally by log2(num_categories) to produce a threshold in bits.
             If entropy exceeds this effective threshold, a narrow modal CI is rejected as a false peak.
         prior_mu: Centre of the group-level Normal prior on the logit scale (default: 0.0 = 50% probability).

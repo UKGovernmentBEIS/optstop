@@ -252,7 +252,8 @@ def _process_grouping(args):
         ordinal_max_score = params.get('ordinal_max_score', 10)
         ordinal_inference = params.get('ordinal_inference', 'modal')
         ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
-        entropy_threshold = params.get('entropy_threshold', 0.7)
+        entropy_threshold = params.get('entropy_threshold', 0.8)
+        entropy_convergence_threshold = params.get('entropy_convergence_threshold', 0.10)
         prior_mu = params.get('prior_mu', 0.0)
         prior_sigma = params.get('prior_sigma')  # None means use pathway-specific default
 
@@ -487,6 +488,7 @@ def _process_grouping(args):
                                         cred_level=cred_level,
                                         entropy_history=entropy_history_epoch,
                                         entropy_threshold=entropy_threshold,
+                                        entropy_convergence_threshold=entropy_convergence_threshold,
                                         conservatism=current_conservatism,
                                         low_perf_threshold=low_perf_threshold,
                                         model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
@@ -687,6 +689,7 @@ def _process_grouping(args):
                                 cred_level=cred_level,
                                 entropy_history=[],  # Fresh history for group-level (must be fresh)
                                 entropy_threshold=entropy_threshold,
+                                entropy_convergence_threshold=entropy_convergence_threshold,
                                 conservatism=current_conservatism,
                                 low_perf_threshold=low_perf_threshold,
                                 model_cache=ordinal_model_cache_shared,  # OPTIMIZATION: Use shared cache
@@ -869,7 +872,7 @@ def _get_logfile_path_convergence(default='optstop_convergence.log'):
 # Removed _configure_multiprocessing_environment to prevent race conditions
 # Worker processes now handle their own environment setup via initializers
 
-def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.7, prior_mu: float = 0.0, prior_sigma: Optional[float] = None):
+def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[str], sample_id_column: str, epoch_column: str, score_column: str = "score", display_progress: bool = True, generate_diagnostics: bool = True, diagnostics_prefix: str = "convergence_eval", gpu_ids: Optional[List[int]] = None, max_workers: Optional[int] = None, ordinal_tasks: Optional[List[str]] = None, ordinal_max_score: int = 10, ordinal_inference: str = 'modal', ordinal_model_type: str = 'ordered_logistic', continuous_tasks: Optional[List[str]] = None, entropy_threshold: float = 0.8, prior_mu: float = 0.0, prior_sigma: Optional[float] = None):
     """
     Post-hoc convergence analysis, parallelized across groupings.
 
@@ -898,7 +901,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
           * If provided: Tasks whose grouping name contains any substring use Beta distribution inference
           * Scores must be pre-aggregated floats in [0, ordinal_max_score] range
           * Priority: continuous_tasks > ordinal_tasks > binary (default)
-      - entropy_threshold: Proportion of max entropy for false peak detection in hybrid mode. Default: 0.7.
+      - entropy_threshold: Proportion of max entropy for false peak detection in hybrid mode. Default: 0.8.
       - prior_mu: Centre of the group-level Normal prior on the logit scale. Default: 0.0 (50% probability).
       - prior_sigma: Scale (standard deviation) of the group-level Normal prior on the logit scale.
           If None (default), uses pathway-specific defaults: 1.5 for binary/continuous, 2.0 for ordinal.
@@ -916,7 +919,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
         ...     ordinal_tasks=['confidence', 'difficulty'],
         ...     ordinal_max_score=10,
         ...     ordinal_inference='hybrid',
-        ...     entropy_threshold=0.7
+        ...     entropy_threshold=0.8
         ... )
     """
     # Input validation
@@ -971,6 +974,7 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
     params_with_context['ordinal_inference'] = ordinal_inference
     params_with_context['ordinal_model_type'] = ordinal_model_type
     params_with_context['entropy_threshold'] = entropy_threshold
+    params_with_context['entropy_convergence_threshold'] = entropy_convergence_threshold
     params_with_context['prior_mu'] = prior_mu
     params_with_context['prior_sigma'] = prior_sigma
 

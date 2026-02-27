@@ -749,24 +749,24 @@ def _ordinal_hybrid_stopping_criterion(
     delta_item: float,
     cred_level: float,
     entropy_history: list,
-    entropy_threshold: float = 0.7,
+    entropy_threshold: float = 0.8,
     conservatism: float = 10.0,
     low_perf_threshold: float = 0.001,
     min_epochs_for_stabilization: int = 3,
-    stabilization_threshold: float = 0.002,
+    entropy_convergence_threshold: float = 0.10,
     model_cache: Optional[Dict[str, Any]] = None,
     compute_kwargs: Optional[Dict[str, Any]] = None
 ) -> Tuple[bool, str, Dict[str, Any]]:
     """
-    Hybrid stopping criterion for ordinal data combining modal CI and entropy stabilization.
+    Hybrid stopping criterion for ordinal data combining modal CI and entropy convergence.
 
     Two pathways to stopping:
     1. **Pathway 1 (Modal CI):** Stop when modal category CI is narrow → peaked performance
-    2. **Pathway 2 (Entropy Stabilization):** Stop when entropy has stabilized → stable distribution
+    2. **Pathway 2 (Entropy Convergence):** Stop when entropy CI width is narrow → converged distribution
 
     This approach mirrors binary stopping logic:
     - Binary: Stop when CI narrow OR CI stabilized
-    - Ordinal: Stop when modal CI narrow OR entropy stabilized
+    - Ordinal: Stop when modal CI narrow OR entropy converged
 
     Parameters
     ----------
@@ -781,7 +781,7 @@ def _ordinal_hybrid_stopping_criterion(
     entropy_history : list
         List of (entropy_lo, entropy_hi, entropy_width) tuples from previous epochs
         Modified in-place to add current epoch
-    entropy_threshold : float, default=0.7
+    entropy_threshold : float, default=0.8
         Proportion of maximum entropy for false peak detection (0 to 1).
         Scaled internally by log2(num_categories) to produce an effective
         threshold in bits. If modal CI is narrow but entropy exceeds this
@@ -791,10 +791,10 @@ def _ordinal_hybrid_stopping_criterion(
     low_perf_threshold : float, default=0.001
         Performance threshold for conservatism adjustment
     min_epochs_for_stabilization : int, default=3
-        Minimum epochs needed to assess stabilization
-    stabilization_threshold : float, default=0.002
-        Relative change threshold for declaring stabilization (0.2%)
-        Matches binomial CI_delta for consistency
+        Minimum number of entropy CI checks before Pathway 2 can fire
+    entropy_convergence_threshold : float, default=0.10
+        Absolute entropy CI width threshold on [0,1] scale for Pathway 2 convergence.
+        Width < threshold means entropy is known to within ±(threshold/2) of max.
     model_cache : dict, optional
         Cache for PyMC model reuse
     compute_kwargs : dict, optional
@@ -805,7 +805,7 @@ def _ordinal_hybrid_stopping_criterion(
     should_stop : bool
         Whether to stop collecting data
     reason : str
-        Stopping reason: 'modal_ci_narrow', 'entropy_stabilized', or 'continue'
+        Stopping reason: 'modal_ci_narrow_validated', 'entropy_converged', or 'continue_*'
     diagnostics : dict
         Diagnostic information including modal CI, entropy CI, and history
 
@@ -818,7 +818,7 @@ def _ordinal_hybrid_stopping_criterion(
     ...     cred_level=0.97, entropy_history=entropy_hist
     ... )
     >>> print(f"Stop: {stop}, Reason: {reason}")
-    Stop: True, Reason: modal_ci_narrow
+    Stop: True, Reason: modal_ci_narrow_validated
     """
     from .ordinal_utils import _ordinal_ci_adaptive
 
@@ -887,12 +887,16 @@ def _ordinal_hybrid_stopping_criterion(
             # )
             return True, 'modal_ci_narrow_validated', diagnostics
 
-    # === PATHWAY 2: Entropy Stabilization (for non-peaked or false peaks) ===
+    # === PATHWAY 2: Entropy Convergence (for non-peaked or false peaks) ===
+    # Check if the entropy CI is narrow enough that the distribution estimate is precise.
+    # Uses absolute width on [0,1] scaled entropy axis rather than relative change,
+    # because relative change under exponential convergence is constant (never crosses
+    # a small threshold). Width < 0.10 means entropy known to within ±5% of max.
 
-    # Store in history (modified in-place)
+    # Store in history (modified in-place, retained for min_epochs guard and diagnostics)
     entropy_history.append((entropy_lo, entropy_hi, entropy_width))
 
-    # Need sufficient history to assess stabilization
+    # Need sufficient history before P2 can fire (early MCMC CIs may be unreliable)
     if len(entropy_history) < min_epochs_for_stabilization:
         diagnostics = {
             'pathway': 0,
@@ -902,41 +906,33 @@ def _ordinal_hybrid_stopping_criterion(
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_diag['entropy_median']),
             'entropy_threshold': float(effective_entropy_threshold),
+            'convergence_threshold': float(entropy_convergence_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization
         }
-        # logger.debug(f"Continue: insufficient history ({len(entropy_history)}/{min_epochs_for_stabilization})")
         return False, 'continue_insufficient_history', diagnostics
 
-    # Check for CI width convergence (diminishing returns from collecting more data)
-    recent_widths = [w for (_, _, w) in entropy_history[-min_epochs_for_stabilization:]]
+    # Normalise entropy_width from bits to [0,1] scale for threshold comparison
+    # (flat function receives entropy in bits from _ordinal_entropy_ci_adaptive;
+    #  the convergence threshold is calibrated for [0,1] scale)
+    num_categories = ordinal_max_score + 1
+    max_entropy_bits = np.log2(num_categories)
+    entropy_width_scaled = entropy_width / max_entropy_bits if max_entropy_bits > 0 else entropy_width
 
-    # Calculate relative change in CI width
-    if len(recent_widths) >= 2:
-        width_change = recent_widths[-1] - recent_widths[-2]
-        relative_change = abs(width_change) / recent_widths[-2] if recent_widths[-2] > 0 else 1.0
-    else:
-        relative_change = 1.0  # Default to "not stabilized"
-
-    # Stabilization criterion: CI width has converged (< 0.2% relative change by default)
-    if relative_change < stabilization_threshold:
+    # Convergence criterion: entropy CI width on [0,1] scale is below threshold
+    if entropy_width_scaled < entropy_convergence_threshold:
         diagnostics = {
             'pathway': 2,
             'modal_ci': (float(modal_lo), float(modal_hi)),
             'modal_width': float(modal_width),
             'entropy_ci': (float(entropy_lo), float(entropy_hi)),
             'entropy_width': float(entropy_width),
+            'entropy_width_scaled': float(entropy_width_scaled),
             'entropy_median': float(entropy_diag['entropy_median']),
             'entropy_threshold': float(effective_entropy_threshold),
-            'width_history': [float(w) for w in recent_widths],
-            'relative_change': float(relative_change),
-            'stabilization_threshold': float(stabilization_threshold)
+            'convergence_threshold': float(entropy_convergence_threshold)
         }
-        # logger.info(
-        #     f"Stopping via Pathway 2 (Entropy stabilized): "
-        #     f"relative_change={relative_change:.4f} < {stabilization_threshold:.4f}"
-        # )
-        return True, 'entropy_stabilized', diagnostics
+        return True, 'entropy_converged', diagnostics
 
     # Continue collecting data
     diagnostics = {
@@ -945,16 +941,12 @@ def _ordinal_hybrid_stopping_criterion(
         'modal_width': float(modal_width),
         'entropy_ci': (float(entropy_lo), float(entropy_hi)),
         'entropy_width': float(entropy_width),
+        'entropy_width_scaled': float(entropy_width_scaled),
         'entropy_median': float(entropy_diag['entropy_median']),
         'entropy_threshold': float(effective_entropy_threshold),
-        'width_history': [float(w) for w in recent_widths],
-        'relative_change': float(relative_change),
+        'convergence_threshold': float(entropy_convergence_threshold),
         'learning': True
     }
-    # logger.debug(
-    #     f"Continue learning: modal_width={modal_width:.3f} (>{delta_item:.3f}), "
-    #     f"entropy_change={relative_change:.4f} (>{stabilization_threshold:.4f})"
-    # )
     return False, 'continue_learning', diagnostics
 
 
@@ -965,12 +957,12 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     delta_item: float,
     cred_level: float,
     entropy_history: list,
-    entropy_threshold: float = 0.7,
+    entropy_threshold: float = 0.8,
     conservatism: float = 10.0,
     low_perf_threshold: float = 0.001,
     current_perf: float = 0.5,
     min_epochs_for_stabilization: int = 3,
-    stabilization_threshold: float = 0.002,
+    entropy_convergence_threshold: float = 0.10,
     model_cache: Optional[Dict[str, Any]] = None,
     sampling_kwargs: Optional[Dict[str, Any]] = None
 ) -> Tuple[bool, str, Dict[str, Any]]:
@@ -981,7 +973,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     Two pathways to stopping (same logic as flat version, but with hierarchical estimates):
 
     1. **Pathway 1 (Modal CI):** Stop when modal category CI is narrow AND entropy low → peaked distribution
-    2. **Pathway 2 (Entropy Stabilization):** Stop when entropy has stabilized → stable distribution
+    2. **Pathway 2 (Entropy Convergence):** Stop when entropy CI width is narrow → precise distribution estimate
 
     Parameters
     ----------
@@ -998,7 +990,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     entropy_history : list
         List of (entropy_lo, entropy_hi, entropy_width) tuples from previous checks
         Modified in-place to add current check
-    entropy_threshold : float, default=0.7
+    entropy_threshold : float, default=0.8
         Proportion of maximum entropy for false peak detection (0 to 1).
         Scaled internally by log2(num_categories) to produce an effective
         threshold in bits. The group-level entropy (computed in nats) is
@@ -1010,9 +1002,10 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     current_perf : float, default=0.5
         Current performance estimate (normalized to [0,1])
     min_epochs_for_stabilization : int, default=3
-        Minimum checks needed to assess stabilization
-    stabilization_threshold : float, default=0.002
-        Relative change threshold for declaring stabilization (0.2%)
+        Minimum number of entropy CI checks before Pathway 2 can fire
+    entropy_convergence_threshold : float, default=0.10
+        Absolute entropy CI width threshold on [0,1] scale for Pathway 2 convergence.
+        Width < threshold means entropy is known to within ±(threshold/2) of max.
     model_cache : dict, optional
         Cache for PyMC model reuse (must contain 'model' key with hierarchical ordinal model)
     sampling_kwargs : dict, optional
@@ -1023,7 +1016,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
     should_stop : bool
         Whether to stop collecting data
     reason : str
-        Stopping reason: 'modal_ci_narrow_validated_hierarchical', 'entropy_stabilized_hierarchical', or 'continue'
+        Stopping reason: 'modal_ci_narrow_validated_hierarchical', 'entropy_converged_hierarchical', or 'continue_*'
     diagnostics : dict
         Diagnostic information including modal CI, entropy CI, and history
     """
@@ -1118,12 +1111,16 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
             }
             return True, 'modal_ci_narrow_validated_hierarchical', diagnostics
 
-    # === PATHWAY 2: Entropy Stabilization (for non-peaked or false peaks) ===
+    # === PATHWAY 2: Entropy Convergence (for non-peaked or false peaks) ===
+    # Check if the entropy CI is narrow enough that the distribution estimate is precise.
+    # On the [0,1] scaled entropy axis, width < 0.10 means ±5% precision.
+    # Uses absolute width rather than relative change, because relative change under
+    # exponential convergence is constant (never crosses a small threshold).
 
-    # Store in history (modified in-place)
+    # Store in history (modified in-place, retained for min_epochs guard and diagnostics)
     entropy_history.append((entropy_lo, entropy_hi, entropy_width))
 
-    # Need sufficient history to assess stabilization
+    # Need sufficient history before P2 can fire (early MCMC CIs may be unreliable)
     if len(entropy_history) < min_epochs_for_stabilization:
         diagnostics = {
             'pathway': 0,
@@ -1134,6 +1131,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
             'entropy_threshold': float(effective_entropy_threshold),
+            'convergence_threshold': float(entropy_convergence_threshold),
             'epochs_tracked': len(entropy_history),
             'min_epochs': min_epochs_for_stabilization,
             'n_items': n_items,
@@ -1141,18 +1139,10 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         }
         return False, 'continue_insufficient_history', diagnostics
 
-    # Check for CI width convergence (diminishing returns from collecting more data)
-    recent_widths = [w for (_, _, w) in entropy_history[-min_epochs_for_stabilization:]]
-
-    # Calculate relative change in CI width
-    if len(recent_widths) >= 2:
-        width_change = recent_widths[-1] - recent_widths[-2]
-        relative_change = abs(width_change) / recent_widths[-2] if recent_widths[-2] > 0 else 1.0
-    else:
-        relative_change = 1.0  # Default to "not stabilized"
-
-    # Stabilization criterion: CI width has converged (< threshold change)
-    if relative_change < stabilization_threshold:
+    # Convergence criterion: entropy CI width on [0,1] scale is below threshold
+    # (hierarchical function receives entropy_width already on [0,1] scale from
+    #  _ordinal_ci_hierarchical_entropy, so no normalisation needed here)
+    if entropy_width < entropy_convergence_threshold:
         diagnostics = {
             'pathway': 2,
             'inference_type': 'hierarchical',
@@ -1162,13 +1152,11 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
             'entropy_width': float(entropy_width),
             'entropy_median': float(entropy_median),
             'entropy_threshold': float(effective_entropy_threshold),
-            'width_history': [float(w) for w in recent_widths],
-            'relative_change': float(relative_change),
-            'stabilization_threshold': float(stabilization_threshold),
+            'convergence_threshold': float(entropy_convergence_threshold),
             'n_items': n_items,
             'n_obs': n_obs
         }
-        return True, 'entropy_stabilized_hierarchical', diagnostics
+        return True, 'entropy_converged_hierarchical', diagnostics
 
     # Continue collecting data
     diagnostics = {
@@ -1180,8 +1168,7 @@ def _ordinal_hybrid_stopping_criterion_hierarchical(
         'entropy_width': float(entropy_width),
         'entropy_median': float(entropy_median),
         'entropy_threshold': float(effective_entropy_threshold),
-        'width_history': [float(w) for w in recent_widths],
-        'relative_change': float(relative_change),
+        'convergence_threshold': float(entropy_convergence_threshold),
         'n_items': n_items,
         'n_obs': n_obs,
         'learning': True

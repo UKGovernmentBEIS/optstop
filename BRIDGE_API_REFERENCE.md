@@ -228,7 +228,7 @@ With default settings (`reanalysis_interval=10`) and typical LLM trial durations
 **How hybrid works:**
 - Computes both modal (fast) and entropy (MCMC) on every call
 - Pathway 1 (peaked data): stops when modal CI is narrow and entropy confirms genuine concentration
-- Pathway 2 (diffuse data): stops when entropy stabilises, even if modal CI remains wide
+- Pathway 2 (diffuse data): stops when entropy CI width falls below convergence threshold, even if modal CI remains wide
 
 **Key trade-offs:**
 - **Modal**: Fast but may never stop for truly diffuse distributions (CI stays wide indefinitely)
@@ -305,7 +305,7 @@ manager = OptimalStoppingManager(
     ordinal_inference: str = 'hybrid',
     ordinal_model_type: str = 'ordered_logistic',
     gpu_ids: Optional[list[int]] = None,
-    entropy_threshold: float = 0.7,
+    entropy_threshold: float = 0.8,
     prior_mu: float = 0.0,
     prior_sigma: Optional[float] = None,
     manager_name: str = "optstop",
@@ -350,11 +350,12 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - Automatically selected based on CPU/GPU detection
 - `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilization
 - `stab_window` (int, default: 15): Window size for stabilization assessment
-- `entropy_stabilization_threshold` (float, default: 0.002): Relative change threshold for ordinal entropy stabilization (Pathway 2)
-  - Default 0.002 is suitable for most use cases. For high-stakes evaluations, consider 0.001 (0.1% relative change)
-  - **Lower values** = more conservative (require MORE stability before stopping)
-  - **Higher values** = more aggressive (stop with LESS stability)
-  - **Affects:** Ordinal hybrid mode only (entropy stabilization pathway)
+- `entropy_convergence_threshold` (float, default: 0.10): Absolute entropy CI width threshold on [0,1] scale for ordinal Pathway 2 convergence
+  - Width < threshold means entropy is known to within ±(threshold/2) of maximum. Default 0.10 = ±5% precision.
+  - For safety-critical evaluations, consider 0.08 (±4% precision, lower false positive rate)
+  - **Lower values** = more conservative (require MORE precision before stopping)
+  - **Higher values** = more aggressive (stop with LESS precision)
+  - **Affects:** Ordinal hybrid mode only (entropy convergence pathway)
 
 **Note:** MCMC defaults are now CPU/GPU-aware (1000/1000 for CPU, 2000/2000 for GPU). These values balance inference quality with practical performance. For publication-quality posteriors, you may increase draws/tune, but this is rarely needed for early stopping decisions.
 
@@ -609,12 +610,12 @@ gpu_ids=None       # CPU-only mode (default)
 
 ### Entropy Threshold
 
-#### `entropy_threshold: float = 0.7`
+#### `entropy_threshold: float = 0.8`
 Proportion of maximum entropy for false peak detection in ordinal hybrid mode.
 Scaled internally by `log2(num_categories)` to produce an effective threshold in bits.
 
 - Lower values (e.g., 0.5) require more concentrated distributions to pass the entropy gate
-- Higher values (e.g., 0.8) are more permissive, allowing earlier Pathway 1 stopping
+- Higher values (e.g., 0.9) are more permissive, allowing earlier Pathway 1 stopping
 - Only relevant when `ordinal_inference='hybrid'`
 
 ---
@@ -1123,7 +1124,7 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
 #   "shadow_mode_summary": dict          # would_have_stopped_at, potential_efficiency_percent
 ```
 
-**Note:** `item_entropy_histories` is maintained internally by `OptimalStoppingManager` to persist per-sample entropy state across successive inference calls (used for Pathway 2 stabilisation detection). It is not included in the metadata returned by `complete_task()`.
+**Note:** `item_entropy_histories` is maintained internally by `OptimalStoppingManager` to persist per-sample entropy state across successive inference calls (used for Pathway 2 convergence detection). It is not included in the metadata returned by `complete_task()`.
 
 ### Stopped Samples Structure
 
@@ -1189,10 +1190,9 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
         "final_modal_ci_width": 0.10,         # Final modal category CI width (scaled 0-1)
         "final_modal_ci": [0.60, 0.70],       # Final modal category CI bounds (scaled 0-1)
         "final_entropy": 1.85,                # Final entropy estimate (bits for flat, scaled [0,1] for hierarchical)
-        "final_entropy_threshold": 2.42,      # Effective entropy threshold in bits (0.7 × log2(11))
+        "final_entropy_threshold": 2.77,      # Effective entropy threshold in bits (0.8 × log2(11))
         "final_entropy_ci_width": 0.08,       # Entropy-based CI width (if entropy pathway)
-        "final_relative_change": 0.001,       # Relative change in entropy (for stabilization)
-        "final_stabilization_threshold": 0.002  # Stabilization threshold for entropy convergence
+        "final_convergence_threshold": 0.10   # Entropy convergence threshold on [0,1] scale (Pathway 2)
     }
 }
 ```
@@ -1201,14 +1201,13 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ordinal_pathway` | str/int | Which inference pathway was used. Values: `'modal_hierarchical'`, `'entropy_hierarchical'`, `'hybrid_hierarchical'` (before stopping resolves), or `1` (modal CI narrow + validated), `2` (entropy stabilised) when hybrid stopping triggers. |
+| `ordinal_pathway` | str/int | Which inference pathway was used. Values: `'modal_hierarchical'`, `'entropy_hierarchical'`, `'hybrid_hierarchical'` (before stopping resolves), or `1` (modal CI narrow + validated), `2` (entropy converged) when hybrid stopping triggers. |
 | `final_modal_ci_width` | float | Width of the modal category credible interval, scaled to [0,1]. Lower values indicate more certainty about the modal category. |
 | `final_modal_ci` | list[float] | [lower, upper] bounds of the modal category CI, scaled to [0,1]. E.g., `[0.60, 0.70]` means 97% confident modal category is between 6 and 7 (on a 0-10 scale). |
 | `final_entropy` | float | Shannon entropy of the categorical distribution. Units depend on inference path: bits (log2) for flat ordinal, or scaled [0,1] (proportion of max entropy) for hierarchical ordinal. Lower values indicate more peaked/concentrated distributions. |
 | `final_entropy_threshold` | float | Effective entropy threshold in bits (entropy_threshold × log2(K), where K is number of categories). Distributions with entropy below this are considered "peaked." |
 | `final_entropy_ci_width` | float | CI width derived from entropy-based inference (used in entropy/hybrid pathways). |
-| `final_relative_change` | float | Relative change in entropy between inference calls. Used to detect stabilization. |
-| `final_stabilization_threshold` | float | Threshold for relative change below which entropy is considered stabilized (default: 0.002 = 0.2%). |
+| `final_convergence_threshold` | float | Absolute entropy CI width threshold on [0,1] scale for Pathway 2 convergence (default: 0.10). Entropy CI width below this value triggers stopping. |
 
 **Note:** These ordinal-specific fields are only populated when the grouping matches an `ordinal_tasks` pattern. For binary and continuous groupings, these fields are omitted entirely (not set to `null`).
 
@@ -1900,7 +1899,7 @@ manager = OptimalStoppingManager(
 
 ### v0.2.1
 - `random_seed` parameter for MCMC reproducibility
-- `entropy_stabilization_threshold` parameter for ordinal tuning
+- `entropy_convergence_threshold` parameter for ordinal tuning (replaces `entropy_stabilization_threshold`)
 - Numpyro/JAX integration for ordinal inference (~2× CPU speedup)
 - Seed logging and diagnostics tracking
 - Removed redundant np.random.seed() calls (cleaner seed propagation)

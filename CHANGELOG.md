@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+#### Ordinal Hybrid Stopping (Pathway 2) - Mechanism Fix
+- `entropy_threshold` default changed from 0.7 to 0.8 (more permissive false-peak gate for Pathway 1)
+- `entropy_stabilization_threshold` renamed to `entropy_convergence_threshold` (old name accepted with deprecation warning)
+- Pathway 2 mechanism changed from relative-change detection (default 0.002) to absolute entropy CI width convergence on [0,1] scale (default 0.10)
+  - The old relative-change criterion was mathematically incapable of firing under exponential posterior convergence
+  - The new absolute-width criterion is guaranteed to be satisfied in finite time as the posterior concentrates
+- `prior_sigma` parameter now exposed at all API levels (default: 1.5 for binary/continuous, 2.0 for ordinal)
+
+### Upgrade Notes
+- **`entropy_stabilization_threshold`**: The old parameter name still works but triggers a deprecation warning. The value semantics have changed - old values (e.g., 0.002) will be passed through but are on the wrong scale for the new mechanism. Remove custom values to use the new default (0.10), or set `entropy_convergence_threshold` explicitly.
+- **`entropy_threshold`**: The default is now 0.8 (was 0.7). Users who relied on the old default without setting it explicitly will see slightly more permissive Pathway 1 gating.
+
 ### Planned
 - Full bridge usage guide (BRIDGE_USAGE_GUIDE.md)
 - Example evaluations in `examples/inspect_ai/`
