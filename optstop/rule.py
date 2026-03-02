@@ -1351,6 +1351,771 @@ def _process_posthoc_grouping_with_init(task_args: Tuple[Any, pd.DataFrame, Dict
     # Process the actual task
     return _process_posthoc_grouping(task_args)
 
+def _process_posthoc_grouping_interleaved_with_init(task_args: Tuple[Any, pd.DataFrame, Dict[str, Any], str], worker_args: Tuple[str, Optional[int], bool]) -> Dict[str, Any]:
+    """Wrapper function that initializes worker and then processes posthoc grouping in epoch-interleaved order."""
+    # Initialize worker with GPU assignment
+    _worker_initializer_posthoc(*worker_args)
+    # Process the actual task
+    return _process_posthoc_grouping_interleaved(task_args)
+
+def _init_item_state(score_type: str) -> Dict[str, Any]:
+    """Initialize per-item accumulator state for epoch-interleaved processing."""
+    state = {
+        'successes': 0,
+        'trials': 0,
+        'ci_record': [],
+        'ci_slopes_hist': [],
+        'entropy_history': [],
+        'stopped': False,
+        'accumulated_scores': [],
+    }
+    return state
+
+def _build_item_summary(state: Dict[str, Any], score_type: str, ordinal_max_score: int = 10,
+                        cont_lower: float = 0.0, cont_upper: float = 1.0) -> Dict[str, Any]:
+    """Build item summary dict from accumulator state, matching _process_posthoc_grouping format."""
+    if score_type == 'binary':
+        return {'successes': state['successes'], 'trials': state['trials']}
+    elif score_type in ['continuous_01', 'continuous_bounded']:
+        scores_array = np.array(state['accumulated_scores'])
+        scores_normalized = (scores_array - cont_lower) / (cont_upper - cont_lower) if cont_upper > cont_lower else scores_array
+        scores_normalized = np.clip(scores_normalized, 0.0, 1.0)
+        return {
+            'scores_raw': state['accumulated_scores'].copy(),
+            'scores_normalized': scores_normalized.tolist(),
+            'n_obs': len(state['accumulated_scores']),
+            'mean_raw': float(np.mean(scores_array)) if len(scores_array) > 0 else 0.0,
+            'mean_normalized': float(np.mean(scores_normalized)) if len(scores_normalized) > 0 else 0.0,
+            'lower_bound': cont_lower,
+            'upper_bound': cont_upper
+        }
+    else:  # ordinal
+        scores_rounded = np.clip(np.round(np.array(state['accumulated_scores'])).astype(int), 0, ordinal_max_score)
+        counts = np.bincount(scores_rounded, minlength=ordinal_max_score + 1)
+        return {
+            'counts': counts,
+            'n_obs': len(state['accumulated_scores']),
+            'modal_category': int(np.argmax(counts)),
+            'mean_score': float(np.mean(state['accumulated_scores'])) if state['accumulated_scores'] else 0.0,
+            'successes': int(np.sum(state['accumulated_scores'])),
+            'trials': len(state['accumulated_scores']),
+            'scores': state['accumulated_scores'].copy()
+        }
+
+def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
+    """Process a single grouping in epoch-interleaved order (all items per epoch, then next epoch).
+
+    This mirrors the production bridge processing order where all items complete epoch 1
+    before any item starts epoch 2. Uses preallocated PyMC models with obs_weight masking
+    to avoid model recompilation as n_observed grows.
+    """
+    # Environment variables are now set by the worker initializer
+    import sys
+    import io
+    old_stdout, old_stderr = sys.stdout, sys.stderr
+    sys.stdout = io.StringIO()
+    sys.stderr = io.StringIO()
+
+    try:
+        pid, df_part, params, score_column = args
+        logger = logging.getLogger('optstop.worker_posthoc_interleaved')
+        logger.info(f"Processing grouping {pid} in epoch-interleaved mode")
+
+        # === PARAMETER EXTRACTION (same as _process_posthoc_grouping L1373-1440) ===
+        delta_cap = params.get('delta_cap', 0.05)
+        delta_item = params.get('delta_item', 0.05)
+        CI_delta = params.get('CI_delta', 0.00001)
+        stab_window = params.get('stab_window', 15)
+        cred_level = params.get('cred_level', 0.97)
+        rep_batch_size = params.get('rep_batch_size', 1)  # Not used in interleaved but extracted for consistency
+        pymc_refresh_every = params.get('pymc_refresh_every', 2)  # Not used in interleaved
+        conservatism = params.get('conservatism', 10)
+        low_perf_threshold = params.get('low_performance_threshold', 0.001)
+        reanalysis_interval = params.get('reanalysis_interval', 10)
+
+        ordinal_tasks = params.get('ordinal_tasks', None)
+        continuous_tasks = params.get('continuous_tasks', None)
+        ordinal_max_score = params.get('ordinal_max_score', 10)
+        ordinal_inference = params.get('ordinal_inference', 'modal')
+        ordinal_model_type = params.get('ordinal_model_type', 'ordered_logistic')
+        entropy_threshold = params.get('entropy_threshold', 0.8)
+        entropy_convergence_threshold = params.get('entropy_convergence_threshold', 0.10)
+        prior_mu = params.get('prior_mu', 0.0)
+        prior_sigma = params.get('prior_sigma', None)
+
+        # Determine score type for this grouping
+        grouping_name = df_part['grouping'].iloc[0] if 'grouping' in df_part.columns else str(pid)
+        score_type, bounds = determine_score_type_standalone(
+            grouping_name,
+            ordinal_tasks=ordinal_tasks,
+            continuous_tasks=continuous_tasks,
+            upper_bound=ordinal_max_score
+        )
+        cont_lower = bounds.get('lower', 0.0) if bounds else 0.0
+        cont_upper = bounds.get('upper', 1.0) if bounds else 1.0
+
+        logger.info(f"Grouping {pid}: score_type={score_type}, interleaved mode, reanalysis_interval={reanalysis_interval}")
+
+        # GPU/JAX configuration (same as existing posthoc worker)
+        gpu_available, gpu_backend, gpu_info = gpu_utils.check_gpu_availability()
+        if gpu_available and gpu_backend == 'jax-gpu':
+            try:
+                import jax
+                jax.config.update('jax_platform_name', 'gpu')
+                devices = jax.devices()
+                gpu_devices = [d for d in devices if 'gpu' in str(d).lower() or 'cuda' in str(d).lower()]
+                if gpu_devices:
+                    logger.info(f"Worker JAX initialized with GPU devices: {gpu_devices}")
+                    import os
+                    os.environ['PYMC_BACKEND'] = 'jax'
+                else:
+                    gpu_available = False
+                    gpu_backend = 'cpu'
+            except (ImportError, Exception):
+                gpu_available = False
+                gpu_backend = 'cpu'
+
+        num_parallel_tasks = params.get('_num_parallel_tasks', 1)
+        sampling_kwargs = gpu_utils.get_sampling_kwargs(
+            params=params,
+            gpu_available=gpu_available,
+            gpu_backend=gpu_backend,
+            num_parallel_tasks=num_parallel_tasks,
+            auto_decide=True
+        )
+
+        # === INITIAL PERFORMANCE ESTIMATE (same as L1473-1479) ===
+        if score_type == 'binary':
+            scores = df_part[score_column].values
+            initial_perf = np.mean(scores) if len(scores) > 0 else 0.5
+        elif score_type == 'ordinal':
+            scores = df_part[score_column].values
+            initial_perf = np.mean(scores) / ordinal_max_score if len(scores) > 0 else 0.5
+        elif score_type in ['continuous_01', 'continuous_bounded']:
+            scores = df_part[score_column].values
+            normalized = (scores - cont_lower) / (cont_upper - cont_lower) if cont_upper > cont_lower else scores
+            initial_perf = np.mean(normalized) if len(scores) > 0 else 0.5
+        else:
+            initial_perf = 0.5
+
+        current_conservatism = conservatism if initial_perf < low_perf_threshold else 1.0
+
+        item_ids = list(df_part['sample_id_num'].unique())
+        n_items_total = len(item_ids)
+
+        # === MODEL CREATION WITH PREALLOCATION ===
+        # Unlike item-greedy posthoc (use_preallocation=False), epoch-interleaved uses
+        # use_preallocation=True following the live_single pattern. This avoids model
+        # recompilation as n_observed grows with each epoch pass.
+
+        binary_group_cache = {}
+        group_ordinal_model_cache = {}
+        continuous_model_cache = {}
+
+        if score_type == 'binary':
+            binary_sigma = prior_sigma if prior_sigma is not None else 1.5
+            with pm.Model() as model:
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=binary_sigma)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)
+
+                # PRE-ALLOCATED MODE: Fixed shape + obs_weight masking
+                successes_data = pm.Data("successes", np.zeros(n_items_total, dtype="int64"))
+                trials_data = pm.Data("trials", np.ones(n_items_total, dtype="int64"))
+                obs_weight_data = pm.Data("obs_weight", np.zeros(n_items_total, dtype="float64"))
+
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items_total)
+                mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
+                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+
+                binomial_dist = pm.Binomial.dist(n=trials_data, p=Theta)
+                log_lik = obs_weight_data * pm.logp(binomial_dist, successes_data)
+                pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+
+            binary_group_cache['model'] = model
+            binary_group_cache['model_n_items'] = n_items_total
+            binary_group_cache['use_preallocation'] = True
+            logger.info(f"Created preallocated binary model for grouping {pid} (n_items={n_items_total})")
+
+        elif score_type == 'ordinal':
+            n_categories = ordinal_max_score + 1
+            actual_model_type = ordinal_model_type
+
+            if ordinal_model_type == 'ordered_logistic':
+                try:
+                    ordinal_sigma = prior_sigma if prior_sigma is not None else 2.0
+                    ordinal_group_model = _create_ordered_logistic_hierarchical(
+                        n_categories=n_categories,
+                        n_items=n_items_total,
+                        mu_group_prior=(prior_mu, ordinal_sigma),
+                        use_preallocation=True  # Epoch-interleaved: preallocated
+                    )
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to create ordered_logistic model for '{grouping_name}': {e}. "
+                        f"Falling back to dirichlet."
+                    )
+                    actual_model_type = 'dirichlet'
+
+            if actual_model_type == 'dirichlet':
+                with pm.Model() as ordinal_group_model:
+                    alpha_prior = np.ones(n_categories)
+                    alpha_group = pm.Dirichlet("alpha_group", a=alpha_prior)
+                    kappa = pm.Gamma("kappa", alpha=2, beta=0.1)
+
+                    alpha_item = alpha_group * kappa
+
+                    # PRE-ALLOCATED MODE: Fixed shape + obs_weight masking
+                    # For valid Multinomial: sum(item_counts[i]) must equal item_ns[i]
+                    # Default: item_ns=1, item_counts=[1,0,0,...] (one count in first category)
+                    default_counts = np.zeros((n_items_total, n_categories), dtype="int64")
+                    default_counts[:, 0] = 1
+                    item_counts_data = pm.Data("item_counts", default_counts)
+                    item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))
+                    obs_weight_data = pm.Data("obs_weight", np.zeros(n_items_total, dtype="float64"))
+
+                    p_item = pm.Dirichlet("p_item", a=alpha_item, shape=(n_items_total, n_categories))
+
+                    # Explicit masking: obs_weight=0 for unobserved items
+                    multinomial_dist = pm.Multinomial.dist(n=item_ns_data, p=p_item)
+                    log_lik = obs_weight_data * pm.logp(multinomial_dist, item_counts_data)
+                    pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+
+                    modal_group = pm.Deterministic("modal_group", pt.argmax(alpha_group))
+                    p_group_normalized = alpha_group / pm.math.sum(alpha_group)
+                    entropy_group = pm.Deterministic(
+                        "entropy_group",
+                        -pm.math.sum(p_group_normalized * pm.math.log(p_group_normalized + 1e-10))
+                    )
+
+            group_ordinal_model_cache['model'] = ordinal_group_model
+            group_ordinal_model_cache['n_items_last'] = n_items_total
+            group_ordinal_model_cache['n_categories_last'] = n_categories
+            group_ordinal_model_cache['model_type'] = actual_model_type
+            group_ordinal_model_cache['model_n_items'] = n_items_total
+            group_ordinal_model_cache['use_preallocation'] = True
+            logger.info(f"Created preallocated ordinal model ({actual_model_type}) for grouping {pid} (n_items={n_items_total})")
+
+        elif score_type in ['continuous_01', 'continuous_bounded']:
+            continuous_sigma = prior_sigma if prior_sigma is not None else 1.5
+            with pm.Model() as continuous_model:
+                mu_group = pm.Normal("mu_group", mu=prior_mu, sigma=continuous_sigma)
+                sigma_group = pm.Exponential("sigma_group", lam=1.0)
+                phi_group = pm.Gamma("phi_group", alpha=2, beta=1.0)
+
+                # PRE-ALLOCATED MODE: Fixed shape + obs_weight masking
+                item_means_data = pm.Data("item_means", np.full(n_items_total, 0.5, dtype="float64"))
+                item_ns_data = pm.Data("item_ns", np.ones(n_items_total, dtype="int64"))  # MUST be >= 1
+                obs_weight_data = pm.Data("obs_weight", np.zeros(n_items_total, dtype="float64"))
+
+                z = pm.Normal("z", mu=0, sigma=1, shape=n_items_total)
+                mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
+                mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
+                                                         pm.math.clip(mu_item_logit, -6.0, 6.0))
+                mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+
+                z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_total)
+                log_phi_item = pm.Deterministic("log_phi_item",
+                                                pm.math.log(phi_group) + z_phi * 0.5)
+                phi_item = pm.Deterministic("phi_item", pm.math.exp(log_phi_item))
+
+                mu_item_clipped_for_var = pm.math.clip(mu_item, 0.01, 0.99)
+                obs_sd = pm.math.sqrt(mu_item_clipped_for_var * (1 - mu_item_clipped_for_var) /
+                                     (phi_item * item_ns_data))
+
+                normal_dist = pm.Normal.dist(mu=mu_item, sigma=obs_sd)
+                log_lik = obs_weight_data * pm.logp(normal_dist, item_means_data)
+                pm.Potential("obs_likelihood", pm.math.sum(log_lik))
+
+            continuous_model_cache = {
+                'model': continuous_model,
+                'model_n_items': n_items_total,
+                'lower_bound': cont_lower,
+                'upper_bound': cont_upper,
+                'use_preallocation': True
+            }
+            logger.info(f"Created preallocated continuous model for grouping {pid} (n_items={n_items_total})")
+
+        # === EPOCH-INTERLEAVED PROCESSING LOOP ===
+        item_states = {}
+        item_summaries = {}
+        item_stopped = set()
+        used_reps_by_item = {}
+        CI_record = []
+        CI_slopes_hist = []
+        group_entropy_history = []
+        ordinal_item_cache = {}
+
+        all_epochs = sorted(df_part['epoch_num'].unique())
+        trial_counter = 0
+        stopped = False
+        theta_lo, theta_hi, theta_width = 0.0, 1.0, 1.0
+
+        for epoch in all_epochs:
+            if stopped:
+                break
+            for item_id in item_ids:
+                if item_id in item_stopped:
+                    continue
+
+                batch = df_part[(df_part['sample_id_num'] == item_id) & (df_part['epoch_num'] == epoch)]
+                if batch.empty:
+                    continue
+
+                # Init state on first encounter
+                if item_id not in item_states:
+                    item_states[item_id] = _init_item_state(score_type)
+                    used_reps_by_item[item_id] = []
+
+                state = item_states[item_id]
+
+                # === UPDATE ACCUMULATORS ===
+                for _, row in batch.iterrows():
+                    score_val = row[score_column]
+                    used_reps_by_item[item_id].append(row.values.tolist())
+
+                    if score_type == 'binary':
+                        state['successes'] += int(score_val)
+                        state['trials'] += 1
+                    else:
+                        state['accumulated_scores'].append(float(score_val))
+
+                # === ITEM-LEVEL CI CHECK ===
+                if score_type == 'binary' and state['trials'] >= 2:
+                    item_perf = state['successes'] / state['trials']
+                    current_conservatism = conservatism if item_perf < low_perf_threshold else 1.0
+                    ci_low, ci_high, ci_width = _beta_ci_adaptive(
+                        state['successes'], state['trials'], cred_level=cred_level,
+                        conservatism=current_conservatism,
+                        low_perf_threshold=low_perf_threshold
+                    )
+                    state['ci_record'].append(ci_width)
+
+                    if ci_width < delta_item:
+                        item_stopped.add(item_id)
+                    elif len(state['ci_record']) >= stab_window:
+                        recent = state['ci_record'][-stab_window:]
+                        slope = np.polyfit(range(len(recent)), recent, 1)[0]
+                        state['ci_slopes_hist'].append(slope)
+                        slope_threshold = CI_delta / current_conservatism if item_perf < low_perf_threshold else CI_delta
+                        if abs(slope) <= slope_threshold and len(state['ci_slopes_hist']) >= 4:
+                            recent_slopes = state['ci_slopes_hist'][-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                    item_stopped.add(item_id)
+
+                elif score_type in ['continuous_01', 'continuous_bounded'] and len(state['accumulated_scores']) >= 2:
+                    item_perf_norm = (np.mean(state['accumulated_scores']) - cont_lower) / (cont_upper - cont_lower) if cont_upper > cont_lower else np.mean(state['accumulated_scores'])
+                    current_conservatism = conservatism if item_perf_norm < low_perf_threshold else 1.0
+                    ci_low_item, ci_high_item, ci_width = _continuous_bounded_ci_adaptive(
+                        state['accumulated_scores'], cred_level=cred_level,
+                        lower_bound=cont_lower, upper_bound=cont_upper,
+                        conservatism=current_conservatism,
+                        low_perf_threshold=low_perf_threshold
+                    )
+                    normalized_width = ci_width / (cont_upper - cont_lower) if cont_upper > cont_lower else ci_width
+                    state['ci_record'].append(normalized_width)
+
+                    if normalized_width < delta_item:
+                        item_stopped.add(item_id)
+                    elif len(state['ci_record']) >= stab_window:
+                        recent = state['ci_record'][-stab_window:]
+                        slope = np.polyfit(range(len(recent)), recent, 1)[0]
+                        state['ci_slopes_hist'].append(slope)
+                        slope_threshold = CI_delta / current_conservatism if item_perf_norm < low_perf_threshold else CI_delta
+                        if abs(slope) <= slope_threshold and len(state['ci_slopes_hist']) >= 4:
+                            recent_slopes = state['ci_slopes_hist'][-3:]
+                            slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                            if slope_slopes >= 0:
+                                if item_perf_norm >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                    item_stopped.add(item_id)
+
+                elif score_type == 'ordinal' and len(state['accumulated_scores']) >= 2:
+                    if ordinal_inference == 'hybrid':
+                        ordinal_item_perf = np.mean(state['accumulated_scores']) / ordinal_max_score if ordinal_max_score > 0 else 0.0
+                        ordinal_item_conservatism = conservatism if ordinal_item_perf < low_perf_threshold else 1.0
+                        should_stop_item, reason_item, diag_item = _ordinal_hybrid_stopping_criterion(
+                            np.array(state['accumulated_scores']),
+                            ordinal_max_score=ordinal_max_score,
+                            delta_item=delta_item,
+                            cred_level=cred_level,
+                            entropy_history=state['entropy_history'],
+                            entropy_threshold=entropy_threshold,
+                            entropy_convergence_threshold=entropy_convergence_threshold,
+                            conservatism=ordinal_item_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_item_cache,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        if should_stop_item:
+                            item_stopped.add(item_id)
+                    elif ordinal_inference == 'modal':
+                        ordinal_item_perf = np.mean(state['accumulated_scores']) / ordinal_max_score if ordinal_max_score > 0 else 0.0
+                        current_conservatism = conservatism if ordinal_item_perf < low_perf_threshold else 1.0
+                        ci_low, ci_high, ci_width = _ordinal_ci_adaptive(
+                            np.array(state['accumulated_scores']),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold
+                        )
+                        state['ci_record'].append(ci_width)
+                        if ci_width < delta_item:
+                            item_stopped.add(item_id)
+                        elif len(state['ci_record']) >= stab_window:
+                            recent = state['ci_record'][-stab_window:]
+                            slope = np.polyfit(range(len(recent)), recent, 1)[0]
+                            state['ci_slopes_hist'].append(slope)
+                            slope_threshold = CI_delta / current_conservatism if ordinal_item_perf < low_perf_threshold else CI_delta
+                            if abs(slope) <= slope_threshold and len(state['ci_slopes_hist']) >= 4:
+                                recent_slopes = state['ci_slopes_hist'][-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                        item_stopped.add(item_id)
+                    elif ordinal_inference == 'entropy':
+                        ordinal_item_perf = np.mean(state['accumulated_scores']) / ordinal_max_score if ordinal_max_score > 0 else 0.0
+                        current_conservatism = conservatism if ordinal_item_perf < low_perf_threshold else 1.0
+                        entropy_lo, entropy_hi, ci_width, diag = _ordinal_entropy_ci_adaptive(
+                            np.array(state['accumulated_scores']),
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            compute_kwargs=sampling_kwargs
+                        )
+                        state['ci_record'].append(ci_width)
+                        if ci_width < delta_item:
+                            item_stopped.add(item_id)
+                        elif len(state['ci_record']) >= stab_window:
+                            recent = state['ci_record'][-stab_window:]
+                            slope = np.polyfit(range(len(recent)), recent, 1)[0]
+                            state['ci_slopes_hist'].append(slope)
+                            slope_threshold = CI_delta / current_conservatism if ordinal_item_perf < low_perf_threshold else CI_delta
+                            if abs(slope) <= slope_threshold and len(state['ci_slopes_hist']) >= 4:
+                                recent_slopes = state['ci_slopes_hist'][-3:]
+                                slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                if slope_slopes >= 0:
+                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                        item_stopped.add(item_id)
+
+                # Update item summary
+                item_summaries[item_id] = _build_item_summary(
+                    state, score_type, ordinal_max_score=ordinal_max_score,
+                    cont_lower=cont_lower, cont_upper=cont_upper
+                )
+
+                trial_counter += 1
+
+                # === GROUP MODEL REFRESH ===
+                is_last_item_in_epoch = (item_id == item_ids[-1])
+                is_last_epoch = (epoch == all_epochs[-1])
+                is_last_trial = is_last_epoch and is_last_item_in_epoch
+
+                if (trial_counter % reanalysis_interval == 0 or is_last_trial) and len(item_summaries) >= 2:
+                    summaries_list = list(item_summaries.values())
+                    n_observed = len(summaries_list)
+
+                    # Compute performance estimate
+                    if score_type == 'binary':
+                        total_trials_sum = sum(s['trials'] for s in summaries_list)
+                        current_perf_estimate = sum(s['successes'] for s in summaries_list) / total_trials_sum if total_trials_sum > 0 else 0
+                    elif score_type == 'ordinal':
+                        total_obs = sum(s['n_obs'] for s in summaries_list)
+                        current_perf_estimate = sum(s['mean_score'] * s['n_obs'] for s in summaries_list) / total_obs / ordinal_max_score if total_obs > 0 else 0.0
+                    else:  # continuous
+                        total_obs = sum(len(s['scores_normalized']) for s in summaries_list)
+                        current_perf_estimate = sum(np.mean(s['scores_normalized']) * len(s['scores_normalized']) for s in summaries_list) / total_obs if total_obs > 0 else 0.0
+
+                    current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+
+                    # === BINARY GROUP-LEVEL STOPPING ===
+                    if score_type == 'binary':
+                        all_successes = np.array([s['successes'] for s in summaries_list])
+                        all_trials = np.array([s['trials'] for s in summaries_list])
+
+                        with warnings.catch_warnings():
+                            warnings.simplefilter("ignore")
+                            with model:
+                                # Preallocated mode: pad arrays with obs_weight masking
+                                successes_padded = np.zeros(n_items_total, dtype="int64")
+                                trials_padded = np.ones(n_items_total, dtype="int64")
+                                obs_weight_padded = np.zeros(n_items_total, dtype="float64")
+
+                                successes_padded[:n_observed] = all_successes
+                                trials_padded[:n_observed] = all_trials
+                                obs_weight_padded[:n_observed] = 1.0
+
+                                pm.set_data({
+                                    "successes": successes_padded,
+                                    "trials": trials_padded,
+                                    "obs_weight": obs_weight_padded,
+                                })
+
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+
+                            # Extract CI - slice to observed items only
+                            try:
+                                theta_samples = trace.posterior["Theta"].values
+                                theta_samples = theta_samples[:, :, :n_observed]
+                                mean_theta_samples = theta_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                            except Exception:
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+
+                            theta_width = theta_hi - theta_lo
+                            CI_record.append(theta_width)
+
+                            effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                            if effective_width < delta_cap:
+                                logger.info(f"Stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                                stopped = True
+                                break
+
+                            if len(CI_record) >= stab_window:
+                                recent_widths = CI_record[-stab_window:]
+                                slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                                CI_slopes_hist.append(slope)
+                                slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                                if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                    recent_slopes = CI_slopes_hist[-3:]
+                                    slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                    if slope_slopes >= 0:
+                                        if current_perf_estimate >= low_perf_threshold:
+                                            logger.info(f"Stopping grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+                                        elif abs(slope) <= slope_threshold / 2:
+                                            logger.info(f"Stopping low-perf grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+
+                    # === ORDINAL GROUP-LEVEL STOPPING ===
+                    elif score_type == 'ordinal':
+                        item_counts_matrix = np.array([s['counts'] for s in summaries_list])
+                        item_ns = np.array([s['n_obs'] for s in summaries_list])
+
+                        current_perf_normalized = current_perf_estimate  # Already normalized above
+
+                        if len(item_ns) > 0 and np.sum(item_ns) > 0:
+                            if ordinal_inference == 'modal':
+                                theta_lo, theta_hi, theta_width = _ordinal_ci_hierarchical_modal(
+                                    item_counts_matrix, item_ns,
+                                    ordinal_max_score=ordinal_max_score,
+                                    cred_level=cred_level,
+                                    conservatism=current_conservatism,
+                                    low_perf_threshold=low_perf_threshold,
+                                    current_perf=current_perf_normalized,
+                                    model_cache=group_ordinal_model_cache,
+                                    sampling_kwargs=sampling_kwargs
+                                )
+                            elif ordinal_inference == 'entropy':
+                                entropy_lo, entropy_hi, theta_width, diag = _ordinal_ci_hierarchical_entropy(
+                                    item_counts_matrix, item_ns,
+                                    ordinal_max_score=ordinal_max_score,
+                                    cred_level=cred_level,
+                                    conservatism=current_conservatism,
+                                    low_perf_threshold=low_perf_threshold,
+                                    current_perf=current_perf_normalized,
+                                    model_cache=group_ordinal_model_cache,
+                                    sampling_kwargs=sampling_kwargs
+                                )
+                                theta_lo, theta_hi = entropy_lo, entropy_hi
+                                group_entropy_history.append((entropy_lo, entropy_hi, theta_width))
+                            elif ordinal_inference == 'hybrid':
+                                should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion_hierarchical(
+                                    item_counts_matrix, item_ns,
+                                    ordinal_max_score=ordinal_max_score,
+                                    delta_item=delta_cap,
+                                    cred_level=cred_level,
+                                    entropy_history=group_entropy_history,
+                                    entropy_threshold=entropy_threshold,
+                                    entropy_convergence_threshold=entropy_convergence_threshold,
+                                    conservatism=current_conservatism,
+                                    low_perf_threshold=low_perf_threshold,
+                                    current_perf=current_perf_normalized,
+                                    model_cache=group_ordinal_model_cache,
+                                    sampling_kwargs=sampling_kwargs
+                                )
+                                theta_width = diag_group.get('modal_width', delta_cap)
+                                if 'modal_ci' in diag_group:
+                                    theta_lo, theta_hi = diag_group['modal_ci']
+                                else:
+                                    theta_lo, theta_hi = 0.0, 1.0
+
+                            CI_record.append(theta_width)
+                            effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+
+                            if ordinal_inference == 'hybrid' and should_stop_group:
+                                logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
+                                stopped = True
+                                break
+                            elif ordinal_inference != 'hybrid' and effective_width < delta_cap:
+                                logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                                stopped = True
+                                break
+
+                            if len(CI_record) >= stab_window:
+                                recent_widths = CI_record[-stab_window:]
+                                slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                                CI_slopes_hist.append(slope)
+                                slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                                if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                    recent_slopes = CI_slopes_hist[-3:]
+                                    slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                    if slope_slopes >= 0:
+                                        if current_perf_estimate >= low_perf_threshold:
+                                            logger.info(f"Stopping ordinal grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+                                        elif abs(slope) <= slope_threshold / 2:
+                                            logger.info(f"Stopping low-perf ordinal grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+
+                    # === CONTINUOUS GROUP-LEVEL STOPPING ===
+                    elif score_type in ['continuous_01', 'continuous_bounded']:
+                        item_means_list = []
+                        item_ns_list = []
+                        total_obs_count = 0
+
+                        for item_summary in summaries_list:
+                            scores_norm = item_summary['scores_normalized']
+                            item_means_list.append(np.mean(scores_norm))
+                            item_ns_list.append(len(scores_norm))
+                            total_obs_count += len(scores_norm)
+
+                        item_means_array = np.array(item_means_list, dtype="float64")
+                        item_ns_array = np.array(item_ns_list, dtype="int64")
+
+                        if n_observed > 0 and total_obs_count > 0:
+                            with warnings.catch_warnings():
+                                warnings.simplefilter("ignore")
+                                cont_model = continuous_model_cache['model']
+                                with cont_model:
+                                    # Preallocated mode: pad arrays
+                                    item_means_padded = np.full(n_items_total, 0.5, dtype="float64")
+                                    item_ns_padded = np.ones(n_items_total, dtype="int64")
+                                    obs_weight_padded = np.zeros(n_items_total, dtype="float64")
+
+                                    item_means_padded[:n_observed] = item_means_array
+                                    item_ns_padded[:n_observed] = item_ns_array
+                                    obs_weight_padded[:n_observed] = 1.0
+
+                                    pm.set_data({
+                                        "item_means": item_means_padded,
+                                        "item_ns": item_ns_padded,
+                                        "obs_weight": obs_weight_padded,
+                                    })
+
+                                    with suppress_all_output():
+                                        trace = pm.sample(**sampling_kwargs)
+
+                                # Extract CI - slice to observed items
+                                try:
+                                    mu_item_samples = trace.posterior["mu_item"].values
+                                    mu_item_samples = mu_item_samples[:, :, :n_observed]
+                                    mean_mu_samples = mu_item_samples.mean(axis=2)
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                                except Exception:
+                                    mu_group_samples = trace.posterior["mu_group"].values
+                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+
+                                theta_width = theta_hi - theta_lo
+
+                            CI_record.append(theta_width)
+                            effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+
+                            if effective_width < delta_cap:
+                                logger.info(f"Stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                                stopped = True
+                                break
+
+                            if len(CI_record) >= stab_window:
+                                recent_widths = CI_record[-stab_window:]
+                                slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
+                                CI_slopes_hist.append(slope)
+                                slope_threshold = CI_delta / current_conservatism if current_perf_estimate < low_perf_threshold else CI_delta
+                                if (abs(slope) <= slope_threshold) and (len(CI_slopes_hist) >= 4):
+                                    recent_slopes = CI_slopes_hist[-3:]
+                                    slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
+                                    if slope_slopes >= 0:
+                                        if current_perf_estimate >= low_perf_threshold:
+                                            logger.info(f"Stopping continuous grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+                                        elif abs(slope) <= slope_threshold / 2:
+                                            logger.info(f"Stopping low-perf continuous grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                            stopped = True
+                                            break
+
+        # === BUILD RETURN VALUE ===
+        used_reps_dfs = []
+        for item_id in item_ids:
+            if item_id in used_reps_by_item and used_reps_by_item[item_id]:
+                used_reps_dfs.append(pd.DataFrame(used_reps_by_item[item_id], columns=df_part.columns))
+            else:
+                used_reps_dfs.append(pd.DataFrame(columns=df_part.columns))
+
+        avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs if len(df) > 0]) if any(len(df) > 0 for df in used_reps_dfs) else 0
+
+        boundary_diagnostic = _add_boundary_diagnostic(theta_lo, theta_hi, initial_perf)
+        if boundary_diagnostic:
+            logger.info(f"Grouping '{grouping_name}': {boundary_diagnostic}")
+
+        result = {
+            'grouping': pid,
+            'n_items_used': len(item_summaries),
+            'theta_ci_low': theta_lo,
+            'theta_ci_high': theta_hi,
+            'theta_ci_width': theta_width,
+            'percent_items_used': len(item_summaries) / len(item_ids) if item_ids else 0,
+            'avg_reps_per_item': avg_reps_per_item,
+            'used_reps_dfs': used_reps_dfs,
+            'boundary_diagnostic': boundary_diagnostic,
+            'error': None,
+            'processing_order': 'epoch_interleaved'
+        }
+        return result
+
+    except Exception as e:
+        logger = logging.getLogger('optstop.worker_posthoc_interleaved')
+        logger.error(f"Error processing grouping {pid}: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'grouping': pid,
+            'n_items_used': None,
+            'theta_ci_low': None,
+            'theta_ci_high': None,
+            'theta_ci_width': None,
+            'percent_items_used': None,
+            'avg_reps_per_item': None,
+            'used_reps_dfs': [],
+            'boundary_diagnostic': None,
+            'error': str(e),
+            'processing_order': 'epoch_interleaved'
+        }
+    finally:
+        sys.stdout, sys.stderr = old_stdout, old_stderr
+
 def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str]) -> Dict[str, Any]:
     # Environment variables are now set by the worker initializer
     import sys
@@ -2824,6 +3589,8 @@ def optimal_stopping_posthoc(
     prior_sigma: Optional[float] = None,
     shuffle_items: bool = False,
     shuffle_seed: Optional[int] = None,
+    processing_order: str = 'item_greedy',
+    reanalysis_interval: int = 10,
     gpu_ids: Optional[List[int]] = None,
     max_workers: Optional[int] = None
 ) -> Tuple[pd.DataFrame, List[Dict[str, Any]]]:
@@ -2884,6 +3651,16 @@ def optimal_stopping_posthoc(
       - shuffle_seed: Random seed for reproducible shuffling (default: None). Only used when
           shuffle_items=True. If None and shuffle_items=True, uses system entropy for
           non-reproducible randomization. Set to a fixed integer for reproducible results.
+      - processing_order: Processing order for data within each grouping (default: 'item_greedy')
+          * 'item_greedy': Process all epochs for item 1, then all epochs for item 2, etc.
+            Fast but may diverge from production stopping behaviour for binary scoring.
+          * 'epoch_interleaved': Process all items for epoch 1, then all items for epoch 2, etc.
+            Matches production (bridge) stopping behaviour. Slower but produces results
+            consistent with live early-stopping. Recommended for binary scoring consistency
+            analysis and production fidelity studies.
+      - reanalysis_interval: Number of trials between group model refreshes in epoch_interleaved
+          mode (default: 10). Matches the production bridge default. Only used when
+          processing_order='epoch_interleaved'. Ignored in item_greedy mode.
       - gpu_ids: List of GPU IDs to use for parallel processing. If None, uses CPU-only. If provided, assigns GPUs to workers cyclically.
       - max_workers: Number of parallel workers. If None, uses len(gpu_ids) when GPUs specified, otherwise uses CPU count.
 
@@ -2996,6 +3773,12 @@ def optimal_stopping_posthoc(
     if ordinal_inference not in ['modal', 'entropy', 'hybrid']:
         raise ValueError(f"ordinal_inference must be 'modal', 'entropy', or 'hybrid', got '{ordinal_inference}'")
 
+    # Validate processing_order parameter
+    if processing_order not in ['item_greedy', 'epoch_interleaved']:
+        raise ValueError(f"processing_order must be 'item_greedy' or 'epoch_interleaved', got '{processing_order}'")
+    if reanalysis_interval <= 0:
+        raise ValueError(f"reanalysis_interval must be a positive integer, got {reanalysis_interval}")
+
     # Add score type parameters to params dict for worker processes
     # These are always set so workers can use determine_score_type_standalone
     params_with_context['ordinal_tasks'] = ordinal_tasks
@@ -3006,6 +3789,8 @@ def optimal_stopping_posthoc(
     params_with_context['entropy_threshold'] = entropy_threshold
     params_with_context['prior_mu'] = prior_mu
     params_with_context['prior_sigma'] = prior_sigma
+    params_with_context['processing_order'] = processing_order
+    params_with_context['reanalysis_interval'] = reanalysis_interval
 
     # Validate ordinal scores upfront for all ordinal groupings
     if ordinal_tasks is not None:
@@ -3061,6 +3846,13 @@ def optimal_stopping_posthoc(
             if mp.get_start_method() != 'spawn':
                 mp.set_start_method('spawn', force=True)
 
+            # Select worker function based on processing order
+            if processing_order == 'epoch_interleaved':
+                worker_fn = _process_posthoc_grouping_interleaved_with_init
+                logger.info(f"Using epoch-interleaved processing order (reanalysis_interval={reanalysis_interval})")
+            else:
+                worker_fn = _process_posthoc_grouping_with_init
+
             with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
                 # Submit tasks with individual worker initialization
                 futures = []
@@ -3068,7 +3860,7 @@ def optimal_stopping_posthoc(
                     # Get worker initialization args cyclically
                     worker_args = worker_init_args[i % len(worker_init_args)]
                     # Create a new process with specific GPU assignment
-                    future = executor.submit(_process_posthoc_grouping_with_init, task_args, worker_args)
+                    future = executor.submit(worker_fn, task_args, worker_args)
                     futures.append(future)
 
                 # Collect results
@@ -3110,7 +3902,7 @@ def optimal_stopping_posthoc(
         for res in results:
             for used in res['used_reps_dfs']:
                 final_used_data.append(used)
-            participant_results.append({
+            result_dict = {
                 'grouping': to_native(res['grouping']),
                 'n_items_used': to_native(res['n_items_used']),
                 'theta_ci_low': to_native(res['theta_ci_low']),
@@ -3120,7 +3912,10 @@ def optimal_stopping_posthoc(
                 'avg_reps_per_item': to_native(res['avg_reps_per_item']),
                 'boundary_diagnostic': res.get('boundary_diagnostic'),
                 'error': res['error']
-            })
+            }
+            if 'processing_order' in res:
+                result_dict['processing_order'] = res['processing_order']
+            participant_results.append(result_dict)
 
         if final_used_data:
             final_used_df = pd.concat(final_used_data, ignore_index=True)

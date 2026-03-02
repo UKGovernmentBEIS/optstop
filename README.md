@@ -815,6 +815,8 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
 | `shuffle_items`          | False     | Post-hoc     | Randomize item order within each grouping before processing (recommended to avoid selection bias from sorted input) |
 | `shuffle_seed`           | None      | Post-hoc     | Random seed for reproducible shuffling (only used with `shuffle_items=True`) |
+| `processing_order`       | 'item_greedy' | Post-hoc | Processing order: `'item_greedy'` (all epochs per item, fast) or `'epoch_interleaved'` (all items per epoch, matches production bridge behaviour) |
+| `reanalysis_interval`    | 10        | Post-hoc     | Trials between group model refreshes in `epoch_interleaved` mode (matches bridge default) |
 
 ### Example: Setting Parameters
 
@@ -1320,10 +1322,33 @@ See the CLI help (`optstop-convergence --help`) for all options.
 - **Parallelization:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
 
 ### Input Ordering and Selection Bias (Post-hoc)
-- **Items are processed in dataframe order.** If your input data is sorted (e.g., alphabetically by sample ID), early stopping may select a biased subsample if early-alphabet items happen to have systematically different scores than late-alphabet items.
-- **Use `shuffle_items=True`** to randomize item order within each grouping before processing. This is recommended for unbiased post-hoc analysis.
+- **Items are processed in dataframe order** (within each grouping). If your input data is sorted (e.g., alphabetically by sample ID), early stopping may select a biased subsample if early-alphabet items happen to have systematically different scores than late-alphabet items.
+- **Use `shuffle_items=True`** to randomize item order within each grouping before processing. This is recommended for unbiased post-hoc analysis. In `epoch_interleaved` mode, shuffling controls the order items are processed within each epoch.
 - **Use `shuffle_seed`** with `shuffle_items=True` for reproducible shuffling.
 - **The package warns automatically** if sorted input is detected and `shuffle_items=False`, but using explicit shuffling is recommended.
+
+### Processing Order (Post-hoc)
+
+The `processing_order` parameter controls how the posthoc function iterates through the data:
+
+- **`'item_greedy'`** (default): Processes all epochs for item 1, then all epochs for item 2, etc. This is fast but produces deep coverage of few items early on. Suitable for exploratory analysis and continuous scoring where each observation carries high information.
+- **`'epoch_interleaved'`**: Processes all items for epoch 1, then all items for epoch 2, etc. This matches the production bridge (`OptimalStoppingManager`) processing order, producing broad item coverage early. Recommended for consistency/robustness studies comparing posthoc results against production, particularly for binary scoring where item diversity is critical.
+
+The `reanalysis_interval` parameter (default 10) controls how frequently the group-level model is refreshed in `epoch_interleaved` mode, matching the bridge's default cadence. It is ignored in `item_greedy` mode (which uses `pymc_refresh_every` instead).
+
+```python
+# Epoch-interleaved mode (matches production bridge behaviour)
+pruned_df, summary = optimal_stopping_posthoc(
+    df, params,
+    grouping_columns=['model', 'task'],
+    sample_id_column='item_id',
+    epoch_column='trial_num',
+    processing_order='epoch_interleaved',
+    reanalysis_interval=10,
+    shuffle_items=True,
+    shuffle_seed=42
+)
+```
 
 ### Recommended Parameter Settings
 - **draws & tune:** 1000 (default) is sufficient for standard analysis. Increase `tune` up to 2000 if you see many divergences, poor adaptation messages, or R-hat far from 1.0. Increase `draws` up to 4000 if HDIs lack sufficient precision. Values below 1000 (e.g., 50) are only for debugging.
@@ -1453,6 +1478,8 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
 - **--shuffle_items**: Randomize item order within each grouping before processing. Recommended to avoid selection bias from sorted input.
 - **--shuffle_seed**: Random seed for reproducible shuffling (only used with --shuffle_items)
+- **--processing_order**: Processing order: `item_greedy` (all epochs per item, fast) or `epoch_interleaved` (all items per epoch, matches production). Default: `item_greedy`
+- **--reanalysis_interval**: Group model refresh interval in trials for `epoch_interleaved` mode (default: 10)
 - **--continuous_tasks**: Comma-separated list of substrings to identify continuous bounded [0,1] groupings (e.g., "accuracy,quality")
 
 ### 2. Live Optimal Stopping

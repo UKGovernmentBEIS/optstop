@@ -70,6 +70,8 @@ def main():
         parser.add_argument('--prior_sigma', type=float, default=None, help='Scale of group-level Normal prior on logit scale. If not set, uses pathway-specific defaults (binary/continuous: 1.5, ordinal: 2.0). If set, applies to all pathways.')
         parser.add_argument('--shuffle_items', action='store_true', help='Randomize item order within each grouping before processing. Recommended to avoid selection bias from sorted input.')
         parser.add_argument('--shuffle_seed', type=int, default=None, help='Random seed for reproducible shuffling (only used with --shuffle_items)')
+        parser.add_argument('--processing_order', type=str, default='item_greedy', choices=['item_greedy', 'epoch_interleaved'], help='Processing order: item_greedy (all epochs per item, fast) or epoch_interleaved (all items per epoch, matches production). Default: item_greedy')
+        parser.add_argument('--reanalysis_interval', type=int, default=10, help='Group model refresh interval in trials for epoch_interleaved mode (default: 10)')
         parser.add_argument('--disable_gpu', action='store_true', help='Disable GPU acceleration even if available')
         parser.add_argument('--force_gpu', action='store_true', help='Force GPU usage (will fail if GPU unavailable)')
         args = parser.parse_args()
@@ -126,7 +128,9 @@ def main():
             prior_mu=args.prior_mu,
             prior_sigma=args.prior_sigma,
             shuffle_items=args.shuffle_items,
-            shuffle_seed=args.shuffle_seed
+            shuffle_seed=args.shuffle_seed,
+            processing_order=args.processing_order,
+            reanalysis_interval=args.reanalysis_interval
         )
         pruned_df.to_csv(args.output, index=False)
         if args.summary:
