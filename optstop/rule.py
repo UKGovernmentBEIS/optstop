@@ -3876,7 +3876,8 @@ def optimal_stopping_posthoc(
               * n_items_used: Number of items evaluated before stopping
               * theta_ci_low, theta_ci_high: Lower/upper bounds of the capability CI
               * theta_ci_width: Width of the capability CI
-              * percent_items_used: Fraction of total items used (efficiency metric)
+              * percent_items_used: Efficiency metric. In item_greedy mode: fraction of
+                  items used. In epoch_interleaved mode: fraction of total trials used.
               * avg_reps_per_item: Average epochs per item
               * boundary_diagnostic: Warning message if estimate is near 0% or 100%
                   performance (where model estimates may be biased), or None
