@@ -1366,7 +1366,6 @@ def _init_item_state(score_type: str) -> Dict[str, Any]:
         'ci_record': [],
         'ci_slopes_hist': [],
         'entropy_history': [],
-        'stopped': False,
         'accumulated_scores': [],
     }
     return state
@@ -1650,11 +1649,12 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
         trial_counter = 0
         stopped = False
         theta_lo, theta_hi, theta_width = 0.0, 1.0, 1.0
+        last_refresh_n_observed = 0
 
         for epoch in all_epochs:
             if stopped:
                 break
-            for item_id in item_ids:
+            for item_idx, item_id in enumerate(item_ids):
                 if item_id in item_stopped:
                     continue
 
@@ -1709,7 +1709,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                     item_perf_norm = (np.mean(state['accumulated_scores']) - cont_lower) / (cont_upper - cont_lower) if cont_upper > cont_lower else np.mean(state['accumulated_scores'])
                     current_conservatism = conservatism if item_perf_norm < low_perf_threshold else 1.0
                     ci_low_item, ci_high_item, ci_width = _continuous_bounded_ci_adaptive(
-                        state['accumulated_scores'], cred_level=cred_level,
+                        np.array(state['accumulated_scores']), cred_level=cred_level,
                         lower_bound=cont_lower, upper_bound=cont_upper,
                         conservatism=current_conservatism,
                         low_perf_threshold=low_perf_threshold
@@ -1783,6 +1783,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             cred_level=cred_level,
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold,
+                            model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
                         state['ci_record'].append(ci_width)
@@ -1809,13 +1810,18 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                 trial_counter += 1
 
                 # === GROUP MODEL REFRESH ===
-                is_last_item_in_epoch = (item_id == item_ids[-1])
+                # Check if this is the last active (non-stopped) item remaining in this epoch
+                is_last_active_in_epoch = not any(
+                    item_ids[j] not in item_stopped for j in range(item_idx + 1, len(item_ids))
+                )
                 is_last_epoch = (epoch == all_epochs[-1])
-                is_last_trial = is_last_epoch and is_last_item_in_epoch
+                is_last_trial = is_last_epoch and is_last_active_in_epoch
+                all_items_stopped = len(item_stopped) >= len(item_ids)
 
-                if (trial_counter % reanalysis_interval == 0 or is_last_trial) and len(item_summaries) >= 2:
+                if (trial_counter % reanalysis_interval == 0 or is_last_trial or all_items_stopped) and len(item_summaries) >= 2:
                     summaries_list = list(item_summaries.values())
                     n_observed = len(summaries_list)
+                    last_refresh_n_observed = n_observed
 
                     # Compute performance estimate
                     if score_type == 'binary':
@@ -1954,7 +1960,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                     theta_lo, theta_hi = 0.0, 1.0
 
                             CI_record.append(theta_width)
-                            effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                            # Note: theta_width from _ordinal_ci_hierarchical_modal/entropy
+                            # already includes conservatism internally. Do not multiply again.
+                            effective_width = theta_width
 
                             if ordinal_inference == 'hybrid' and should_stop_group:
                                 logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
@@ -2066,6 +2074,193 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             stopped = True
                                             break
 
+        # === POST-LOOP FINAL GROUP REFRESH ===
+        # When all data is exhausted without triggering group-level stopping,
+        # run one final group model evaluation with direct width check only.
+        # Slope stabilisation is bypassed because it guards against premature
+        # stopping during data accumulation - irrelevant once all data is consumed.
+        # Skip if the in-loop already refreshed with the same number of items
+        # (no new data since last refresh - would be a redundant MCMC run).
+        if not stopped and len(item_summaries) >= 2 and len(item_summaries) != last_refresh_n_observed:
+            logger.info(f"Running post-loop final group refresh for {pid} (data exhausted, {len(item_summaries)} items, {trial_counter} trials)")
+            summaries_list = list(item_summaries.values())
+            n_observed = len(summaries_list)
+
+            # Performance estimate
+            if score_type == 'binary':
+                total_trials_sum = sum(s['trials'] for s in summaries_list)
+                current_perf_estimate = sum(s['successes'] for s in summaries_list) / total_trials_sum if total_trials_sum > 0 else 0
+            elif score_type == 'ordinal':
+                total_obs = sum(s['n_obs'] for s in summaries_list)
+                current_perf_estimate = sum(s['mean_score'] * s['n_obs'] for s in summaries_list) / total_obs / ordinal_max_score if total_obs > 0 else 0.0
+            else:  # continuous
+                total_obs = sum(len(s['scores_normalized']) for s in summaries_list)
+                current_perf_estimate = sum(np.mean(s['scores_normalized']) * len(s['scores_normalized']) for s in summaries_list) / total_obs if total_obs > 0 else 0.0
+
+            current_conservatism = conservatism if current_perf_estimate < low_perf_threshold else 1.0
+
+            if score_type == 'binary':
+                all_successes = np.array([s['successes'] for s in summaries_list])
+                all_trials = np.array([s['trials'] for s in summaries_list])
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    with model:
+                        successes_padded = np.zeros(n_items_total, dtype="int64")
+                        trials_padded = np.ones(n_items_total, dtype="int64")
+                        obs_weight_padded = np.zeros(n_items_total, dtype="float64")
+                        successes_padded[:n_observed] = all_successes
+                        trials_padded[:n_observed] = all_trials
+                        obs_weight_padded[:n_observed] = 1.0
+                        pm.set_data({
+                            "successes": successes_padded,
+                            "trials": trials_padded,
+                            "obs_weight": obs_weight_padded,
+                        })
+                        with suppress_all_output():
+                            trace = pm.sample(**sampling_kwargs)
+                    try:
+                        theta_samples = trace.posterior["Theta"].values
+                        theta_samples = theta_samples[:, :, :n_observed]
+                        mean_theta_samples = theta_samples.mean(axis=2)
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                        theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                        theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                    except Exception:
+                        mu_group_samples = trace.posterior["mu_group"].values
+                        group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                        theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                        theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                    theta_width = theta_hi - theta_lo
+                    effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                    if effective_width < delta_cap:
+                        logger.info(f"Post-loop stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                        stopped = True
+                    else:
+                        logger.info(f"Data exhausted for binary grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
+
+            elif score_type == 'ordinal':
+                item_counts_matrix = np.array([s['counts'] for s in summaries_list])
+                item_ns = np.array([s['n_obs'] for s in summaries_list])
+                current_perf_normalized = current_perf_estimate
+
+                if len(item_ns) > 0 and np.sum(item_ns) > 0:
+                    if ordinal_inference == 'hybrid':
+                        should_stop_group, reason_group, diag_group = _ordinal_hybrid_stopping_criterion_hierarchical(
+                            item_counts_matrix, item_ns,
+                            ordinal_max_score=ordinal_max_score,
+                            delta_item=delta_cap,
+                            cred_level=cred_level,
+                            entropy_history=group_entropy_history,
+                            entropy_threshold=entropy_threshold,
+                            entropy_convergence_threshold=entropy_convergence_threshold,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            current_perf=current_perf_normalized,
+                            model_cache=group_ordinal_model_cache,
+                            sampling_kwargs=sampling_kwargs
+                        )
+                        theta_width = diag_group.get('modal_width', delta_cap)
+                        if 'modal_ci' in diag_group:
+                            theta_lo, theta_hi = diag_group['modal_ci']
+                        else:
+                            theta_lo, theta_hi = 0.0, 1.0
+                        if should_stop_group:
+                            logger.info(f"Post-loop stopping ordinal grouping {pid}: Hybrid ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
+                            stopped = True
+                        else:
+                            logger.info(f"Data exhausted for ordinal hybrid grouping {pid}: not converged ({reason_group})")
+                    elif ordinal_inference == 'modal':
+                        theta_lo, theta_hi, theta_width = _ordinal_ci_hierarchical_modal(
+                            item_counts_matrix, item_ns,
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            current_perf=current_perf_normalized,
+                            model_cache=group_ordinal_model_cache,
+                            sampling_kwargs=sampling_kwargs
+                        )
+                        # theta_width already includes conservatism internally
+                        if theta_width < delta_cap:
+                            logger.info(f"Post-loop stopping ordinal grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                            stopped = True
+                        else:
+                            logger.info(f"Data exhausted for ordinal modal grouping {pid}: CI width {theta_width:.4f} > delta_cap {delta_cap}")
+                    elif ordinal_inference == 'entropy':
+                        entropy_lo, entropy_hi, theta_width, diag = _ordinal_ci_hierarchical_entropy(
+                            item_counts_matrix, item_ns,
+                            ordinal_max_score=ordinal_max_score,
+                            cred_level=cred_level,
+                            conservatism=current_conservatism,
+                            low_perf_threshold=low_perf_threshold,
+                            current_perf=current_perf_normalized,
+                            model_cache=group_ordinal_model_cache,
+                            sampling_kwargs=sampling_kwargs
+                        )
+                        theta_lo, theta_hi = entropy_lo, entropy_hi
+                        # theta_width already includes conservatism internally
+                        if theta_width < delta_cap:
+                            logger.info(f"Post-loop stopping ordinal grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                            stopped = True
+                        else:
+                            logger.info(f"Data exhausted for ordinal entropy grouping {pid}: CI width {theta_width:.4f} > delta_cap {delta_cap}")
+
+            elif score_type in ['continuous_01', 'continuous_bounded']:
+                item_means_list = []
+                item_ns_list = []
+                total_obs_count = 0
+                for item_summary in summaries_list:
+                    scores_norm = item_summary['scores_normalized']
+                    item_means_list.append(np.mean(scores_norm))
+                    item_ns_list.append(len(scores_norm))
+                    total_obs_count += len(scores_norm)
+                item_means_array = np.array(item_means_list, dtype="float64")
+                item_ns_array = np.array(item_ns_list, dtype="int64")
+
+                if n_observed > 0 and total_obs_count > 0:
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        cont_model = continuous_model_cache['model']
+                        with cont_model:
+                            item_means_padded = np.full(n_items_total, 0.5, dtype="float64")
+                            item_ns_padded = np.ones(n_items_total, dtype="int64")
+                            obs_weight_padded = np.zeros(n_items_total, dtype="float64")
+                            item_means_padded[:n_observed] = item_means_array
+                            item_ns_padded[:n_observed] = item_ns_array
+                            obs_weight_padded[:n_observed] = 1.0
+                            pm.set_data({
+                                "item_means": item_means_padded,
+                                "item_ns": item_ns_padded,
+                                "obs_weight": obs_weight_padded,
+                            })
+                            with suppress_all_output():
+                                trace = pm.sample(**sampling_kwargs)
+                        try:
+                            mu_item_samples = trace.posterior["mu_item"].values
+                            mu_item_samples = mu_item_samples[:, :, :n_observed]
+                            mean_mu_samples = mu_item_samples.mean(axis=2)
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                        except Exception:
+                            mu_group_samples = trace.posterior["mu_group"].values
+                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        theta_width = theta_hi - theta_lo
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                        if effective_width < delta_cap:
+                            logger.info(f"Post-loop stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                            stopped = True
+                        else:
+                            logger.info(f"Data exhausted for continuous grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
+
         # === BUILD RETURN VALUE ===
         used_reps_dfs = []
         for item_id in item_ids:
@@ -2075,6 +2270,13 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                 used_reps_dfs.append(pd.DataFrame(columns=df_part.columns))
 
         avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs if len(df) > 0]) if any(len(df) > 0 for df in used_reps_dfs) else 0
+
+        # In epoch-interleaved mode, all items are encountered in epoch 1, so
+        # len(item_summaries) always equals n_items_total. Compute efficiency
+        # as fraction of total possible trials actually used.
+        total_trials_possible = len(df_part)
+        total_trials_used = sum(len(df) for df in used_reps_dfs)
+        percent_trials_used = total_trials_used / total_trials_possible if total_trials_possible > 0 else 0
 
         boundary_diagnostic = _add_boundary_diagnostic(theta_lo, theta_hi, initial_perf)
         if boundary_diagnostic:
@@ -2086,7 +2288,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
             'theta_ci_low': theta_lo,
             'theta_ci_high': theta_hi,
             'theta_ci_width': theta_width,
-            'percent_items_used': len(item_summaries) / len(item_ids) if item_ids else 0,
+            'percent_items_used': percent_trials_used,
             'avg_reps_per_item': avg_reps_per_item,
             'used_reps_dfs': used_reps_dfs,
             'boundary_diagnostic': boundary_diagnostic,
@@ -2633,7 +2835,7 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     item_counts_matrix = np.array([s['counts'] for s in item_summaries])
                     item_ns = np.array([s['n_obs'] for s in item_summaries])
 
-                    current_perf_normalized = current_perf_estimate / ordinal_max_score if ordinal_max_score > 0 else 0.0
+                    current_perf_normalized = current_perf_estimate  # Already normalized to [0,1] at L2769
 
                     if len(item_ns) > 0 and np.sum(item_ns) > 0:
                         # Compute group-level CI using hierarchical inference
@@ -2691,7 +2893,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 theta_lo, theta_hi = 0.0, 1.0
 
                         CI_record.append(theta_width)
-                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                        # Note: theta_width from _ordinal_ci_hierarchical_modal/entropy
+                        # already includes conservatism internally. Do not multiply again.
+                        effective_width = theta_width
 
                         # For hybrid, use the hybrid stopping decision directly
                         if ordinal_inference == 'hybrid' and should_stop_group:

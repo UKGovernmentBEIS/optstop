@@ -91,7 +91,6 @@ class TestInitItemState:
         assert state['ci_record'] == []
         assert state['ci_slopes_hist'] == []
         assert state['entropy_history'] == []
-        assert state['stopped'] is False
         assert state['accumulated_scores'] == []
 
     def test_continuous_state(self):
@@ -99,17 +98,14 @@ class TestInitItemState:
         assert state['accumulated_scores'] == []
         assert state['successes'] == 0
         assert state['trials'] == 0
-        assert state['stopped'] is False
 
     def test_continuous_bounded_state(self):
         state = _init_item_state('continuous_bounded')
         assert state['accumulated_scores'] == []
-        assert state['stopped'] is False
 
     def test_ordinal_state(self):
         state = _init_item_state('ordinal')
         assert state['accumulated_scores'] == []
-        assert state['stopped'] is False
 
 
 class TestBuildItemSummary:
