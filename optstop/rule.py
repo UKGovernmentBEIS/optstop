@@ -3930,6 +3930,10 @@ def optimal_stopping_posthoc(
             lambda g: g.sample(frac=1, random_state=rng)
         ).reset_index(drop=True)
 
+        # Pandas 3.x drops the groupby column during apply — recreate it
+        if 'grouping' not in df.columns:
+            df['grouping'] = df[grouping_columns].astype(str).agg('-'.join, axis=1)
+
         logger.info(f"Shuffled item order within groupings (seed={shuffle_seed})")
     else:
         # Check if sample_ids appear to be sorted within any grouping (potential ordering bias)
