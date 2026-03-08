@@ -1702,7 +1702,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             recent_slopes = state['ci_slopes_hist'][-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                if item_perf >= low_perf_threshold or abs(slope) <= slope_threshold:
                                     item_stopped.add(item_id)
 
                 elif score_type in ['continuous_01', 'continuous_bounded'] and len(state['accumulated_scores']) >= 2:
@@ -1728,7 +1728,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             recent_slopes = state['ci_slopes_hist'][-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if item_perf_norm >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                if item_perf_norm >= low_perf_threshold or abs(slope) <= slope_threshold:
                                     item_stopped.add(item_id)
 
                 elif score_type == 'ordinal' and len(state['accumulated_scores']) >= 2:
@@ -1772,7 +1772,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                 recent_slopes = state['ci_slopes_hist'][-3:]
                                 slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                                 if slope_slopes >= 0:
-                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold:
                                         item_stopped.add(item_id)
                     elif ordinal_inference == 'entropy':
                         ordinal_item_perf = np.mean(state['accumulated_scores']) / ordinal_max_score if ordinal_max_score > 0 else 0.0
@@ -1798,7 +1798,7 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                 recent_slopes = state['ci_slopes_hist'][-3:]
                                 slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                                 if slope_slopes >= 0:
-                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold / 2:
+                                    if ordinal_item_perf >= low_perf_threshold or abs(slope) <= slope_threshold:
                                         item_stopped.add(item_id)
 
                 # Update item summary
@@ -1901,8 +1901,8 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             logger.info(f"Stopping grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
-                                        elif abs(slope) <= slope_threshold / 2:
-                                            logger.info(f"Stopping low-perf grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                        else:
+                                            logger.info(f"Stopping low-perf grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
 
@@ -1986,8 +1986,8 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             logger.info(f"Stopping ordinal grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
-                                        elif abs(slope) <= slope_threshold / 2:
-                                            logger.info(f"Stopping low-perf ordinal grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                        else:
+                                            logger.info(f"Stopping low-perf ordinal grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
 
@@ -2069,8 +2069,8 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             logger.info(f"Stopping continuous grouping {pid} due to CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
-                                        elif abs(slope) <= slope_threshold / 2:
-                                            logger.info(f"Stopping low-perf continuous grouping {pid} due to strong CI stabilization: slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
+                                        else:
+                                            logger.info(f"Stopping low-perf continuous grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
                                             stopped = True
                                             break
 
@@ -2710,9 +2710,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     n_obs = trials if score_type == 'binary' else len(accumulated_scores)
                                     logger.info(f"Stopping sample_id {item_id} (group {pid}) due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {n_obs}")
                                     break
-                                elif abs(slope) <= slope_threshold / 2:
+                                else:
                                     n_obs = trials if score_type == 'binary' else len(accumulated_scores)
-                                    logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to strong CI stabilization: slope {slope:.6f} | epochs used: {n_obs}")
+                                    logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to CI stabilization (low-perf): slope {slope:.6f} | epochs used: {n_obs}")
                                     break
 
                 # Store item summary based on score type
@@ -2825,8 +2825,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     if current_perf_estimate >= low_perf_threshold:
                                         logger.info(f"Stopping grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
-                                    elif abs(slope) <= slope_threshold / 2:
-                                        logger.info(f"Stopping low-performance grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                    else:
+                                        logger.info(f"Stopping low-performance grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
 
                 # Group-level stopping for ordinal scoring (HIERARCHICAL)
@@ -2917,8 +2917,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     if current_perf_estimate >= low_perf_threshold:
                                         logger.info(f"Stopping ordinal grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
-                                    elif abs(slope) <= slope_threshold / 2:
-                                        logger.info(f"Stopping low-performance ordinal grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                    else:
+                                        logger.info(f"Stopping low-performance ordinal grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
 
                 # Group-level stopping for continuous scoring (HIERARCHICAL)
@@ -3002,8 +3002,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     if current_perf_estimate >= low_perf_threshold:
                                         logger.info(f"Stopping continuous grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
-                                    elif abs(slope) <= slope_threshold / 2:
-                                        logger.info(f"Stopping low-performance continuous grouping {pid} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
+                                    else:
+                                        logger.info(f"Stopping low-performance continuous grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
 
             avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs]) if used_reps_dfs else 0
@@ -3358,8 +3358,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
-                                elif abs(slope) <= slope_threshold / 2:
-                                    # logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | epochs used: {trials}")  # Results in output
+                                else:
+                                    # logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to CI stabilization (low-perf): slope {slope:.6f} | epochs used: {trials}")  # Results in output
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
@@ -3416,7 +3416,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
-                                elif abs(slope) <= slope_threshold / 2:
+                                else:
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
@@ -3600,8 +3600,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                         # logger.info(f"Stopping grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
                                         stop_this_grouping.append(grouping)
                                         break
-                                    elif abs(slope) <= slope_threshold / 2:
-                                        # logger.info(f"Stopping low-performance grouping {grouping} due to strong CI stabilization: slope {slope:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
+                                    else:
+                                        # logger.info(f"Stopping low-performance grouping {grouping} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
                                         stop_this_grouping.append(grouping)
                                         break
 
@@ -3678,7 +3678,7 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                     if current_perf_estimate >= low_perf_threshold:
                                         stop_this_grouping.append(grouping)
                                         break
-                                    elif abs(slope) <= slope_threshold / 2:
+                                    else:
                                         stop_this_grouping.append(grouping)
                                         break
 
@@ -4930,6 +4930,9 @@ def optimal_stopping_live_single(
             total_count = np.sum([s['count'] for s in item_summaries])
             current_perf_estimate = total_sum / total_count if total_count > 0 else 0
 
+        # Persist for convergence projection (used by bridge caller)
+        stabilization_history['current_perf_estimate'] = float(current_perf_estimate)
+
         if score_type == 'binary':
             # === BINARY GROUP-LEVEL STOPPING ===
             # TIMING_TEST: Binary-specific timing start
@@ -5110,7 +5113,7 @@ def optimal_stopping_live_single(
                                     'samples_used': len(item_summaries)
                                 }
                                 # logger.info(f"Stopping grouping '{grouping_name}' via stabilization: slope {slope:.6f}")  # Results in output
-                            elif abs(slope) <= slope_threshold / 2:
+                            else:
                                 stop_this_grouping.append(grouping_name)
                                 metadata['group_stopping_reason'] = {
                                     'reason': 'ci_stabilization_low_perf',
@@ -5118,7 +5121,7 @@ def optimal_stopping_live_single(
                                     'slope_threshold': slope_threshold,
                                     'samples_used': len(item_summaries)
                                 }
-                                # logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong stabilization")  # Results in output
+                                # logger.info(f"Stopping low-perf grouping '{grouping_name}' via CI stabilization (low-perf)")  # Results in output
 
             # TIMING_TEST: Binary inference complete
             _binary_elapsed = time.perf_counter() - _binary_start
@@ -5447,8 +5450,8 @@ def optimal_stopping_live_single(
                                 'samples_used': len(item_summaries)
                             }
                             # logger.info(f"Stopping grouping '{grouping_name}' via hierarchical continuous stabilization: slope {slope:.6f}")  # Results in output
-                        # For low performance, require stronger stabilization
-                        elif abs(slope) <= slope_threshold / 2:
+                        # For low performance, slope_threshold already tightened by conservatism divisor
+                        else:
                             stop_this_grouping.append(grouping_name)
                             metadata['group_stopping_reason'] = {
                                 'reason': 'continuous_hierarchical_stabilization_low_perf',
@@ -5456,7 +5459,7 @@ def optimal_stopping_live_single(
                                 'slope_threshold': slope_threshold,
                                 'samples_used': len(item_summaries)
                             }
-                            # logger.info(f"Stopping low-perf grouping '{grouping_name}' via strong hierarchical continuous stabilization")  # Results in output
+                            # logger.info(f"Stopping low-perf grouping '{grouping_name}' via hierarchical continuous CI stabilization (low-perf)")  # Results in output
 
             # TIMING_TEST: Continuous inference complete
             _continuous_elapsed = time.perf_counter() - _continuous_start

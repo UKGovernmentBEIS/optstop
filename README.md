@@ -16,6 +16,7 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Bayesian and frequentist hybrid methodology
 - GPU acceleration support via JAX/numpyro for significantly faster PyMC sampling
 - Ordinal scoring support for ordinal data (e.g., 0-10), bounded continuous support (e.g., for bounded aggregates), in addition to binary (0/1) scoring
+- Convergence projection: estimates additional trials needed when evaluation ends before convergence
 - inspect_ai integration for LLM evaluation workflows with adaptive early stopping
 
 ## Using optstop with inspect_ai
@@ -263,7 +264,30 @@ for log in logs:
         # Stopped samples with reasons
         for sample in diagnostics['stopped_samples']:
             print(f"Sample {sample['id']}: {sample['reason']}")
+
+        # Convergence projections for non-stopped groupings
+        for grouping, history in diagnostics['stabilization_histories'].items():
+            if 'convergence_projection' in history:
+                proj = history['convergence_projection']
+                print(f"{grouping}: ~{proj['projected_additional_trials']} more trials needed")
+                print(f"  Basis: {proj['projection_basis']}")
+                print(f"  Target: {proj['convergence_target']}")
+                print(f"  80% CI: {proj['uncertainty']['ci_trials_80']} trials")
 ```
+
+#### Convergence Projection
+
+For groupings that have not converged when evaluation ends, optstop estimates how many additional trials would be needed. The projection uses an exponential decay model as the primary approach (fitting `w(t) = a*exp(-b*t) + c` to the CI width trajectory), with linear extrapolation as a fallback when the exponential fit is unavailable or poor.
+
+The projection classifies each non-converged grouping into one of three outcomes via `convergence_target`:
+
+- **`projected_width`**: CI width is projected to drop below `delta_cap` (the group-level CI width threshold, default 0.05) - the grouping would converge with more data. Increase your sample budget or epochs accordingly.
+- **`projected_slope_stabilisation`**: CI width is projected to plateau above `delta_cap` - additional data yields diminishing returns. Widen `delta_cap` to accept the current precision, or investigate whether the grouping has high intrinsic variance.
+- **`projected_capped`**: Neither outcome detected within the projection horizon. Check whether the grouping has very few observations (< 5 group-level checks) - more data may clarify the trajectory. If observations are plentiful but no clear trend emerges, the data may be too noisy for the current stopping criteria.
+
+In the bridge pathway, each projection includes uncertainty quantification via residual bootstrap (80% and 50% confidence intervals) and a `confidence_level` (`'high'`, `'moderate'`, or `'low'`). Posthoc shortfall estimates are point estimates only (bootstrap disabled for speed, since results are aggregated across randomised orderings). Groupings with insufficient CI width history for projection will not have a `convergence_projection` entry.
+
+See the Convergence Projection Fields section in `BRIDGE_API_REFERENCE.md` for the full field reference (applicable to all modes, not just inspect_ai integration).
 
 ### Best Practices
 
@@ -1225,13 +1249,19 @@ The package provides a function for post-hoc convergence analysis, allowing you 
 
 - **Purpose:**
   - Runs a post-hoc convergence analysis on a full dataset, parallelizing across groupings (using all available CPU cores).
-  - Returns a DataFrame detailing the required numbers of trials at epoch and sample_ID levels, split by the users desired grouping.
+  - Returns a DataFrame detailing the required numbers of trials at epoch and sample_ID levels, split by the user's desired grouping.
 - **Parameters:**
   - Accepts the same `params` dictionary as other functions (see table above), plus:
     - `item_seqs`: Number of randomized item orderings per grouping (default: 20)
     - `epoch_seqs`: Number of randomized epoch orderings per item (default: 20)
 - **Returns:**
-  - A DataFrame with one row per grouping-task, containing detailed convergence statistics and summary metrics.
+  - A DataFrame with one row per grouping-task, containing detailed convergence statistics and summary metrics. Key columns include:
+    - `mean_needed_items` / `var_needed_items`: Mean and population variance of projected additional items needed across randomised orderings
+    - `mean_needed_epochs` / `var_needed_epochs`: Mean and population variance of projected additional epochs needed
+    - `theta_ci_width`: Final group-level CI width
+    - `percent_items_used`: Fraction of total trials used before convergence
+    - `mean_fin_CI_width_item` / `mean_fin_CI_width_epoch`: Mean final CI widths at item and epoch level
+  - Shortfall estimates (needed items/epochs) are computed using an exponential decay model (primary, fitting `w(t) = a*exp(-b*t) + c`) with linear extrapolation fallback, projecting item-level convergence against `delta_item`. Projections are capped at 200 additional trials per sequence. Bootstrap uncertainty is disabled for posthoc shortfalls (point estimates only, aggregated across randomised orderings).
 
 ### Example Usage
 ```python

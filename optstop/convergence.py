@@ -13,6 +13,7 @@ import os
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 from typing import List, Optional, Tuple, Dict, Any
+from scipy.optimize import curve_fit as _scipy_curve_fit
 from tqdm import tqdm
 import contextlib
 import io
@@ -74,6 +75,467 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='pymc')
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='arviz')
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='pytensor')
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Exponential decay model: w(t) = a * exp(-b * t) + c
+# ---------------------------------------------------------------------------
+
+def _exp_decay(t, a, b, c):
+    """Exponential decay model for CI width trajectories."""
+    return a * np.exp(-b * t) + c
+
+
+def _fit_exponential(ci_widths):
+    """Fit exponential decay to CI width history.
+
+    Returns (popt, r_squared) on success, or (None, None) on failure.
+    Failure modes: curve_fit exception, R-squared < 0.7, constant input.
+    """
+    w = np.array(ci_widths, dtype=float)
+    n = len(w)
+    if n < 5:
+        return None, None
+
+    t = np.arange(n, dtype=float)
+
+    # Initial guesses: amplitude from range, moderate decay, asymptote near final
+    amp_guess = max(w[0] - w[-1], 1e-6)
+    p0 = [amp_guess, 0.05, max(w[-1] * 0.5, 1e-10)]
+    bounds = ([0, 1e-8, 0], [np.inf, 2.0, np.inf])
+
+    try:
+        popt, _ = _scipy_curve_fit(_exp_decay, t, w, p0=p0,
+                                   bounds=bounds, maxfev=5000)
+    except (RuntimeError, ValueError, TypeError):
+        return None, None
+
+    # R-squared quality gate
+    fitted = _exp_decay(t, *popt)
+    ss_res = np.sum((w - fitted) ** 2)
+    ss_tot = np.sum((w - np.mean(w)) ** 2)
+    r_squared = 1.0 - ss_res / ss_tot if ss_tot > 1e-15 else 0.0
+
+    if r_squared < 0.7:
+        return None, None
+
+    return popt, float(r_squared)
+
+
+def _project_exponential(popt, n_obs, delta, step_size, max_steps):
+    """Compute projection from fitted exponential model.
+
+    Returns (steps, convergence_target, width_at_termination) where steps
+    is in observation-step units (multiply by step_size for trials), matching
+    the convention of _run_projection_loop.
+    """
+    a, b, c = popt
+
+    if c < delta and a > 0:
+        # Width will cross delta - solve a*exp(-b*t) + c = delta
+        ratio = a / (delta - c)
+        if ratio > 0:
+            t_cross = (1.0 / b) * np.log(ratio)
+            additional_obs = t_cross - n_obs
+            steps = max(0, int(round(additional_obs)))
+            if steps <= max_steps:
+                width_at_cross = _exp_decay(t_cross, a, b, c)
+                return steps, 'projected_width', float(width_at_cross)
+            else:
+                width_at_cap = float(_exp_decay(n_obs + max_steps, a, b, c))
+                return max_steps, 'projected_capped', width_at_cap
+    # Asymptote >= delta: trajectory plateaus above delta
+    # Report steps until within 5% of asymptote
+    if a > 0 and c > 0:
+        target_width = c * 1.05
+        excess = target_width - c  # = 0.05 * c
+        if excess > 0:
+            ratio = a / excess
+            if ratio > 0:
+                t_plateau = (1.0 / b) * np.log(ratio)
+                additional_obs = max(0.0, t_plateau - n_obs)
+                steps = int(round(additional_obs))
+                if steps <= max_steps:
+                    return steps, 'projected_slope_stabilisation', float(c)
+    return 0, 'projected_slope_stabilisation', float(c)
+
+
+def _run_projection_loop(width, slope, slope_of_slopes, delta, slope_threshold, max_steps):
+    """Run the greedy linear extrapolation loop (fallback when exponential fit fails).
+
+    Mirrors the slope stabilisation guard in rule.py (slope_slopes >= 0),
+    with a small floating-point tolerance (>= -1e-12). Uses unclamped slope
+    (no min(0, ...)) so diverging trajectories correctly hit 'capped'.
+
+    Slope stabilisation triggers when either:
+    (a) abs(slope) <= slope_threshold with Guard A passing, OR
+    (b) slope crosses from negative to non-negative (sign reversal) with
+        Guard A passing. Case (b) catches the physically correct stabilisation
+        event when the discrete step overshoots the tight slope_threshold
+        window around zero - a decelerating CI trajectory whose slope reaches
+        zero has plateaued, which is what slope stabilisation means.
+
+    Returns (steps, convergence_target, terminal_width) where convergence_target
+    is 'projected_width', 'projected_slope_stabilisation', or 'projected_capped'.
+    terminal_width is the projected CI width at the point of termination.
+    """
+    steps = 0
+    next_width = width
+    next_slope = slope
+    while steps < max_steps:
+        steps += 1
+        prev_slope = next_slope
+        next_slope = next_slope + slope_of_slopes
+        next_width = max(0, next_width + next_slope)
+        if next_width < delta:
+            return steps, 'projected_width', next_width
+        if slope_of_slopes >= -1e-12:
+            if abs(next_slope) <= slope_threshold:
+                return steps, 'projected_slope_stabilisation', next_width
+            # Sign reversal: slope crossed zero but overshot the threshold
+            # window. CI width has plateaued - this is slope stabilisation.
+            if prev_slope < 0 and next_slope >= 0:
+                return steps, 'projected_slope_stabilisation', next_width
+    return steps, 'projected_capped', next_width
+
+
+def project_convergence(
+    ci_widths,
+    ci_slopes=None,
+    delta=0.05,
+    slope_threshold=0.00001,
+    step_size=10,
+    max_steps=200,
+    stab_window=15,
+    n_bootstrap=200,
+):
+    """Project how many additional trials a non-converged grouping would need.
+
+    Primary model: exponential decay w(t) = a*exp(-b*t) + c, fitted via
+    scipy curve_fit. Falls back to greedy linear extrapolation when the
+    exponential fit fails (< 5 observations or R-squared < 0.7). The
+    linear fallback mirrors the slope stabilisation logic in rule.py,
+    including Guard A and sign-change detection.
+
+    The projection terminates via one of three outcomes, indicated by
+    ``convergence_target`` in the returned dict:
+
+    - ``'projected_width'``: CI width is projected to drop below ``delta``.
+      ``projected_additional_trials`` is the estimated trials to reach the
+      width threshold. ``projected_width_at_termination`` will be < delta.
+
+    - ``'projected_slope_stabilisation'``: The CI width trajectory is
+      projected to *plateau* before reaching ``delta`` - i.e., the rate of
+      narrowing decelerates to zero. ``projected_additional_trials`` is the
+      estimated trials until the plateau, and
+      ``projected_width_at_termination`` shows the projected width at that
+      point (typically still well above delta). This indicates that
+      additional trials beyond this point would yield diminishing returns.
+
+    - ``'projected_capped'``: Neither width convergence nor slope
+      stabilisation occurred within ``max_steps``. The trajectory may be
+      diverging, near-flat, or simply too far from either threshold.
+
+    Args:
+        ci_widths: CI width history from stabilization_history.
+        ci_slopes: CI slope history (may be empty for ordinal pathway;
+            slopes will be computed internally from ci_widths).
+        delta: Width convergence threshold (e.g. delta_cap for group level).
+        slope_threshold: Slope stabilisation threshold. Callers should apply
+            conservatism adjustment (e.g. CI_delta / conservatism) when the
+            grouping's performance is below the low-performance threshold,
+            matching the logic in rule.py.
+        step_size: Trials per projection step (e.g. reanalysis_interval).
+        max_steps: Cap on projected steps.
+        stab_window: Window size for polyfit slope computation.
+        n_bootstrap: Number of residual-bootstrap iterations.
+
+    Returns:
+        dict with point estimate + uncertainty, or None if insufficient data.
+    """
+    ci_widths = list(ci_widths) if ci_widths else []
+    ci_slopes = list(ci_slopes) if ci_slopes else []
+
+    # --- Early check: already converged (no slope data needed) ---
+    if ci_widths and ci_widths[-1] < delta:
+        final_width = ci_widths[-1]
+        proximity_ratio = final_width / delta if delta > 0 else float('inf')
+        return {
+            'projected_additional_steps': 0,
+            'projected_additional_trials': 0,
+            'proximity_ratio': proximity_ratio,
+            'convergence_target': 'projected_width',
+            'projected_width_at_termination': final_width,
+            'plateau_reached': False,
+            'capped': False,
+            'final_width': final_width,
+            'final_slope': ci_slopes[-1] if ci_slopes else 0.0,
+            'projection_basis': 'linear_extrapolation',
+            'uncertainty': {
+                'ci_trials_80': [0, 0],
+                'ci_trials_50': [0, 0],
+                'bootstrap_skipped': True,
+                'n_slope_observations': len(ci_slopes),
+                'trajectory_rmse': 0.0,
+                'confidence_level': 'high',
+            },
+        }
+
+    # --- Compute slopes from widths if not provided ---
+    if len(ci_slopes) < 2 and len(ci_widths) >= stab_window + 1:
+        ci_slopes = []
+        for i in range(len(ci_widths) - stab_window + 1):
+            window = ci_widths[i:i + stab_window]
+            slope = np.polyfit(range(stab_window), window, 1)[0]
+            ci_slopes.append(float(slope))
+
+    # --- Minimum data guard ---
+    if len(ci_slopes) < 2:
+        return None
+
+    # --- Derive point estimate inputs ---
+    final_width = ci_widths[-1]
+    final_slope = ci_slopes[-1]
+
+    # Slope-of-slopes from last 3 (or all if fewer) slopes
+    # n_for_sos >= 2 is guaranteed by the len(ci_slopes) >= 2 guard above
+    n_for_sos = min(3, len(ci_slopes))
+    recent = ci_slopes[-n_for_sos:]
+    slope_of_slopes = float(np.polyfit(range(n_for_sos), recent, 1)[0])
+
+    # --- Already converged? ---
+    proximity_ratio = final_width / delta if delta > 0 else float('inf')
+    if final_width < delta:
+        return {
+            'projected_additional_steps': 0,
+            'projected_additional_trials': 0,
+            'proximity_ratio': proximity_ratio,
+            'convergence_target': 'projected_width',
+            'projected_width_at_termination': final_width,
+            'plateau_reached': False,
+            'capped': False,
+            'final_width': final_width,
+            'final_slope': final_slope,
+            'projection_basis': 'linear_extrapolation',
+            'uncertainty': {
+                'ci_trials_80': [0, 0],
+                'ci_trials_50': [0, 0],
+                'bootstrap_skipped': True,
+                'n_slope_observations': len(ci_slopes),
+                'trajectory_rmse': 0.0,
+                'confidence_level': 'high',
+            },
+        }
+
+    # --- Try exponential decay model first ---
+    n_obs = len(ci_widths)
+    exp_popt, exp_r2 = _fit_exponential(ci_widths)
+
+    if exp_popt is not None:
+        return _project_convergence_exponential(
+            ci_widths, exp_popt, exp_r2, n_obs, delta, step_size,
+            max_steps, n_bootstrap, final_width, final_slope, proximity_ratio,
+        )
+
+    # --- Fallback: linear extrapolation ---
+    return _project_convergence_linear(
+        ci_widths, ci_slopes, delta, slope_threshold, step_size, max_steps,
+        n_bootstrap, final_width, final_slope, slope_of_slopes, proximity_ratio,
+    )
+
+
+def _project_convergence_exponential(
+    ci_widths, popt, r_squared, n_obs, delta, step_size, max_steps,
+    n_bootstrap, final_width, final_slope, proximity_ratio,
+):
+    """Build projection result using exponential decay model."""
+    a, b, c = popt
+
+    # Point estimate
+    steps, target, terminal_width = _project_exponential(
+        popt, n_obs, delta, step_size, max_steps
+    )
+    point_trials = steps * step_size
+    capped = (target == 'projected_capped')
+
+    # Residual bootstrap on exponential fit
+    w = np.array(ci_widths, dtype=float)
+    t = np.arange(n_obs, dtype=float)
+    fitted_vals = _exp_decay(t, *popt)
+    residuals = w - fitted_vals
+
+    ci_80 = [point_trials, point_trials]
+    ci_50 = [point_trials, point_trials]
+    some_capped = False
+    bootstrap_tight = False
+    bootstrap_skipped = n_obs < 7 or n_bootstrap == 0  # need headroom beyond the 5-obs fit minimum
+
+    if not bootstrap_skipped:
+        rng = np.random.default_rng()
+        boot_trials = []
+        for _ in range(n_bootstrap):
+            resampled = rng.choice(residuals, size=n_obs, replace=True)
+            synthetic_w = fitted_vals + resampled
+            # Refit on bootstrap sample
+            boot_popt, boot_r2 = _fit_exponential(synthetic_w)
+            if boot_popt is not None:
+                boot_steps, _, _ = _project_exponential(
+                    boot_popt, n_obs, delta, step_size, max_steps
+                )
+                boot_trials.append(boot_steps * step_size)
+            else:
+                boot_trials.append(point_trials)  # fallback to point estimate
+
+        boot_trials = np.array(boot_trials)
+        ci_80 = [int(np.percentile(boot_trials, 10)), int(np.percentile(boot_trials, 90))]
+        ci_50 = [int(np.percentile(boot_trials, 25)), int(np.percentile(boot_trials, 75))]
+        some_capped = bool(np.any(boot_trials >= max_steps * step_size))
+        ci_80_width = ci_80[1] - ci_80[0]
+        bootstrap_tight = ci_80_width < 2 * point_trials if point_trials > 0 else ci_80_width == 0
+
+    # RMSE for diagnostics
+    trajectory_rmse = float(np.sqrt(np.mean(residuals ** 2)))
+
+    # Confidence for exponential projections
+    if r_squared >= 0.9 and n_obs >= 10 and bootstrap_tight and not capped:
+        confidence_level = 'high'
+    elif n_obs >= 5 and not capped:
+        confidence_level = 'moderate'
+    else:
+        confidence_level = 'low'
+
+    # plateau_reached: True when the trajectory has already plateaued
+    # (steps=0 with slope_stab). Distinguishes "0 more trials needed because
+    # width < delta" (already converged) from "0 more trials needed because
+    # the CI has stopped narrowing" (plateau above delta).
+    plateau_reached = (steps == 0 and target == 'projected_slope_stabilisation')
+
+    result = {
+        'projected_additional_steps': steps,
+        'projected_additional_trials': point_trials,
+        'proximity_ratio': proximity_ratio,
+        'convergence_target': target,
+        'projected_width_at_termination': terminal_width,
+        'plateau_reached': plateau_reached,
+        'capped': capped,
+        'final_width': final_width,
+        'final_slope': final_slope,
+        'projection_basis': 'exponential_decay',
+        'exponential_fit': {
+            'a': float(a), 'b': float(b), 'c': float(c),
+            'r_squared': r_squared,
+        },
+        'uncertainty': {
+            'ci_trials_80': ci_80,
+            'ci_trials_50': ci_50,
+            'bootstrap_skipped': bootstrap_skipped,
+            'n_width_observations': n_obs,
+            'trajectory_rmse': trajectory_rmse,
+            'confidence_level': confidence_level,
+        },
+    }
+    if some_capped:
+        result['uncertainty']['some_bootstrap_capped'] = True
+    return result
+
+
+def _project_convergence_linear(
+    ci_widths, ci_slopes, delta, slope_threshold, step_size, max_steps,
+    n_bootstrap, final_width, final_slope, slope_of_slopes, proximity_ratio,
+):
+    """Build projection result using linear extrapolation (fallback)."""
+    # Point estimate
+    steps, target, terminal_width = _run_projection_loop(
+        final_width, final_slope, slope_of_slopes, delta, slope_threshold, max_steps
+    )
+    point_trials = steps * step_size
+    capped = (target == 'projected_capped')
+
+    # Uncertainty: residual bootstrap on slope history
+    slopes_arr = np.array(ci_slopes)
+    n_slopes = len(slopes_arr)
+    xs = np.arange(n_slopes)
+
+    coeffs = np.polyfit(xs, slopes_arr, 1)
+    fitted = np.polyval(coeffs, xs)
+    residuals = slopes_arr - fitted
+
+    trajectory_rmse = float(np.sqrt(np.mean(residuals ** 2)))
+    mean_slope = float(np.mean(slopes_arr))
+    rmse_normalised = trajectory_rmse / max(abs(mean_slope), 1e-8)
+
+    ci_80 = [point_trials, point_trials]
+    ci_50 = [point_trials, point_trials]
+    some_capped = False
+    bootstrap_tight = False
+    bootstrap_skipped = n_slopes < 3 or n_bootstrap == 0
+
+    if not bootstrap_skipped:
+        rng = np.random.default_rng()
+        boot_trials = []
+        for _ in range(n_bootstrap):
+            resampled_residuals = rng.choice(residuals, size=n_slopes, replace=True)
+            synthetic_slopes = fitted + resampled_residuals
+
+            boot_final_slope = synthetic_slopes[-1]
+            n_for_sos_boot = min(3, len(synthetic_slopes))
+            boot_recent = synthetic_slopes[-n_for_sos_boot:]
+            if n_for_sos_boot >= 2:
+                boot_sos = float(np.polyfit(range(n_for_sos_boot), boot_recent, 1)[0])
+            else:
+                boot_sos = 0.0
+
+            boot_steps, _, _ = _run_projection_loop(
+                final_width, boot_final_slope, boot_sos, delta, slope_threshold, max_steps
+            )
+            boot_trials.append(boot_steps * step_size)
+
+        boot_trials = np.array(boot_trials)
+        ci_80 = [int(np.percentile(boot_trials, 10)), int(np.percentile(boot_trials, 90))]
+        ci_50 = [int(np.percentile(boot_trials, 25)), int(np.percentile(boot_trials, 75))]
+        some_capped = bool(np.any(boot_trials >= max_steps * step_size))
+        ci_80_width = ci_80[1] - ci_80[0]
+        bootstrap_tight = ci_80_width < 2 * point_trials if point_trials > 0 else ci_80_width == 0
+
+    # Confidence for linear fallback
+    converging = final_slope < 0
+    if (converging and n_slopes >= 8 and rmse_normalised < 1.0
+            and bootstrap_tight and not capped):
+        confidence_level = 'high'
+    elif (converging and n_slopes >= 4 and rmse_normalised < 2.0
+            and not capped):
+        confidence_level = 'moderate'
+    else:
+        confidence_level = 'low'
+
+    plateau_reached = (steps == 0 and target == 'projected_slope_stabilisation')
+
+    result = {
+        'projected_additional_steps': steps,
+        'projected_additional_trials': point_trials,
+        'proximity_ratio': proximity_ratio,
+        'convergence_target': target,
+        'projected_width_at_termination': terminal_width,
+        'plateau_reached': plateau_reached,
+        'capped': capped,
+        'final_width': final_width,
+        'final_slope': final_slope,
+        'projection_basis': 'linear_extrapolation',
+        'uncertainty': {
+            'ci_trials_80': ci_80,
+            'ci_trials_50': ci_50,
+            'bootstrap_skipped': bootstrap_skipped,
+            'n_slope_observations': n_slopes,
+            'trajectory_rmse': trajectory_rmse,
+            'confidence_level': confidence_level,
+        },
+    }
+    if some_capped:
+        result['uncertainty']['some_bootstrap_capped'] = True
+    return result
+
 
 @contextlib.contextmanager
 def suppress_all_output():
@@ -524,21 +986,21 @@ def _process_grouping(args):
                                 if epoch_scores and epoch_scores[-1] == 1:
                                     epoch_shortfalls.append(0)
                                 else:
-                                    next_width = epoch_CI_widths[-1]
-                                    next_slope = epoch_CI_slopes[-1] if epoch_CI_slopes else 0
-                                    next_slope_slope = epoch_slope_slopes[-1] if epoch_slope_slopes else 0
-                                    not_converged = True
-                                    trials_needed = 0
-                                    while not_converged:
-                                        trials_needed += rep_batch_size
-                                        next_slope = min(0,(next_slope + next_slope_slope))
-                                        next_width = max(0, (next_width + next_slope))
-                                        if (next_width < delta_item) or (abs(next_slope) <= slope_threshold):
-                                            not_converged = False
-                                            epoch_shortfalls.append(trials_needed)
-                                        if trials_needed > 200:
-                                            epoch_shortfalls.append(200)
-                                            not_converged = False
+                                    max_shortfall_cap = 200
+                                    projection = project_convergence(
+                                        ci_widths=epoch_CI_widths,
+                                        ci_slopes=epoch_CI_slopes,
+                                        delta=delta_item,
+                                        slope_threshold=slope_threshold,
+                                        step_size=rep_batch_size,
+                                        max_steps=max(1, max_shortfall_cap // max(1, rep_batch_size)),
+                                        stab_window=stab_window,
+                                        n_bootstrap=0,
+                                    )
+                                    if projection is not None:
+                                        epoch_shortfalls.append(projection['projected_additional_trials'])
+                                    else:
+                                        epoch_shortfalls.append(max_shortfall_cap)
                         epochs_fin_CI_widths.append(epoch_CI_widths[-1] if epoch_CI_widths else 0)
                         epochs_fin_CI_slopes.append(epoch_CI_slopes[-1] if epoch_CI_slopes else 0)
                         epochs_fin_slope_slopes.append(epoch_slope_slopes[-1] if epoch_slope_slopes else 0)
@@ -726,21 +1188,21 @@ def _process_grouping(args):
                             if item_scores and item_scores[-1] == 1:
                                 item_shortfalls.append(0)
                             else:
-                                next_width = CI_record[-1]
-                                next_slope = CI_slopes_hist[-1] if CI_slopes_hist else 0
-                                next_slope_slope = CI_slope_slopes[-1] if CI_slope_slopes else 0
-                                not_converged = True
-                                items_needed = 0
-                                while not_converged:
-                                    items_needed += pymc_refresh_every
-                                    next_slope = min(0,(next_slope + next_slope_slope))
-                                    next_width = max(0, (next_width + next_slope))
-                                    if (next_width < delta_item) or (abs(next_slope) <= slope_threshold):
-                                        not_converged = False
-                                        item_shortfalls.append(items_needed)
-                                    if items_needed > 200:
-                                        item_shortfalls.append(200)
-                                        not_converged = False
+                                max_shortfall_cap = 200
+                                projection = project_convergence(
+                                    ci_widths=CI_record,
+                                    ci_slopes=CI_slopes_hist,
+                                    delta=delta_item,
+                                    slope_threshold=slope_threshold,
+                                    step_size=pymc_refresh_every,
+                                    max_steps=max(1, max_shortfall_cap // max(1, pymc_refresh_every)),
+                                    stab_window=stab_window,
+                                    n_bootstrap=0,
+                                )
+                                if projection is not None:
+                                    item_shortfalls.append(projection['projected_additional_trials'])
+                                else:
+                                    item_shortfalls.append(max_shortfall_cap)
             items_fin_CI_widths.append(CI_record[-1] if CI_record else 0)
             items_fin_CI_slopes.append(CI_slopes_hist[-1] if CI_slopes_hist else 0)
             items_fin_slope_slopes.append(CI_slope_slopes[-1] if CI_slope_slopes else 0)

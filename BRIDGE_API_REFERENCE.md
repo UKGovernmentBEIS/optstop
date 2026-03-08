@@ -1087,6 +1087,7 @@ Called once at the end of evaluation to generate final diagnostics.
 - Shuts down inference executor gracefully
 - Calculates efficiency metrics
 - Compiles stopped samples information
+- Computes convergence projections for non-stopped groupings (estimated additional trials to convergence)
 - Returns comprehensive metadata dictionary
 
 **User action:** Access diagnostics from `log.results.early_stopping.metadata` after evaluation
@@ -1171,6 +1172,93 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
     # ... more groupings
 }
 ```
+
+#### Convergence Projection (Non-Stopped Groupings)
+
+For groupings that have **not** stopped by the end of evaluation, a `convergence_projection` key is included in the stabilization history entry. This estimates how many additional trials would be needed for convergence, using an exponential decay model (primary) with linear extrapolation fallback.
+
+The projection is only populated when CI width history is available (at least one group-level inference check has run). It is **absent** for stopped groupings and groupings with no CI width data.
+
+```python
+"stabilization_histories": {
+    "gpt-4-math_hard": {
+        "n_samples": 47,
+        "final_ci_width": 0.12,
+        "final_slope": -0.0003,
+        "n_group_checks": 4,
+        "convergence_projection": {
+            # Point estimate
+            "projected_additional_steps": 15,        # In observation-step units
+            "projected_additional_trials": 150,      # steps * reanalysis_interval
+            "proximity_ratio": 2.4,                  # final_width / delta_cap (>1 = not converged)
+
+            # Outcome classification
+            "convergence_target": "projected_width",  # See values below
+            "projected_width_at_termination": 0.048,
+            "plateau_reached": False,
+            "capped": False,
+
+            # Current state
+            "final_width": 0.12,
+            "final_slope": -0.0003,
+
+            # Model info
+            "projection_basis": "exponential_decay",  # or "linear_extrapolation"
+            "exponential_fit": {                       # Only present for exponential_decay basis
+                "a": 0.35, "b": 0.02, "c": 0.03,     # w(t) = a*exp(-b*t) + c
+                "r_squared": 0.94
+            },
+
+            # Uncertainty quantification
+            "uncertainty": {
+                "ci_trials_80": [100, 210],           # 80% bootstrap CI
+                "ci_trials_50": [130, 180],           # 50% bootstrap CI
+                "bootstrap_skipped": False,
+                "n_width_observations": 4,
+                "trajectory_rmse": 0.008,
+                "confidence_level": "moderate"         # "high", "moderate", or "low"
+            }
+        }
+    },
+    "gpt-4-coding": {
+        # Stopped grouping - no convergence_projection field
+        "n_samples": 89,
+        "final_ci_width": 0.03,
+        "final_slope": -0.00001,
+        "n_group_checks": 8
+    }
+}
+```
+
+**Convergence Projection Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `projected_additional_steps` | int | Projected observation steps to convergence |
+| `projected_additional_trials` | int | Projected additional trials needed (= steps × reanalysis_interval) |
+| `proximity_ratio` | float | Current CI width / `delta_cap` (the group-level CI width threshold, default 0.05). Values > 1 indicate not yet converged; 1.0-1.5 suggests near-convergence; > 3.0 suggests substantial additional data needed |
+| `convergence_target` | str | `'projected_width'` (CI narrows below delta), `'projected_slope_stabilisation'` (CI plateaus above delta), or `'projected_capped'` (neither within projection horizon) |
+| `projected_width_at_termination` | float | Projected CI width at the convergence/plateau/cap point |
+| `plateau_reached` | bool | True when the CI width trajectory has already flattened above `delta_cap` at the time of projection. When `plateau_reached=True` and `projected_additional_trials=0`, the grouping is stuck - not converged |
+| `capped` | bool | True if projection exceeded the maximum step limit (default: 200 steps, i.e., `200 × reanalysis_interval` trials) |
+| `final_width` | float | Current CI width at time of projection |
+| `final_slope` | float | Current CI slope at time of projection |
+| `projection_basis` | str | `'exponential_decay'` (primary, >= 5 observations, R² >= 0.7) or `'linear_extrapolation'` (fallback) |
+| `exponential_fit` | dict | Only present for `exponential_decay` basis. Contains: `a` (amplitude), `b` (decay rate), `c` (asymptote - the width the trajectory decays toward), `r_squared` (goodness of fit, always >= 0.7) |
+| `uncertainty.ci_trials_80` | list[int, int] | 80% bootstrap CI on projected trials [10th, 90th percentile] |
+| `uncertainty.ci_trials_50` | list[int, int] | 50% bootstrap CI on projected trials [25th, 75th percentile] |
+| `uncertainty.bootstrap_skipped` | bool | True if insufficient data for bootstrap (< 7 obs for exponential, < 3 slopes for linear) or bootstrap was disabled |
+| `uncertainty.n_width_observations` | int | Number of CI width observations used for fitting (exponential basis only) |
+| `uncertainty.n_slope_observations` | int | Number of slope observations available (linear basis only) |
+| `uncertainty.trajectory_rmse` | float | Root mean squared error of the fitted model against observed data |
+| `uncertainty.confidence_level` | str | `'high'`, `'moderate'`, or `'low'` based on fit quality and data quantity |
+| `uncertainty.some_bootstrap_capped` | bool | (Optional) Present and True when some bootstrap iterations hit the max_steps cap |
+
+**Interpreting `convergence_target`:**
+
+- **`projected_width`**: CI width is narrowing toward `delta_cap`. `projected_additional_trials` estimates when it will cross below. Expected outcome for groupings that would converge with more data. Increase your sample budget or epochs accordingly.
+- **`projected_slope_stabilisation`**: CI width is projected to plateau *above* `delta_cap` - additional data yields diminishing returns. Widen `delta_cap` to accept the current precision, or investigate whether the grouping has high intrinsic variance.
+- **`projected_capped`**: Neither convergence nor plateau detected within the projection horizon (default: 200 steps, i.e., `200 × reanalysis_interval` trials). Check whether the grouping has very few observations (< 5 group-level checks) - more data may clarify the trajectory. If observations are plentiful but no trend emerges, the data may be too noisy for the current stopping criteria.
 
 #### Ordinal-Specific Fields
 
@@ -1832,7 +1920,18 @@ reanalysis_interval=5  # Down from 10
 # Binary: "Processing grouping '...' as BINARY"
 # Ordinal: "Processing grouping '...' as ORDINAL"
 # Continuous: "Processing grouping '...' as CONTINUOUS"
+
+# 5. Check convergence projections for non-stopped groupings
+for grouping, entry in diagnostics['stabilization_histories'].items():
+    if 'convergence_projection' in entry:
+        proj = entry['convergence_projection']
+        print(f"{grouping}: proximity={proj['proximity_ratio']:.2f}, "
+              f"est. trials needed={proj['projected_additional_trials']}, "
+              f"confidence={proj['uncertainty']['confidence_level']}, "
+              f"target={proj['convergence_target']}")
 ```
+
+A `convergence_target` of `'projected_slope_stabilisation'` suggests the grouping would plateau above `delta_cap` even with unlimited data - consider widening thresholds.
 
 ### Issue: Invalid Score Warnings
 
@@ -1888,6 +1987,7 @@ manager = OptimalStoppingManager(
 - **CI extraction methodology fix**: Changed from using HDI on individual item Theta values to using `mean(Theta)` / `mean(mu_item)` across all items, which correctly accounts for between-item variance (sigma_group)
 - **Diagnostic logging**: Added diagnostic logging for posterior analysis debugging (mu_group, sigma_group statistics)
 - **Hierarchical continuous model**: New model with group-level parameters (mu_group, sigma_group, phi_group) and item-level means
+- **Convergence projection**: For non-stopped groupings, `complete_task()` diagnostics include forward-looking convergence projections using exponential decay model (primary) with linear extrapolation fallback, including bootstrap uncertainty quantification
 
 ### v0.3.0
 - `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')

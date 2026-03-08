@@ -1508,6 +1508,30 @@ class OptimalStoppingManager(EarlyStopping):
             'n_group_checks': len(history.get('ci_width_history', [])),
         }
 
+        # Convergence projection for non-stopped groupings
+        if grouping_name not in self._stopped_groupings and entry['final_ci_width'] is not None:
+            from .convergence import project_convergence
+            # Apply conservatism-adjusted slope_threshold when performance is low,
+            # matching the logic in rule.py (CI_delta / conservatism for low-perf).
+            ci_delta = self.optstop_params.get('CI_delta', 0.00001)
+            conservatism = self.optstop_params.get('conservatism', 10)
+            low_perf_threshold = self.optstop_params.get('low_performance_threshold', 0.001)
+            current_perf = history.get('current_perf_estimate', 0.0)
+            if current_perf < low_perf_threshold:
+                adjusted_slope_threshold = ci_delta / conservatism
+            else:
+                adjusted_slope_threshold = ci_delta
+            projection = project_convergence(
+                ci_widths=history.get('ci_width_history', []),
+                ci_slopes=history.get('ci_slope_history', []),
+                delta=self.optstop_params.get('delta_cap', 0.05),
+                slope_threshold=adjusted_slope_threshold,
+                step_size=self.reanalysis_interval,
+                stab_window=self.optstop_params.get('stab_window', 15),
+            )
+            if projection is not None:
+                entry['convergence_projection'] = projection
+
         # Only include ordinal-specific fields if this grouping uses DISCRETE ordinal inference
         # A grouping uses discrete ordinal if:
         # 1. ordinal_tasks is set AND the task matches, AND
