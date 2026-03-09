@@ -2293,7 +2293,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
             'used_reps_dfs': used_reps_dfs,
             'boundary_diagnostic': boundary_diagnostic,
             'error': None,
-            'processing_order': 'epoch_interleaved'
+            'processing_order': 'epoch_interleaved',
+            'ci_widths': CI_record,
+            'ci_slopes': CI_slopes_hist
         }
         return result
 
@@ -2313,7 +2315,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
             'used_reps_dfs': [],
             'boundary_diagnostic': None,
             'error': str(e),
-            'processing_order': 'epoch_interleaved'
+            'processing_order': 'epoch_interleaved',
+            'ci_widths': [],
+            'ci_slopes': []
         }
     finally:
         sys.stdout, sys.stderr = old_stdout, old_stderr
@@ -3023,7 +3027,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 'avg_reps_per_item': avg_reps_per_item,
                 'used_reps_dfs': used_reps_dfs,
                 'boundary_diagnostic': boundary_diagnostic,
-                'error': None
+                'error': None,
+                'ci_widths': CI_record,
+                'ci_slopes': CI_slopes_hist
             }
             return result
         except Exception as e:
@@ -3040,7 +3046,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 'avg_reps_per_item': None,
                 'used_reps_dfs': [],
                 'boundary_diagnostic': None,
-                'error': str(e)
+                'error': str(e),
+                'ci_widths': [],
+                'ci_slopes': []
             }
     finally:
         sys.stdout = old_stdout
@@ -3882,6 +3890,11 @@ def optimal_stopping_posthoc(
               * boundary_diagnostic: Warning message if estimate is near 0% or 100%
                   performance (where model estimates may be biased), or None
               * error: Error message if grouping failed, or None
+              * convergence_projection: For non-converged groupings (theta_ci_width >= delta_cap),
+                  a dict from project_convergence() estimating additional trials needed.
+                  Contains projected_additional_trials, convergence_target, projection_basis,
+                  uncertainty (with ci_trials_80, ci_trials_50, confidence_level), and more.
+                  None for converged groupings. See BRIDGE_API_REFERENCE.md for full field reference.
 
     Note on ordinal scoring:
       - Modal inference: Estimates the most common response category (faster, less computational)
@@ -4124,6 +4137,27 @@ def optimal_stopping_posthoc(
             }
             if 'processing_order' in res:
                 result_dict['processing_order'] = res['processing_order']
+
+            # Convergence projection for non-converged groupings
+            from .convergence import project_convergence
+            if res.get('ci_widths') and res.get('theta_ci_width') is not None and res.get('error') is None:
+                _delta_cap = params.get('delta_cap', 0.05)
+                if res['theta_ci_width'] >= _delta_cap:
+                    _step_size = (reanalysis_interval if res.get('processing_order') == 'epoch_interleaved'
+                                  else params.get('pymc_refresh_every', 2))
+                    projection = project_convergence(
+                        ci_widths=res['ci_widths'],
+                        ci_slopes=res.get('ci_slopes', []),
+                        delta=_delta_cap,
+                        slope_threshold=params.get('CI_delta', 0.00001),
+                        step_size=_step_size,
+                        stab_window=params.get('stab_window', 15),
+                        n_bootstrap=200,
+                    )
+                    result_dict['convergence_projection'] = projection
+                else:
+                    result_dict['convergence_projection'] = None
+
             participant_results.append(result_dict)
 
         if final_used_data:

@@ -277,7 +277,7 @@ for log in logs:
 
 #### Convergence Projection
 
-For groupings that have not converged when evaluation ends, optstop estimates how many additional trials would be needed. The projection uses an exponential decay model as the primary approach (fitting `w(t) = a*exp(-b*t) + c` to the CI width trajectory), with linear extrapolation as a fallback when the exponential fit is unavailable or poor.
+For groupings that have not converged when evaluation ends, optstop estimates how many additional trials would be needed. This is available in both the bridge pathway (`complete_task()` diagnostics) and `optimal_stopping_posthoc` (per-grouping `convergence_projection` field in the summary list). The projection uses an exponential decay model as the primary approach (fitting `w(t) = a*exp(-b*t) + c` to the CI width trajectory), with linear extrapolation as a fallback when the exponential fit is unavailable or poor.
 
 The projection classifies each non-converged grouping into one of three outcomes via `convergence_target`:
 
@@ -285,7 +285,7 @@ The projection classifies each non-converged grouping into one of three outcomes
 - **`projected_slope_stabilisation`**: CI width is projected to plateau above `delta_cap` - additional data yields diminishing returns. Widen `delta_cap` to accept the current precision, or investigate whether the grouping has high intrinsic variance.
 - **`projected_capped`**: Neither outcome detected within the projection horizon. Check whether the grouping has very few observations (< 5 group-level checks) - more data may clarify the trajectory. If observations are plentiful but no clear trend emerges, the data may be too noisy for the current stopping criteria.
 
-In the bridge pathway, each projection includes uncertainty quantification via residual bootstrap (80% and 50% confidence intervals) and a `confidence_level` (`'high'`, `'moderate'`, or `'low'`). Posthoc shortfall estimates are point estimates only (bootstrap disabled for speed, since results are aggregated across randomised orderings). Groupings with insufficient CI width history for projection will not have a `convergence_projection` entry.
+Both the bridge pathway and `optimal_stopping_posthoc` include full uncertainty quantification via residual bootstrap (80% and 50% confidence intervals) and a `confidence_level` (`'high'`, `'moderate'`, or `'low'`). In `convergence_posthoc`, shortfall estimates are point estimates only (bootstrap disabled for speed, since results are aggregated across randomised orderings). Groupings with insufficient CI width history for projection will have `convergence_projection` set to `None`.
 
 See the Convergence Projection Fields section in `BRIDGE_API_REFERENCE.md` for the full field reference (applicable to all modes, not just inspect_ai integration).
 
