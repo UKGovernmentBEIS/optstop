@@ -335,11 +335,11 @@ class OptimalStoppingManager(EarlyStopping):
         if cred_level is not None and not (0 < cred_level < 1):
             raise ValueError(f"cred_level must be between 0 and 1, got {cred_level}")
 
-        conservatism = self.optstop_params.get('conservatism')  # default: 10
+        conservatism = self.optstop_params.get('conservatism')  # default: 5
         if conservatism is not None and conservatism < 1:
             raise ValueError(f"conservatism must be >= 1, got {conservatism}")
 
-        low_perf_threshold = self.optstop_params.get('low_performance_threshold')  # default: 0.001
+        low_perf_threshold = self.optstop_params.get('low_performance_threshold')  # default: 0.01
         if low_perf_threshold is not None and not (0 <= low_perf_threshold <= 1):
             raise ValueError(f"low_performance_threshold must be between 0 and 1, got {low_perf_threshold}")
 
@@ -487,8 +487,8 @@ class OptimalStoppingManager(EarlyStopping):
             'delta_item': ('Item CI width threshold', 0.05),
             'delta_cap': ('Grouping CI width threshold', 0.05),
             'cred_level': ('Credibility level', 0.97),
-            'conservatism': ('Conservatism factor', 10),
-            'low_performance_threshold': ('Low performance threshold', 0.001),
+            'conservatism': ('Conservatism factor', 5),
+            'low_performance_threshold': ('Low performance threshold', 0.01),
             'CI_delta': ('CI stabilization slope threshold', 0.00001),
             'stab_window': ('Stabilization window', 15),
             'rep_batch_size': ('Repetition batch size', 1),
@@ -1514,8 +1514,8 @@ class OptimalStoppingManager(EarlyStopping):
             # Apply conservatism-adjusted slope_threshold when performance is low,
             # matching the logic in rule.py (CI_delta / conservatism for low-perf).
             ci_delta = self.optstop_params.get('CI_delta', 0.00001)
-            conservatism = self.optstop_params.get('conservatism', 10)
-            low_perf_threshold = self.optstop_params.get('low_performance_threshold', 0.001)
+            conservatism = self.optstop_params.get('conservatism', 5)
+            low_perf_threshold = self.optstop_params.get('low_performance_threshold', 0.01)
             current_perf = history.get('current_perf_estimate', 0.0)
             if current_perf < low_perf_threshold:
                 adjusted_slope_threshold = ci_delta / conservatism

@@ -1031,8 +1031,8 @@ def _add_boundary_diagnostic(theta_low: float, theta_high: float,
 
 
 # --- Helper: Adaptive Beta CI ---
-def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.97, conservatism: float = 10.0,
-                     low_perf_threshold: float = 0.001, base_strength: int = 2, samples: int = 10000) -> Tuple[float, float, float]:
+def _beta_ci_adaptive(successes: int, trials: int, cred_level: float = 0.97, conservatism: float = 5.0,
+                     low_perf_threshold: float = 0.01, base_strength: int = 2, samples: int = 10000) -> Tuple[float, float, float]:
     """
     Compute an adaptive Bayesian credible interval for a binomial proportion, with conservatism for low performance.
     """
@@ -1063,8 +1063,8 @@ def _continuous_bounded_ci_adaptive(
     lower_bound: float = 0.0,
     upper_bound: float = 1.0,
     cred_level: float = 0.97,
-    conservatism: float = 10.0,
-    low_perf_threshold: float = 0.001,
+    conservatism: float = 5.0,
+    low_perf_threshold: float = 0.01,
     base_strength: int = 2,
     samples: int = 10000
 ) -> Tuple[float, float, float]:
@@ -1428,8 +1428,8 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
         cred_level = params.get('cred_level', 0.97)
         rep_batch_size = params.get('rep_batch_size', 1)  # Not used in interleaved but extracted for consistency
         pymc_refresh_every = params.get('pymc_refresh_every', 2)  # Not used in interleaved
-        conservatism = params.get('conservatism', 10)
-        low_perf_threshold = params.get('low_performance_threshold', 0.001)
+        conservatism = params.get('conservatism', 5)
+        low_perf_threshold = params.get('low_performance_threshold', 0.01)
         reanalysis_interval = params.get('reanalysis_interval', 10)
 
         ordinal_tasks = params.get('ordinal_tasks', None)
@@ -2338,8 +2338,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             delta_cap = params.get('delta_cap', 0.05)
             CI_delta = params.get('CI_delta', 0.00001)
             cred_level = params.get('cred_level', 0.97)
-            conservatism = params.get('conservatism', 10)
-            low_perf_threshold = params.get('low_performance_threshold', 0.001)
+            conservatism = params.get('conservatism', 5)
+            low_perf_threshold = params.get('low_performance_threshold', 0.01)
             rep_batch_size = params.get('rep_batch_size', 1)
             pymc_refresh_every = params.get('pymc_refresh_every', 2)
             stab_window = params.get('stab_window', 15)
@@ -3146,8 +3146,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         delta_cap = params.get('delta_cap', 0.05)
         CI_delta = params.get('CI_delta', 0.00001)
         cred_level = params.get('cred_level', 0.97)
-        conservatism = params.get('conservatism', 10)
-        low_perf_threshold = params.get('low_performance_threshold', 0.001)
+        conservatism = params.get('conservatism', 5)
+        low_perf_threshold = params.get('low_performance_threshold', 0.01)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 15)
@@ -4354,8 +4354,8 @@ def optimal_stopping_live_single(
     delta_cap = params.get('delta_cap', 0.05)
     CI_delta = params.get('CI_delta', 0.00001)
     cred_level = params.get('cred_level', 0.97)
-    conservatism = params.get('conservatism', 10)
-    low_perf_threshold = params.get('low_performance_threshold', 0.001)
+    conservatism = params.get('conservatism', 5)
+    low_perf_threshold = params.get('low_performance_threshold', 0.01)
     rep_batch_size = params.get('rep_batch_size', 1)
     stab_window = params.get('stab_window', 15)
     # Entropy convergence threshold for ordinal hybrid stopping (Pathway 2)

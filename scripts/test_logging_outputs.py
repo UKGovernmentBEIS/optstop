@@ -409,7 +409,7 @@ async def main():
         'delta_item': 0.15,
         'delta_cap': 0.10,
         'cred_level': 0.95,
-        'conservatism': 10,
+        'conservatism': 5,
         'draws': 500,
         'tune': 500,
         'entropy_convergence_threshold': 0.05,  # Stricter than default 0.10 (absolute entropy CI width on [0,1] scale)

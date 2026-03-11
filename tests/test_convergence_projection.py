@@ -357,8 +357,8 @@ class TestBridgeIntegration:
         params = {
             'delta_cap': 0.05,
             'CI_delta': 0.00001,
-            'conservatism': 10,
-            'low_performance_threshold': 0.001,
+            'conservatism': 5,
+            'low_performance_threshold': 0.01,
             'stab_window': 15,
         }
         if optstop_overrides:
@@ -610,8 +610,8 @@ class TestBridgeIntegration:
 
         with patch('optstop.convergence.project_convergence', return_value={'projected_additional_steps': 5}) as mock_pc:
             self._call_build(manager, 'missing-perf', history)
-            # Default 0.0 < low_performance_threshold 0.001 -> conservatism applied
-            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 10)
+            # Default 0.0 < low_performance_threshold 0.01 -> conservatism applied
+            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 5)
 
     def test_ordinal_case_insensitive_matching(self):
         """Ordinal task matching is case-insensitive."""
@@ -831,7 +831,7 @@ class TestLiveSingleHistoryShape:
         manager._stopped_groupings = set()
         manager.optstop_params = {
             'delta_cap': 0.10, 'CI_delta': 0.00001, 'conservatism': 3,
-            'low_performance_threshold': 0.001, 'stab_window': 3,
+            'low_performance_threshold': 0.01, 'stab_window': 3,
         }
         manager.reanalysis_interval = 10
         manager.ordinal_tasks = None
@@ -890,7 +890,7 @@ class TestLiveSingleHistoryShape:
         manager._stopped_groupings = set()
         manager.optstop_params = {
             'delta_cap': 0.10, 'CI_delta': 0.00001, 'conservatism': 3,
-            'low_performance_threshold': 0.001, 'stab_window': 3,
+            'low_performance_threshold': 0.01, 'stab_window': 3,
         }
         manager.reanalysis_interval = 10
         manager.ordinal_tasks = None

@@ -44,8 +44,8 @@ def _ordinal_ci_adaptive(
     scores: np.ndarray,
     ordinal_max_score: int,
     cred_level: float = 0.97,
-    conservatism: float = 10.0,
-    low_perf_threshold: float = 0.001,
+    conservatism: float = 5.0,
+    low_perf_threshold: float = 0.01,
     base_strength: int = 2,
     n_bootstrap: int = 10000
 ) -> Tuple[float, float, float]:
@@ -580,8 +580,8 @@ def _ordinal_ci_hierarchical_modal(
     item_ns: np.ndarray,
     ordinal_max_score: int,
     cred_level: float = 0.97,
-    conservatism: float = 10.0,
-    low_perf_threshold: float = 0.001,
+    conservatism: float = 5.0,
+    low_perf_threshold: float = 0.01,
     current_perf: float = 0.5,
     model_cache: Optional[Dict] = None,
     sampling_kwargs: Optional[Dict] = None
@@ -756,8 +756,8 @@ def _ordinal_ci_hierarchical_entropy(
     item_ns: np.ndarray,
     ordinal_max_score: int,
     cred_level: float = 0.97,
-    conservatism: float = 10.0,
-    low_perf_threshold: float = 0.001,
+    conservatism: float = 5.0,
+    low_perf_threshold: float = 0.01,
     current_perf: float = 0.5,
     model_cache: Optional[Dict] = None,
     sampling_kwargs: Optional[Dict] = None

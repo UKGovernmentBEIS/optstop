@@ -566,8 +566,8 @@ def suppress_all_output():
                     logger.debug(f"PyMC stderr: {stderr_content.strip()}")
 
 # --- Helper: Adaptive Beta CI ---
-def _beta_ci_adaptive(successes, trials, cred_level=0.97, conservatism=10.0,
-                     low_perf_threshold=0.001, base_strength=2, samples=10000):
+def _beta_ci_adaptive(successes, trials, cred_level=0.97, conservatism=5.0,
+                     low_perf_threshold=0.01, base_strength=2, samples=10000):
     if trials == 0:
         return 0.0, 1.0, 1.0
     p_hat = successes / trials
@@ -700,8 +700,8 @@ def _process_grouping(args):
         delta_cap = params.get('delta_cap', 0.05)
         CI_delta = params.get('CI_delta', 0.00001)
         cred_level = params.get('cred_level', 0.97)
-        conservatism = params.get('conservatism', 10)
-        low_perf_threshold = params.get('low_performance_threshold', 0.001)
+        conservatism = params.get('conservatism', 5)
+        low_perf_threshold = params.get('low_performance_threshold', 0.01)
         rep_batch_size = params.get('rep_batch_size', 1)
         pymc_refresh_every = params.get('pymc_refresh_every', 2)
         stab_window = params.get('stab_window', 15)

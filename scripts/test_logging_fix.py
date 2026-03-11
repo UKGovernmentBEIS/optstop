@@ -139,7 +139,7 @@ async def test_dataset_2_small():
         'delta_item': 0.15,
         'delta_cap': 0.1,
         'cred_level': 0.95,
-        'conservatism': 10,
+        'conservatism': 5,
         'draws': 500,
         'tune': 500
     }

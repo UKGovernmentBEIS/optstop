@@ -458,7 +458,7 @@ async def main():
         'delta_item': 0.15,
         'delta_cap': 0.10,
         'cred_level': 0.95,
-        'conservatism': 10,  # Default conservatism
+        'conservatism': 5,  # Default conservatism
         'draws': 500,  # Optimized (Section 1.1.2: 4x speedup)
         'tune': 500,
     }

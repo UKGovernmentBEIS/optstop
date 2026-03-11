@@ -330,8 +330,10 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 - `delta_item` (float, default: 0.05): Maximum acceptable CI width for individual samples
 - `delta_cap` (float, default: 0.05): Maximum acceptable CI width for groupings/tasks
 - `cred_level` (float, default: 0.97): Credibility level for confidence intervals (0.97 = 97% CI)
-- `conservatism` (float, default: 10): Conservatism factor for rare events (higher = more conservative)
-- `low_performance_threshold` (float, default: 0.001): Success rate below which conservative stopping applies
+- `conservatism` (float, default: 5): Conservatism factor for rare events (higher = more conservative)
+- `low_performance_threshold` (float, default: 0.01): Success rate below which conservative stopping applies
+
+**Parameter interaction - `conservatism` and `low_performance_threshold`:** When a grouping's estimated performance falls below `low_performance_threshold`, the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01. If you raise `low_performance_threshold`, more groupings will trigger conservatism; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect.
 
 **Advanced parameters (performance-critical):**
 - `draws` (int, default: 1000 CPU / 2000 GPU): Number of MCMC samples
@@ -365,7 +367,7 @@ optstop_params = {
     'delta_item': 0.15,      # Allow wider CI for samples (more aggressive stopping)
     'delta_cap': 0.10,       # Require tighter CI for groupings (conservative)
     'cred_level': 0.97,      # 97% confidence intervals
-    'conservatism': 10,      # Standard conservatism
+    'conservatism': 5,      # Standard conservatism
     'draws': 1000,            # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
     'tune': 1000,             # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
     'chains': 4,             # ← Could drop lower to increase speed.
@@ -1299,6 +1301,8 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 
 **Note:** These ordinal-specific fields are only populated when the grouping matches an `ordinal_tasks` pattern. For binary and continuous groupings, these fields are omitted entirely (not set to `null`).
 
+**Ordinal estimand:** For ordinal groupings, the group-level performance estimate (theta) represents `modal_category / max_score` - the most probable score category, normalised to [0,1]. This differs from binary and continuous pathways, which estimate mean performance. Credible intervals bracket the mode, not the mean. Convergence for ordinal groupings therefore reflects stability of the modal category estimate, not stability of average score.
+
 ### Accessing Diagnostics
 
 ```python
@@ -1358,7 +1362,7 @@ optstop_params = {
     'delta_item': 0.05,   # Default: tight CI for samples
     'delta_cap': 0.05,    # Default: tight CI for groupings
     'cred_level': 0.97,   # Default: 97% credible intervals
-    'conservatism': 10,   # Default: standard conservatism
+    'conservatism': 5,   # Default: standard conservatism
     'CI_delta': 0.00001,  # Default: strict stabilisation threshold
 }
 
@@ -1708,7 +1712,7 @@ optstop_params = {
     'delta_item': 0.15,
     'delta_cap': 0.10,
     'cred_level': 0.97,
-    'conservatism': 10,
+    'conservatism': 5,
     'draws': 500,
     'tune': 500,
 }

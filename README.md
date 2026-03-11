@@ -60,7 +60,7 @@ optstop_params = {
     'delta_item': 0.05,       # CI width threshold for individual samples
     'delta_cap': 0.05,        # CI width threshold for overall task
     'cred_level': 0.97,       # 97% credible intervals
-    'conservatism': 10,        # Conservative for rare events
+    'conservatism': 5,         # Conservative for rare events
 }
 
 stopping_manager = OptimalStoppingManager(
@@ -466,7 +466,7 @@ params = {
     'delta_item': 0.15,
     'delta_cap': 0.05,
     'cred_level': 0.97,
-    'conservatism': 10,
+    'conservatism': 5,
 }
 
 pruned_df, summary = optimal_stopping_posthoc(
@@ -569,6 +569,8 @@ Integer-valued scores (Likert scales, rubric scores, quality ratings) can be rou
 - **Raw discrete scores with sparse categories** (some categories rarely or never observed): The ordinal pathway can produce biased estimates and miscalibrated credible intervals under category sparsity (empirically observed: CI coverage as low as 25% at 97% nominal level for ordered logistic; 70% for Dirichlet-Multinomial). In this situation, consider whether scores can be aggregated (e.g., mean across sub-criteria) to route through the continuous pathway, or whether the evaluation design can be adjusted to ensure better category coverage. Routing raw sparse scores through the continuous pathway via `continuous_tasks` is possible but imposes interval-scale assumptions that may not be warranted for all ordinal data.
 
 The package logs a warning when category sparsity is detected under ordinal inference.
+
+**Ordinal estimand note:** The ordinal pathway estimates the *modal category* (most probable score), not the mean score. The group-level theta reported for ordinal groupings is `modal_category / max_score`, and credible intervals bracket the mode. This differs from binary and continuous pathways, which estimate mean performance. When comparing theta values across pathways, be aware that ordinal theta reflects categorical concentration rather than average score.
 
 **Binary Model Details:**
 The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, sigma)` on the logit scale, where sigma defaults to 1.5 when `prior_sigma` is None). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.
@@ -758,7 +760,7 @@ params = {
     'chains': 4,
     'cores': 4,
     'CI_delta': 0.00001,
-    'conservatism': 10,
+    'conservatism': 5,
     'random_seed': 42
 }
 
@@ -815,8 +817,11 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `delta_item`             | 0.05      | Both         | Max acceptable CI width for individual items                                |
 | `delta_cap`              | 0.05      | Both         | Max acceptable CI width for task/grouping                                   |
 | `cred_level`             | 0.97      | Both         | Credibility level for intervals (e.g., 0.97 for 97% CI)                     |
-| `conservatism`           | 10        | Both         | Factor for rare event conservatism (higher = more conservative)             |
-| `low_performance_threshold` | 0.001  | Both         | Below this success rate, use conservative stopping                          |
+| `conservatism`           | 5         | Both         | Factor for rare event conservatism (higher = more conservative)             |
+| `low_performance_threshold` | 0.01   | Both         | Below this success rate, use conservative stopping                          |
+
+**Parameter interaction - `conservatism` and `low_performance_threshold`:** When a grouping's estimated performance falls below `low_performance_threshold`, the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01 - achievable with moderate data. If you raise `low_performance_threshold`, more groupings will trigger conservatism; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect.
+
 | `draws`                  | 1000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
 | `tune`                   | 1000      | Both         | Number of tuning steps for PyMC                                             |
 | `chains`                 | 4         | Both         | Number of MCMC chains for PyMC                                              |
@@ -851,8 +856,8 @@ params = {
     'delta_item': 0.05,                # Require a narrower CI for stopping items
     'delta_cap': 0.05,                 # Task/grouping CI width threshold
     'cred_level': 0.97,               # Use 97% credible intervals
-    'conservatism': 10,                # More conservative for rare events
-    'low_performance_threshold': 0.001,# Adjust threshold for low performance
+    'conservatism': 5,                # More conservative for rare events
+    'low_performance_threshold': 0.01,# Adjust threshold for low performance
     'draws': 1000,                    # MCMC samples
     'tune': 1000,                     # Tuning steps
     'chains': 4,                      # Number of MCMC chains
@@ -953,7 +958,7 @@ params = {
     'chains': 4,
     'cores': 4,
     'CI_delta': 0.00001,
-    'conservatism': 10,
+    'conservatism': 5,
 }
 
 pruned_df, summary = optimal_stopping_posthoc(
@@ -992,7 +997,7 @@ params = {
     'chains': 4,
     'cores': 4,
     'CI_delta': 0.00001,
-    'conservatism': 10,
+    'conservatism': 5,
 }
 
 result = optimal_stopping_live(
@@ -1192,7 +1197,7 @@ params = {
     'draws': 1000,
     'tune': 1000,
     'CI_delta': 0.00001,
-    'conservatism': 10,
+    'conservatism': 5,
 }
 
 pruned_df, summary = optimal_stopping_posthoc(
@@ -1228,7 +1233,7 @@ params = {
     'draws': 1000,
     'tune': 1000,
     'CI_delta': 0.00001,
-    'conservatism': 10,
+    'conservatism': 5,
 }
 
 result = optimal_stopping_live(
@@ -1389,7 +1394,7 @@ pruned_df, summary = optimal_stopping_posthoc(
 - **Stabilization parameter:**
   - `CI_delta` controls how stable the CI slope must be before stopping. Smaller values (e.g., 0.0002) require more stability; larger values allow earlier stopping.
 - **Conservatism:**
-  - `conservatism=10` is typical; increase for more caution in low-performance scenarios.
+  - `conservatism=5` is typical; increase for more caution in low-performance scenarios.
 - **Reproducibility:**
   - For reproducible pruned DataFrames, set a random seed before running your analysis (e.g., `np.random.seed(42)` or pass `random_seed` in params).
   - **Note:** Due to the stochastic nature of MCMC and parallelization, summary statistics (e.g., CI bounds, widths) are not guaranteed to be bitwise reproducible, even with the same random seed. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
@@ -1406,7 +1411,7 @@ params = {
     'chains': 4,             # Number of MCMC chains
     'cores': 4,              # Number of CPU cores for sampling
     'CI_delta': 0.00001,      # Require stable CI slope
-    'conservatism': 10,       # Typical value
+    'conservatism': 5,       # Typical value
     # ... other parameters as needed ...
 }
 ```
@@ -1471,7 +1476,7 @@ The package provides CLI entry points for all major functions. After installing 
 ### 1. Post-hoc Optimal Stopping
 **Command:**
 ```
-optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 10 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
+optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --random_seed 42 --generate_diagnostics --diagnostics_prefix my_diagnostics
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output pruned CSV file (required)
@@ -1491,12 +1496,12 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
 - **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
-- **--conservatism**: Factor for rare event conservatism (default: 10)
+- **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 15)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.001)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -1515,7 +1520,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 ### 2. Live Optimal Stopping
 **Command:**
 ```
-optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 10 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --random_seed 42
+optstop-live --csv current_data.csv --grouping_columns subject --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --random_seed 42
 ```
 - **--csv**: Path to input CSV file (required)
 - **--grouping_columns**: Comma-separated list or single column name for grouping (required)
@@ -1531,12 +1536,12 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
 - **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
-- **--conservatism**: Factor for rare event conservatism (default: 10)
+- **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 15)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.001)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -1552,7 +1557,7 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 ### 3. Convergence Analysis
 **Command:**
 ```
-optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 10 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --item_seqs 20 --epoch_seqs 20 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
+optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_columns subject,task --sample_id_column item_id --epoch_column trial_num --score_column accuracy --delta_item 0.05 --delta_cap 0.05 --draws 1000 --tune 1000 --chains 4 --cores 4 --CI_delta 0.00001 --conservatism 5 --rep_batch_size 1 --pymc_refresh_every 2 --stab_window 15 --item_seqs 20 --epoch_seqs 20 --random_seed 42 --no_diagnostics --diagnostics_prefix my_convergence_eval
 ```
 - **--csv**: Path to input CSV file (required)
 - **--output**: Path to output convergence stats CSV file (required)
@@ -1571,14 +1576,14 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
 - **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
-- **--conservatism**: Factor for rare event conservatism (default: 10)
+- **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
 - **--stab_window**: Window size for assessing CI stabilization (default: 15)
 - **--item_seqs**: Number of randomized item orderings per grouping (default: 20)
 - **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.001)
+- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)
