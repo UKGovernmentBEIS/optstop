@@ -169,14 +169,14 @@ The `draws` and `tune` parameters have **linear impact** on inference time:
 
 ```python
 # Current defaults (CPU/GPU-aware)
-# CPU: draws=1000, tune=1000, target_accept=0.90
+# CPU: draws=1000, tune=1000, target_accept=0.95
 # GPU: draws=2000, tune=2000, target_accept=0.95
 
 optstop_params = {
     'draws': 1000,    # Default for CPU (2000 for GPU)
     'tune': 1000,     # Default for CPU (2000 for GPU)
     'chains': 4,
-    'target_accept': 0.90,  # Default for CPU (0.95 for GPU)
+    'target_accept': 0.95,  # Unified default for CPU and GPU
 }
 
 # For higher precision (if convergence warnings appear)
@@ -184,7 +184,7 @@ optstop_params = {
     'draws': 2000,
     'tune': 2000,
     'chains': 4,
-    'target_accept': 0.95,
+    'target_accept': 0.97,  # Higher than default for better convergence
 }
 ```
 
@@ -346,10 +346,9 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - Can reduce to 2 for faster inference (2× speedup)
 - `cores` (int, default: 4): Number of CPU cores for sampling
   - Usually matches `chains`
-- `target_accept` (float, default: 0.90 CPU / 0.95 GPU): Target acceptance rate for NUTS sampler
-  - **Higher values** (0.95-0.99): Reduce divergences, but increase computation time
+- `target_accept` (float, default: 0.95): Target acceptance rate for NUTS sampler
+  - **Higher values** (0.97-0.99): Reduce divergences, but increase computation time
   - **Lower values** (0.80-0.90): Faster sampling, but may have more divergences
-  - Automatically selected based on CPU/GPU detection
 - `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilization
 - `stab_window` (int, default: 15): Window size for stabilization assessment
 - `entropy_convergence_threshold` (float, default: 0.10): Absolute entropy CI width threshold on [0,1] scale for ordinal Pathway 2 convergence

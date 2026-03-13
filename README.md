@@ -830,7 +830,7 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
 | `stab_window`            | 15         | Both         | Window size for assessing CI stabilization                                  |
 | `CI_delta`               | 0.00001    | Both         | Slope threshold for determining CI stabilization                            |
-| `target_accept`          | 0.90 (CPU) / 0.95 (GPU) | Both | NUTS sampler target acceptance rate (higher = fewer divergences, slower) |
+| `target_accept`          | 0.95      | Both         | NUTS sampler target acceptance rate (higher = fewer divergences, slower) |
 | `use_gpu`                | Auto      | Both         | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
 | `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
 | `ordinal_tasks`          | None      | All          | List of substrings to identify ordinal groupings (e.g., ['confidence'])   |

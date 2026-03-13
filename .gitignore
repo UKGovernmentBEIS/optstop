@@ -136,6 +136,7 @@ test_diagnostics/
 tests/test_outputs/
 DIAGNOSTICS_BUG_REPORT.md
 Temp_Dev_Files/
+Opt_Paper/
 # Development documentation (not for public repository)
 # Keep only: README.md, CHANGELOG.md, CONTRIBUTING.md, LICENSE
 #Q4_Development_Files/

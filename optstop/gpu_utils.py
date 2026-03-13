@@ -769,7 +769,7 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         # Old defaults (6000/6000/0.97) were overly conservative for stopping decisions
         default_draws = 1000
         default_tune = 1000
-        default_target_accept = 0.90  # Standard PyMC recommendation; 0.97 was overly conservative
+        default_target_accept = 0.95  # Unified with GPU for consistency across environments
 
     sampling_kwargs = {
         'draws': params.get('draws', default_draws),
