@@ -45,6 +45,30 @@ import arviz as az
 logger = logging.getLogger(__name__)
 
 
+def _log_mcmc_diagnostics(trace, diag_logger, context: str) -> None:
+    """Log MCMC diagnostics (divergences, ESS, R-hat) from a trace.
+
+    Logs at WARNING level if any diagnostic is concerning, otherwise DEBUG.
+    Never raises - diagnostic extraction must not crash the pipeline.
+    """
+    try:
+        n_div = int(trace.sample_stats['diverging'].values.sum()) if hasattr(trace, 'sample_stats') else 0
+        ess_vals = az.ess(trace)
+        rhat_vals = az.rhat(trace)
+        ess_min = float(ess_vals.to_array().min().item())
+        rhat_max = float(rhat_vals.to_array().max().item())
+        if n_div > 0 or ess_min < 100 or rhat_max > 1.05:
+            diag_logger.warning(
+                f"MCMC [{context}]: divergences={n_div}, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+        else:
+            diag_logger.debug(
+                f"MCMC [{context}]: divergences=0, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+    except Exception:
+        pass
+
+
 def _create_orderedlogistic_model(
     n_categories: int,
     n_items: int = 1,
@@ -677,6 +701,8 @@ def _ordinal_entropy_ci_adaptive(
             'entropy_median': max_entropy / 2,
             'error': str(e)
         }
+
+    _log_mcmc_diagnostics(trace, logger, "ordinal item entropy")
 
     # Extract posterior samples
     eta_samples = trace.posterior['eta'].values  # shape: (chains, draws, n_items)

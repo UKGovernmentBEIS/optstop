@@ -164,6 +164,31 @@ def suppress_all_output():
             # stderr_content = stderr_buffer.getvalue()
             pass
 
+
+def _log_mcmc_diagnostics(trace, diag_logger, context: str) -> None:
+    """Log MCMC diagnostics (divergences, ESS, R-hat) from a trace.
+
+    Logs at WARNING level if any diagnostic is concerning, otherwise DEBUG.
+    Never raises - diagnostic extraction must not crash the pipeline.
+    """
+    try:
+        n_div = int(trace.sample_stats['diverging'].values.sum()) if hasattr(trace, 'sample_stats') else 0
+        ess_vals = az.ess(trace)
+        rhat_vals = az.rhat(trace)
+        ess_min = float(ess_vals.to_array().min().item())
+        rhat_max = float(rhat_vals.to_array().max().item())
+        if n_div > 0 or ess_min < 100 or rhat_max > 1.05:
+            diag_logger.warning(
+                f"MCMC [{context}]: divergences={n_div}, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+        else:
+            diag_logger.debug(
+                f"MCMC [{context}]: divergences=0, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+    except Exception:
+        pass
+
+
 # --- Diagnostic Functions ---
 def _beta_ci(successes: int, trials: int, cred_level: float = 0.97) -> Tuple[float, float]:
     """Compute beta credible interval for binomial proportion."""
@@ -1859,27 +1884,34 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                     "obs_weight": obs_weight_padded,
                                 })
 
-                                with suppress_all_output():
-                                    trace = pm.sample(**sampling_kwargs)
+                                try:
+                                    with suppress_all_output():
+                                        trace = pm.sample(**sampling_kwargs)
+                                except Exception as e:
+                                    logger.error(f"MCMC sampling failed [binary interleaved {pid}]: {e}")
+                                    trace = None
 
                             # Extract CI - slice to observed items only
-                            try:
-                                theta_samples = trace.posterior["Theta"].values
-                                theta_samples = theta_samples[:, :, :n_observed]
-                                mean_theta_samples = theta_samples.mean(axis=2)
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                            except Exception:
-                                mu_group_samples = trace.posterior["mu_group"].values
-                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
-
-                            theta_width = theta_hi - theta_lo
+                            if trace is not None:
+                                _log_mcmc_diagnostics(trace, logger, f"binary interleaved {pid}")
+                                try:
+                                    theta_samples = trace.posterior["Theta"].values
+                                    theta_samples = theta_samples[:, :, :n_observed]
+                                    mean_theta_samples = theta_samples.mean(axis=2)
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                                except Exception:
+                                    mu_group_samples = trace.posterior["mu_group"].values
+                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                                theta_width = theta_hi - theta_lo
+                            else:
+                                theta_width = 1.0
                             CI_record.append(theta_width)
 
                             effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -2026,27 +2058,34 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                         "obs_weight": obs_weight_padded,
                                     })
 
-                                    with suppress_all_output():
-                                        trace = pm.sample(**sampling_kwargs)
+                                    try:
+                                        with suppress_all_output():
+                                            trace = pm.sample(**sampling_kwargs)
+                                    except Exception as e:
+                                        logger.error(f"MCMC sampling failed [continuous interleaved {pid}]: {e}")
+                                        trace = None
 
                                 # Extract CI - slice to observed items
-                                try:
-                                    mu_item_samples = trace.posterior["mu_item"].values
-                                    mu_item_samples = mu_item_samples[:, :, :n_observed]
-                                    mean_mu_samples = mu_item_samples.mean(axis=2)
-                                    with suppress_all_output():
-                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
-                                    theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
-                                    theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                                except Exception:
-                                    mu_group_samples = trace.posterior["mu_group"].values
-                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                                    with suppress_all_output():
-                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
-
-                                theta_width = theta_hi - theta_lo
+                                if trace is not None:
+                                    _log_mcmc_diagnostics(trace, logger, f"continuous interleaved {pid}")
+                                    try:
+                                        mu_item_samples = trace.posterior["mu_item"].values
+                                        mu_item_samples = mu_item_samples[:, :, :n_observed]
+                                        mean_mu_samples = mu_item_samples.mean(axis=2)
+                                        with suppress_all_output():
+                                            group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                        theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                        theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                                    except Exception:
+                                        mu_group_samples = trace.posterior["mu_group"].values
+                                        group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                        with suppress_all_output():
+                                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                        theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                        theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                                    theta_width = theta_hi - theta_lo
+                                else:
+                                    theta_width = 1.0
 
                             CI_record.append(theta_width)
                             effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -2116,30 +2155,37 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             "trials": trials_padded,
                             "obs_weight": obs_weight_padded,
                         })
-                        with suppress_all_output():
-                            trace = pm.sample(**sampling_kwargs)
-                    try:
-                        theta_samples = trace.posterior["Theta"].values
-                        theta_samples = theta_samples[:, :, :n_observed]
-                        mean_theta_samples = theta_samples.mean(axis=2)
-                        with suppress_all_output():
-                            group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                        theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                        theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                    except Exception:
-                        mu_group_samples = trace.posterior["mu_group"].values
-                        group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                        with suppress_all_output():
-                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                        theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                        theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
-                    theta_width = theta_hi - theta_lo
-                    effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                    if effective_width < delta_cap:
-                        logger.info(f"Post-loop stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
-                        stopped = True
-                    else:
-                        logger.info(f"Data exhausted for binary grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
+                        try:
+                            with suppress_all_output():
+                                trace = pm.sample(**sampling_kwargs)
+                        except Exception as e:
+                            logger.error(f"MCMC sampling failed [binary interleaved post-loop {pid}]: {e}")
+                            trace = None
+
+                    if trace is not None:
+                        _log_mcmc_diagnostics(trace, logger, f"binary interleaved post-loop {pid}")
+                        try:
+                            theta_samples = trace.posterior["Theta"].values
+                            theta_samples = theta_samples[:, :, :n_observed]
+                            mean_theta_samples = theta_samples.mean(axis=2)
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                        except Exception:
+                            mu_group_samples = trace.posterior["mu_group"].values
+                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                            with suppress_all_output():
+                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        theta_width = theta_hi - theta_lo
+                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                        if effective_width < delta_cap:
+                            logger.info(f"Post-loop stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                            stopped = True
+                        else:
+                            logger.info(f"Data exhausted for binary grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
 
             elif score_type == 'ordinal':
                 item_counts_matrix = np.array([s['counts'] for s in summaries_list])
@@ -2236,30 +2282,37 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                 "item_ns": item_ns_padded,
                                 "obs_weight": obs_weight_padded,
                             })
-                            with suppress_all_output():
-                                trace = pm.sample(**sampling_kwargs)
-                        try:
-                            mu_item_samples = trace.posterior["mu_item"].values
-                            mu_item_samples = mu_item_samples[:, :, :n_observed]
-                            mean_mu_samples = mu_item_samples.mean(axis=2)
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                        except Exception:
-                            mu_group_samples = trace.posterior["mu_group"].values
-                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
-                        theta_width = theta_hi - theta_lo
-                        effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                        if effective_width < delta_cap:
-                            logger.info(f"Post-loop stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
-                            stopped = True
-                        else:
-                            logger.info(f"Data exhausted for continuous grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
+                            try:
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+                            except Exception as e:
+                                logger.error(f"MCMC sampling failed [continuous interleaved post-loop {pid}]: {e}")
+                                trace = None
+
+                        if trace is not None:
+                            _log_mcmc_diagnostics(trace, logger, f"continuous interleaved post-loop {pid}")
+                            try:
+                                mu_item_samples = trace.posterior["mu_item"].values
+                                mu_item_samples = mu_item_samples[:, :, :n_observed]
+                                mean_mu_samples = mu_item_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                            except Exception:
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            theta_width = theta_hi - theta_lo
+                            effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
+                            if effective_width < delta_cap:
+                                logger.info(f"Post-loop stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                                stopped = True
+                            else:
+                                logger.info(f"Data exhausted for continuous grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
 
         # === BUILD RETURN VALUE ===
         used_reps_dfs = []
@@ -2788,29 +2841,40 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 "trials": all_trials,
                                 "n_items": np.int64(len(all_successes))
                             })
-                            with suppress_all_output():
-                                trace = pm.sample(**sampling_kwargs)
+                            try:
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+                            except Exception as e:
+                                logger.error(f"MCMC sampling failed [binary posthoc_itemgreedy {pid}]: {e}")
+                                trace = None
+
+                        if trace is not None:
+                            _log_mcmc_diagnostics(trace, logger, f"binary posthoc_itemgreedy {pid}")
 
                         # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
                         # This correctly accounts for between-item variance (sigma_group)
                         n_items_current = len(all_successes)
-                        try:
-                            # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                            theta_samples = trace.posterior["Theta"].values
-                            # Compute mean across items for each posterior sample
-                            mean_theta_samples = theta_samples.mean(axis=2)
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                        except Exception:
-                            # Fallback: use sigmoid(mu_group)
-                            mu_group_samples = trace.posterior["mu_group"].values
-                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        if trace is not None:
+                            try:
+                                # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                                theta_samples = trace.posterior["Theta"].values
+                                # Compute mean across items for each posterior sample
+                                mean_theta_samples = theta_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                            except Exception:
+                                # Fallback: use sigmoid(mu_group)
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        else:
+                            theta_lo = 0.0
+                            theta_hi = 1.0
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -2961,28 +3025,39 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                 })
 
                                 # Sample posterior distribution
-                                with suppress_all_output():
-                                    trace = pm.sample(**sampling_kwargs)
+                                try:
+                                    with suppress_all_output():
+                                        trace = pm.sample(**sampling_kwargs)
+                                except Exception as e:
+                                    logger.error(f"MCMC sampling failed [continuous posthoc_itemgreedy {pid}]: {e}")
+                                    trace = None
+
+                            if trace is not None:
+                                _log_mcmc_diagnostics(trace, logger, f"continuous posthoc_itemgreedy {pid}")
 
                             # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
                             # This correctly accounts for between-item variance (sigma_group)
-                            try:
-                                # Extract item-level mu_item posterior samples (shape: chains × draws × items)
-                                mu_item_samples = trace.posterior["mu_item"].values
-                                # Compute mean across items for each posterior sample
-                                mean_mu_samples = mu_item_samples.mean(axis=2)
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                            except Exception:
-                                # Fallback: use sigmoid(mu_group)
-                                mu_group_samples = trace.posterior["mu_group"].values
-                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            if trace is not None:
+                                try:
+                                    # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                                    mu_item_samples = trace.posterior["mu_item"].values
+                                    # Compute mean across items for each posterior sample
+                                    mean_mu_samples = mu_item_samples.mean(axis=2)
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                                except Exception:
+                                    # Fallback: use sigmoid(mu_group)
+                                    mu_group_samples = trace.posterior["mu_group"].values
+                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            else:
+                                theta_lo = 0.0
+                                theta_hi = 1.0
 
                             # Compute width in normalized [0,1] space
                             theta_width = theta_hi - theta_lo
@@ -3565,29 +3640,40 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                 "trials": all_trials,
                                 "n_items": np.int64(len(all_successes))
                             })
-                            with suppress_all_output():
-                                trace = pm.sample(**sampling_kwargs)
+                            try:
+                                with suppress_all_output():
+                                    trace = pm.sample(**sampling_kwargs)
+                            except Exception as e:
+                                logger.error(f"MCMC sampling failed [binary live_worker {grouping}]: {e}")
+                                trace = None
+
+                        if trace is not None:
+                            _log_mcmc_diagnostics(trace, logger, f"binary live_worker {grouping}")
 
                         # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
                         # This correctly accounts for between-item variance (sigma_group)
                         n_items_current = len(all_successes)
-                        try:
-                            # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                            theta_samples = trace.posterior["Theta"].values
-                            # Compute mean across items for each posterior sample
-                            mean_theta_samples = theta_samples.mean(axis=2)
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                        except Exception:
-                            # Fallback: use sigmoid(mu_group)
-                            mu_group_samples = trace.posterior["mu_group"].values
-                            group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                            with suppress_all_output():
-                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                            theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                            theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        if trace is not None:
+                            try:
+                                # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                                theta_samples = trace.posterior["Theta"].values
+                                # Compute mean across items for each posterior sample
+                                mean_theta_samples = theta_samples.mean(axis=2)
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                            except Exception:
+                                # Fallback: use sigmoid(mu_group)
+                                mu_group_samples = trace.posterior["mu_group"].values
+                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                with suppress_all_output():
+                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        else:
+                            theta_lo = 0.0
+                            theta_hi = 1.0
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
@@ -3642,28 +3728,39 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                     "item_ns": item_ns_array,
                                 })
 
-                                with suppress_all_output():
-                                    trace = pm.sample(**sampling_kwargs)
+                                try:
+                                    with suppress_all_output():
+                                        trace = pm.sample(**sampling_kwargs)
+                                except Exception as e:
+                                    logger.error(f"MCMC sampling failed [continuous live_worker {grouping}]: {e}")
+                                    trace = None
+
+                            if trace is not None:
+                                _log_mcmc_diagnostics(trace, logger, f"continuous live_worker {grouping}")
 
                             # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
                             # This correctly accounts for between-item variance (sigma_group)
-                            try:
-                                # Extract item-level mu_item posterior samples (shape: chains × draws × items)
-                                mu_item_samples = trace.posterior["mu_item"].values
-                                # Compute mean across items for each posterior sample
-                                mean_mu_samples = mu_item_samples.mean(axis=2)
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                            except Exception:
-                                # Fallback: use sigmoid(mu_group)
-                                mu_group_samples = trace.posterior["mu_group"].values
-                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            if trace is not None:
+                                try:
+                                    # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                                    mu_item_samples = trace.posterior["mu_item"].values
+                                    # Compute mean across items for each posterior sample
+                                    mean_mu_samples = mu_item_samples.mean(axis=2)
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                                except Exception:
+                                    # Fallback: use sigmoid(mu_group)
+                                    mu_group_samples = trace.posterior["mu_group"].values
+                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            else:
+                                theta_lo = 0.0
+                                theta_hi = 1.0
 
                             theta_width = theta_hi - theta_lo
 
@@ -5009,83 +5106,95 @@ def optimal_stopping_live_single(
                             "trials": all_trials.astype("int64"),
                         })
 
-                    with suppress_all_output():
-                        trace = pm.sample(**sampling_kwargs)
+                    try:
+                        with suppress_all_output():
+                            trace = pm.sample(**sampling_kwargs)
+                    except Exception as e:
+                        logger.error(f"MCMC sampling failed [binary live_single {grouping_name}]: {e}")
+                        theta_lo = 0.0
+                        theta_hi = 1.0
+                        theta_width = 1.0
+                        trace = None
+
+                if trace is not None:
+                    _log_mcmc_diagnostics(trace, logger, f"binary live_single {grouping_name}")
 
                 # === DIAGNOSTIC LOGGING FOR POSTERIOR ANALYSIS (BINARY) ===
                 # This helps debug CI anomalies between preallocation modes
-                try:
-                    _diag_mu_group = trace.posterior["mu_group"].values
-                    _diag_sigma_group = trace.posterior["sigma_group"].values if "sigma_group" in trace.posterior else None
-                    _diag_accuracy = float(all_successes.sum()) / float(all_trials.sum()) if all_trials.sum() > 0 else 0.0
+                if trace is not None:
+                    try:
+                        _diag_mu_group = trace.posterior["mu_group"].values
+                        _diag_sigma_group = trace.posterior["sigma_group"].values if "sigma_group" in trace.posterior else None
+                        _diag_accuracy = float(all_successes.sum()) / float(all_trials.sum()) if all_trials.sum() > 0 else 0.0
 
-                    _sigma_mean_str = f"{_diag_sigma_group.mean():.4f}" if _diag_sigma_group is not None else "N/A"
-                    _sigma_std_str = f"{_diag_sigma_group.std():.6f}" if _diag_sigma_group is not None else "N/A"
-                    logger.warning(
-                        f"🔬 BINARY POSTERIOR [{grouping_name}] prealloc={use_preallocation}: "
-                        f"n_items={n_observed}, accuracy={_diag_accuracy:.4f}, "
-                        f"mu_group: mean={_diag_mu_group.mean():.4f} std={_diag_mu_group.std():.6f}, "
-                        f"sigma_group: mean={_sigma_mean_str} std={_sigma_std_str}"
-                    )
+                        _sigma_mean_str = f"{_diag_sigma_group.mean():.4f}" if _diag_sigma_group is not None else "N/A"
+                        _sigma_std_str = f"{_diag_sigma_group.std():.6f}" if _diag_sigma_group is not None else "N/A"
+                        logger.warning(
+                            f"🔬 BINARY POSTERIOR [{grouping_name}] prealloc={use_preallocation}: "
+                            f"n_items={n_observed}, accuracy={_diag_accuracy:.4f}, "
+                            f"mu_group: mean={_diag_mu_group.mean():.4f} std={_diag_mu_group.std():.6f}, "
+                            f"sigma_group: mean={_sigma_mean_str} std={_sigma_std_str}"
+                        )
 
-                    # Store diagnostics in metadata for later analysis
-                    if 'posterior_diagnostics' not in metadata:
-                        metadata['posterior_diagnostics'] = []
-                    metadata['posterior_diagnostics'].append({
-                        'pathway': 'binary',
-                        'n_items': n_observed,
-                        'accuracy': _diag_accuracy,
-                        'mu_group_mean': float(_diag_mu_group.mean()),
-                        'mu_group_std': float(_diag_mu_group.std()),
-                        'sigma_group_mean': float(_diag_sigma_group.mean()) if _diag_sigma_group is not None else None,
-                        'sigma_group_std': float(_diag_sigma_group.std()) if _diag_sigma_group is not None else None,
-                        'use_preallocation': use_preallocation,
-                    })
-                except Exception as e:
-                    logger.warning(f"🔬 BINARY POSTERIOR DIAGNOSTIC failed: {e}")
+                        # Store diagnostics in metadata for later analysis
+                        if 'posterior_diagnostics' not in metadata:
+                            metadata['posterior_diagnostics'] = []
+                        metadata['posterior_diagnostics'].append({
+                            'pathway': 'binary',
+                            'n_items': n_observed,
+                            'accuracy': _diag_accuracy,
+                            'mu_group_mean': float(_diag_mu_group.mean()),
+                            'mu_group_std': float(_diag_mu_group.std()),
+                            'sigma_group_mean': float(_diag_sigma_group.mean()) if _diag_sigma_group is not None else None,
+                            'sigma_group_std': float(_diag_sigma_group.std()) if _diag_sigma_group is not None else None,
+                            'use_preallocation': use_preallocation,
+                        })
+                    except Exception as e:
+                        logger.warning(f"🔬 BINARY POSTERIOR DIAGNOSTIC failed: {e}")
                 # === END DIAGNOSTIC LOGGING ===
 
-                # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
-                #
-                # Why mean(Theta) is correct:
-                # - We want CI on the expected group accuracy E[Theta]
-                # - In the hierarchical model: Theta_i = sigmoid(mu_group + z_i * sigma_group)
-                # - E[Theta] = mean across items, NOT sigmoid(mu_group)
-                # - When sigma_group is large, sigmoid(mu_group) can be very different from E[Theta]
-                #   Example: mu_group=5.3, sigma_group=5.3 gives sigmoid(mu_group)=0.995 but E[Theta]=0.83
-                #
-                # Previous approaches and their problems:
-                # - Theta[0] (first item only): arbitrary, depends on data ordering
-                # - sigmoid(mu_group): measures "typical item" (z=0), not expected accuracy
-                # - mean(Theta): correctly computes expected group accuracy ✓
-                try:
-                    # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                    theta_samples = trace.posterior["Theta"].values
+                if trace is not None:
+                    # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
+                    #
+                    # Why mean(Theta) is correct:
+                    # - We want CI on the expected group accuracy E[Theta]
+                    # - In the hierarchical model: Theta_i = sigmoid(mu_group + z_i * sigma_group)
+                    # - E[Theta] = mean across items, NOT sigmoid(mu_group)
+                    # - When sigma_group is large, sigmoid(mu_group) can be very different from E[Theta]
+                    #   Example: mu_group=5.3, sigma_group=5.3 gives sigmoid(mu_group)=0.995 but E[Theta]=0.83
+                    #
+                    # Previous approaches and their problems:
+                    # - Theta[0] (first item only): arbitrary, depends on data ordering
+                    # - sigmoid(mu_group): measures "typical item" (z=0), not expected accuracy
+                    # - mean(Theta): correctly computes expected group accuracy ✓
+                    try:
+                        # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                        theta_samples = trace.posterior["Theta"].values
 
-                    # For preallocation mode, only use first n_observed items
-                    # (remaining items are padding with obs_weight=0)
-                    if use_preallocation:
-                        theta_samples = theta_samples[:, :, :n_observed]
+                        # For preallocation mode, only use first n_observed items
+                        # (remaining items are padding with obs_weight=0)
+                        if use_preallocation:
+                            theta_samples = theta_samples[:, :, :n_observed]
 
-                    # Compute EXPECTED GROUP ACCURACY: mean across items for each posterior sample
-                    # This gives E[Theta] which represents the expected group-level accuracy
-                    # Shape: (chains × draws)
-                    mean_theta_samples = theta_samples.mean(axis=2)
+                        # Compute EXPECTED GROUP ACCURACY: mean across items for each posterior sample
+                        # This gives E[Theta] which represents the expected group-level accuracy
+                        # Shape: (chains × draws)
+                        mean_theta_samples = theta_samples.mean(axis=2)
 
-                    # Compute HDI on the expected group accuracy
-                    with suppress_all_output():
-                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                    theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                    theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                except Exception:
-                    # Fallback: if Theta extraction fails, use sigmoid(mu_group)
-                    # This is less accurate but maintains backward compatibility
-                    mu_group_samples = trace.posterior["mu_group"].values
-                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                    with suppress_all_output():
-                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        # Compute HDI on the expected group accuracy
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                        theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                        theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                    except Exception:
+                        # Fallback: if Theta extraction fails, use sigmoid(mu_group)
+                        # This is less accurate but maintains backward compatibility
+                        mu_group_samples = trace.posterior["mu_group"].values
+                        group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                        theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                        theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 theta_width = theta_hi - theta_lo
 
@@ -5398,34 +5507,44 @@ def optimal_stopping_live_single(
                         })
 
                     # Sample posterior distribution
-                    with suppress_all_output():
-                        trace = pm.sample(**sampling_kwargs)
+                    try:
+                        with suppress_all_output():
+                            trace = pm.sample(**sampling_kwargs)
+                    except Exception as e:
+                        logger.error(f"MCMC sampling failed [continuous live_single {grouping_name}]: {e}")
+                        mu_lo_normalized = 0.0
+                        mu_hi_normalized = 1.0
+                        trace = None
+
+                if trace is not None:
+                    _log_mcmc_diagnostics(trace, logger, f"continuous live_single {grouping_name}")
 
                 # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(mu_item)
                 # This correctly accounts for between-item variance (sigma_group)
-                try:
-                    # Extract item-level mu_item posterior samples (shape: chains × draws × items)
-                    # mu_item is already in [0,1] space (sigmoid applied in model)
-                    mu_item_samples = trace.posterior["mu_item"].values
+                if trace is not None:
+                    try:
+                        # Extract item-level mu_item posterior samples (shape: chains × draws × items)
+                        # mu_item is already in [0,1] space (sigmoid applied in model)
+                        mu_item_samples = trace.posterior["mu_item"].values
 
-                    # For preallocation mode, only use first n_observed items
-                    if use_preallocation:
-                        mu_item_samples = mu_item_samples[:, :, :n_observed]
+                        # For preallocation mode, only use first n_observed items
+                        if use_preallocation:
+                            mu_item_samples = mu_item_samples[:, :, :n_observed]
 
-                    # Compute mean across items for each posterior sample
-                    mean_mu_samples = mu_item_samples.mean(axis=2)
-                    with suppress_all_output():
-                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
-                    mu_lo_normalized = float(group_hdi["mean_mu"].sel(hdi="lower").values)
-                    mu_hi_normalized = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                except Exception:
-                    # Fallback: use sigmoid(mu_group)
-                    mu_group_samples = trace.posterior["mu_group"].values
-                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                    with suppress_all_output():
-                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                    mu_lo_normalized = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                    mu_hi_normalized = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                        # Compute mean across items for each posterior sample
+                        mean_mu_samples = mu_item_samples.mean(axis=2)
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                        mu_lo_normalized = float(group_hdi["mean_mu"].sel(hdi="lower").values)
+                        mu_hi_normalized = float(group_hdi["mean_mu"].sel(hdi="higher").values)
+                    except Exception:
+                        # Fallback: use sigmoid(mu_group)
+                        mu_group_samples = trace.posterior["mu_group"].values
+                        group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                        with suppress_all_output():
+                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                        mu_lo_normalized = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                        mu_hi_normalized = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 # Compute width in normalized [0,1] space
                 width_normalized = mu_hi_normalized - mu_lo_normalized

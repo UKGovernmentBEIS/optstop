@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+#### MCMC Failure Handling and Diagnostics
+- All 14 `pm.sample()` call sites now wrapped in try/except - MCMC sampling failures no longer crash worker processes
+- New `_log_mcmc_diagnostics` helper logs divergence count, min ESS, and max R-hat at WARNING level when concerning (DEBUG otherwise)
+- On sampling failure, the package returns max-uncertainty estimates (CI width = 1.0), preventing premature stopping while allowing the next scheduled MCMC call to retry with more data
+
 ### Changed
 
 #### Ordinal Hybrid Stopping (Pathway 2) - Mechanism Fix

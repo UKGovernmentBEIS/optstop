@@ -575,6 +575,31 @@ def aggregate_item_counts(item_summaries: list, ordinal_max_score: int) -> np.nd
     return total_counts
 
 
+def _log_mcmc_diagnostics(trace, diag_logger, context: str) -> None:
+    """Log MCMC diagnostics (divergences, ESS, R-hat) from a trace.
+
+    Logs at WARNING level if any diagnostic is concerning, otherwise DEBUG.
+    Never raises - diagnostic extraction must not crash the pipeline.
+    """
+    try:
+        import arviz as az
+        n_div = int(trace.sample_stats['diverging'].values.sum()) if hasattr(trace, 'sample_stats') else 0
+        ess_vals = az.ess(trace)
+        rhat_vals = az.rhat(trace)
+        ess_min = float(ess_vals.to_array().min().item())
+        rhat_max = float(rhat_vals.to_array().max().item())
+        if n_div > 0 or ess_min < 100 or rhat_max > 1.05:
+            diag_logger.warning(
+                f"MCMC [{context}]: divergences={n_div}, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+        else:
+            diag_logger.debug(
+                f"MCMC [{context}]: divergences=0, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+    except Exception:
+        pass
+
+
 def _ordinal_ci_hierarchical_modal(
     item_counts: np.ndarray,
     item_ns: np.ndarray,
@@ -695,7 +720,15 @@ def _ordinal_ci_hierarchical_modal(
                 })
 
             # Sample from posterior
-            trace = pm.sample(**sampling_kwargs)
+            try:
+                trace = pm.sample(**sampling_kwargs)
+            except Exception as e:
+                logger = logging.getLogger('optstop.ordinal_utils')
+                logger.error(f"MCMC sampling failed [ordinal hierarchical modal]: {e}")
+                return 0.0, 1.0, 1.0
+
+    logger = logging.getLogger('optstop.ordinal_utils')
+    _log_mcmc_diagnostics(trace, logger, "ordinal hierarchical modal")
 
     # Extract modal_group posterior samples
     modal_samples = trace.posterior["modal_group"].values.flatten()
@@ -862,7 +895,19 @@ def _ordinal_ci_hierarchical_entropy(
                 })
 
             # Sample from posterior
-            trace = pm.sample(**sampling_kwargs)
+            try:
+                trace = pm.sample(**sampling_kwargs)
+            except Exception as e:
+                logger = logging.getLogger('optstop.ordinal_utils')
+                logger.error(f"MCMC sampling failed [ordinal hierarchical entropy]: {e}")
+                return 0.0, 1.0, 1.0, {
+                    'entropy_median': 0.5,
+                    'entropy_median_nats': max_entropy / 2,
+                    'error': str(e)
+                }
+
+    logger = logging.getLogger('optstop.ordinal_utils')
+    _log_mcmc_diagnostics(trace, logger, "ordinal hierarchical entropy")
 
     # Extract entropy_group posterior samples (raw, in nats)
     entropy_samples_raw = trace.posterior["entropy_group"].values.flatten()

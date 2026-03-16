@@ -565,6 +565,30 @@ def suppress_all_output():
                 if stderr_content.strip():
                     logger.debug(f"PyMC stderr: {stderr_content.strip()}")
 
+def _log_mcmc_diagnostics(trace, diag_logger, context: str) -> None:
+    """Log MCMC diagnostics (divergences, ESS, R-hat) from a trace.
+
+    Logs at WARNING level if any diagnostic is concerning, otherwise DEBUG.
+    Never raises - diagnostic extraction must not crash the pipeline.
+    """
+    try:
+        n_div = int(trace.sample_stats['diverging'].values.sum()) if hasattr(trace, 'sample_stats') else 0
+        ess_vals = az.ess(trace)
+        rhat_vals = az.rhat(trace)
+        ess_min = float(ess_vals.to_array().min().item())
+        rhat_max = float(rhat_vals.to_array().max().item())
+        if n_div > 0 or ess_min < 100 or rhat_max > 1.05:
+            diag_logger.warning(
+                f"MCMC [{context}]: divergences={n_div}, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+        else:
+            diag_logger.debug(
+                f"MCMC [{context}]: divergences=0, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"
+            )
+    except Exception:
+        pass
+
+
 # --- Helper: Adaptive Beta CI ---
 def _beta_ci_adaptive(successes, trials, cred_level=0.97, conservatism=5.0,
                      low_perf_threshold=0.01, base_strength=2, samples=10000):
@@ -1063,28 +1087,40 @@ def _process_grouping(args):
                                     "trials": all_trials,
                                     "n_items": np.int64(len(all_successes))
                                 })
-                                with suppress_all_output():
-                                    trace = pm.sample(**sampling_kwargs)
+                                try:
+                                    with suppress_all_output():
+                                        trace = pm.sample(**sampling_kwargs)
+                                except Exception as e:
+                                    logger.error(f"MCMC sampling failed [binary convergence {grouping_name}]: {e}")
+                                    trace = None
+
+                            if trace is not None:
+                                _log_mcmc_diagnostics(trace, logger, f"binary convergence {grouping_name}")
+
                             # Extract CI bounds using EXPECTED GROUP ACCURACY: mean(Theta)
                             # This correctly accounts for between-item variance (sigma_group)
                             # Using mean(Theta) instead of Theta[0] or sigmoid(mu_group)
-                            try:
-                                # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                                theta_samples = trace.posterior["Theta"].values
-                                # Compute mean across items for each posterior sample
-                                mean_theta_samples = theta_samples.mean(axis=2)
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                            except Exception:
-                                # Fallback: use sigmoid(mu_group)
-                                mu_group_samples = trace.posterior["mu_group"].values
-                                group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
-                                with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
-                                theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
-                                theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            if trace is not None:
+                                try:
+                                    # Extract item-level Theta posterior samples (shape: chains × draws × items)
+                                    theta_samples = trace.posterior["Theta"].values
+                                    # Compute mean across items for each posterior sample
+                                    mean_theta_samples = theta_samples.mean(axis=2)
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
+                                except Exception:
+                                    # Fallback: use sigmoid(mu_group)
+                                    mu_group_samples = trace.posterior["mu_group"].values
+                                    group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
+                                    with suppress_all_output():
+                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
+                                    theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
+                            else:
+                                theta_lo = 0.0
+                                theta_hi = 1.0
                             theta_width = theta_hi - theta_lo
                             CI_record.append(theta_width)
                             effective_width = theta_width
