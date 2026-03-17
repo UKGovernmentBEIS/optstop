@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, patch
 from optstop.convergence import (
     project_convergence, _run_projection_loop,
     _fit_exponential, _project_exponential, _exp_decay,
+    _simple_projection, _trajectory_signal,
 )
 
 
@@ -1115,3 +1116,136 @@ class TestExponentialFit:
             if result['projection_basis'] == 'linear_extrapolation':
                 assert 'n_slope_observations' in result['uncertainty']
                 assert 'exponential_fit' not in result
+
+
+# ---------------------------------------------------------------------------
+# Stable companion metrics
+# ---------------------------------------------------------------------------
+
+class TestSimpleProjection:
+    """Tests for the 1/sqrt(n) simple projection helper."""
+
+    def test_basic_formula(self):
+        """Verify formula: n * (ratio^2 - 1) for width=0.1, delta=0.05, n=100."""
+        result = _simple_projection(100, 0.1, 0.05)
+        # ratio = 0.1/0.05 = 2.0, additional = 100 * (4 - 1) = 300
+        assert result == pytest.approx(300.0)
+
+    def test_already_converged(self):
+        """Returns 0 when CI width <= delta."""
+        assert _simple_projection(100, 0.04, 0.05) == 0.0
+        assert _simple_projection(100, 0.05, 0.05) == 0.0
+
+    def test_zero_trials(self):
+        """Returns 0 when n_trials_observed <= 0."""
+        assert _simple_projection(0, 0.1, 0.05) == 0.0
+
+    def test_large_ratio(self):
+        """Large proximity ratio produces large projection."""
+        result = _simple_projection(50, 0.5, 0.05)
+        # ratio = 10, additional = 50 * (100 - 1) = 4950
+        assert result == pytest.approx(4950.0)
+
+    def test_near_convergence(self):
+        """Small proximity ratio produces small projection."""
+        result = _simple_projection(200, 0.06, 0.05)
+        # ratio = 1.2, additional = 200 * (1.44 - 1) = 88
+        assert result == pytest.approx(88.0)
+
+
+class TestTrajectorySignal:
+    """Tests for the trajectory signal categorical."""
+
+    def test_faster(self):
+        """Exponential projection < 0.5x simple → 'faster'."""
+        assert _trajectory_signal(40, 100) == 'faster'
+
+    def test_slower(self):
+        """Exponential projection > 2.0x simple → 'slower'."""
+        assert _trajectory_signal(250, 100) == 'slower'
+
+    def test_on_pace(self):
+        """Exponential projection between 0.5x and 2.0x → 'on_pace'."""
+        assert _trajectory_signal(100, 100) == 'on_pace'
+        assert _trajectory_signal(50, 100) == 'on_pace'  # exactly 0.5 → on_pace
+        assert _trajectory_signal(199, 100) == 'on_pace'
+
+    def test_none_when_simple_zero(self):
+        """Returns None when simple_proj is 0."""
+        assert _trajectory_signal(100, 0) is None
+
+    def test_none_when_inputs_none(self):
+        """Returns None when either input is None."""
+        assert _trajectory_signal(None, 100) is None
+        assert _trajectory_signal(100, None) is None
+
+    def test_boundary_faster(self):
+        """Just below 0.5x threshold → 'faster'."""
+        assert _trajectory_signal(49, 100) == 'faster'
+
+    def test_boundary_slower(self):
+        """Just above 2.0x threshold → 'slower'."""
+        assert _trajectory_signal(201, 100) == 'slower'
+
+
+class TestStableCompanionsInOutput:
+    """Verify stable companion fields appear in project_convergence output."""
+
+    def test_fields_present_exponential(self):
+        """simple_proj and trajectory_signal present in exponential output."""
+        t = np.arange(30)
+        w = 0.5 * np.exp(-0.08 * t) + 0.02
+        result = project_convergence(ci_widths=w.tolist(), delta=0.05,
+                                     step_size=10, n_bootstrap=0)
+        assert result is not None
+        assert result['projection_basis'] == 'exponential_decay'
+        assert 'simple_proj_additional_trials' in result
+        assert 'trajectory_signal' in result
+        assert result['simple_proj_additional_trials'] > 0
+        assert result['trajectory_signal'] in ('faster', 'on_pace', 'slower')
+
+    def test_fields_present_already_converged(self):
+        """simple_proj and trajectory_signal present when already converged."""
+        w = [0.10, 0.08, 0.06, 0.04]
+        result = project_convergence(ci_widths=w, delta=0.05, step_size=10)
+        assert result is not None
+        assert result['simple_proj_additional_trials'] == 0.0
+        assert result['trajectory_signal'] is None
+
+    def test_fields_present_linear_fallback(self):
+        """simple_proj and trajectory_signal present in linear fallback output."""
+        # 20 widths (enough for slopes but random walk won't fit exponential)
+        rng = np.random.default_rng(123)
+        widths = [0.15]
+        for _ in range(19):
+            widths.append(max(0.06, widths[-1] + rng.normal(-0.002, 0.015)))
+        result = project_convergence(ci_widths=widths, delta=0.05,
+                                     step_size=10, n_bootstrap=0)
+        if result is not None:
+            assert 'simple_proj_additional_trials' in result
+            assert 'trajectory_signal' in result
+
+    def test_plateau_trajectory_signal_is_none(self):
+        """trajectory_signal is None when exponential projects slope_stabilisation."""
+        t = np.arange(30)
+        # Asymptote c=0.08 > delta=0.05 -> will plateau above delta
+        w = 0.4 * np.exp(-0.1 * t) + 0.08
+        result = project_convergence(ci_widths=w.tolist(), delta=0.05,
+                                     step_size=10, n_bootstrap=0)
+        assert result is not None
+        assert result['convergence_target'] == 'projected_slope_stabilisation'
+        assert result['trajectory_signal'] is None
+        assert result['simple_proj_additional_trials'] > 0  # 1/sqrt(n) still projects
+
+    def test_simple_proj_consistent_with_proximity(self):
+        """simple_proj should be consistent with proximity_ratio."""
+        t = np.arange(30)
+        w = 0.5 * np.exp(-0.08 * t) + 0.02
+        result = project_convergence(ci_widths=w.tolist(), delta=0.05,
+                                     step_size=10, n_bootstrap=0)
+        assert result is not None
+        # Manual calculation: n_trials = 30 * 10 = 300
+        # simple_proj = 300 * ((final_width/0.05)^2 - 1)
+        fw = result['final_width']
+        expected = 300 * ((fw / 0.05) ** 2 - 1)
+        assert result['simple_proj_additional_trials'] == pytest.approx(expected, rel=0.01)

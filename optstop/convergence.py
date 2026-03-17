@@ -80,6 +80,39 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Stable companion metrics for convergence projection
+# ---------------------------------------------------------------------------
+
+def _simple_projection(n_trials_observed, ci_width, delta):
+    """Additional trials needed assuming CI contracts as 1/sqrt(n).
+
+    Conservative estimate (real convergence is often faster for hierarchical
+    models). Quantitatively stable across item orderings (CV 0.03-0.09).
+    """
+    if ci_width <= delta or n_trials_observed <= 0 or delta <= 0:
+        return 0.0
+    ratio = ci_width / delta
+    return n_trials_observed * (ratio ** 2 - 1)
+
+
+def _trajectory_signal(exp_proj, simple_proj):
+    """Convergence trajectory relative to 1/sqrt(n) baseline.
+
+    Returns 'faster' (exponential projects < 0.5x the simple estimate),
+    'slower' (> 2.0x), or 'on_pace'. Returns None when either input is
+    unavailable or simple_proj is zero.
+    """
+    if exp_proj is None or simple_proj is None or simple_proj == 0:
+        return None
+    ratio = exp_proj / simple_proj
+    if ratio < 0.5:
+        return 'faster'
+    elif ratio > 2.0:
+        return 'slower'
+    return 'on_pace'
+
+
+# ---------------------------------------------------------------------------
 # Exponential decay model: w(t) = a * exp(-b * t) + c
 # ---------------------------------------------------------------------------
 
@@ -254,6 +287,24 @@ def project_convergence(
 
     Returns:
         dict with point estimate + uncertainty, or None if insufficient data.
+        Key fields include:
+
+        - ``projected_additional_trials``: Exponential or linear projection.
+          Sensitive to item ordering (CV 0.5-3.0 across shuffled orderings).
+          Treat as a rough order-of-magnitude guide, not a precise planning
+          target.
+        - ``simple_proj_additional_trials``: Conservative projection assuming
+          CI contracts as 1/sqrt(n). More stable across orderings (CV 0.03-
+          0.09). Use for quantitative planning.
+        - ``trajectory_signal``: ``'faster'``, ``'on_pace'``, or ``'slower'``
+          relative to the 1/sqrt(n) baseline. Captures the qualitative
+          trajectory information from the exponential model without the
+          unstable extrapolation. None when the convergence target is
+          slope stabilisation or capped (comparison with 1/sqrt(n) is not
+          meaningful), when already converged, or when the simple
+          projection is zero.
+        - ``proximity_ratio``: Current CI width / delta. Immediately
+          interpretable progress indicator (e.g. 2.4 means "2.4x away").
     """
     ci_widths = list(ci_widths) if ci_widths else []
     ci_slopes = list(ci_slopes) if ci_slopes else []
@@ -265,6 +316,8 @@ def project_convergence(
         return {
             'projected_additional_steps': 0,
             'projected_additional_trials': 0,
+            'simple_proj_additional_trials': 0.0,
+            'trajectory_signal': None,
             'proximity_ratio': proximity_ratio,
             'convergence_target': 'projected_width',
             'projected_width_at_termination': final_width,
@@ -311,6 +364,8 @@ def project_convergence(
         return {
             'projected_additional_steps': 0,
             'projected_additional_trials': 0,
+            'simple_proj_additional_trials': 0.0,
+            'trajectory_signal': None,
             'proximity_ratio': proximity_ratio,
             'convergence_target': 'projected_width',
             'projected_width_at_termination': final_width,
@@ -329,26 +384,33 @@ def project_convergence(
             },
         }
 
-    # --- Try exponential decay model first ---
+    # --- Stable companion: 1/sqrt(n) projection ---
     n_obs = len(ci_widths)
+    n_trials_observed = n_obs * step_size
+    simple_proj = _simple_projection(n_trials_observed, final_width, delta)
+
+    # --- Try exponential decay model first ---
     exp_popt, exp_r2 = _fit_exponential(ci_widths)
 
     if exp_popt is not None:
         return _project_convergence_exponential(
             ci_widths, exp_popt, exp_r2, n_obs, delta, step_size,
             max_steps, n_bootstrap, final_width, final_slope, proximity_ratio,
+            simple_proj,
         )
 
     # --- Fallback: linear extrapolation ---
     return _project_convergence_linear(
         ci_widths, ci_slopes, delta, slope_threshold, step_size, max_steps,
         n_bootstrap, final_width, final_slope, slope_of_slopes, proximity_ratio,
+        simple_proj,
     )
 
 
 def _project_convergence_exponential(
     ci_widths, popt, r_squared, n_obs, delta, step_size, max_steps,
     n_bootstrap, final_width, final_slope, proximity_ratio,
+    simple_proj=0.0,
 ):
     """Build projection result using exponential decay model."""
     a, b, c = popt
@@ -415,6 +477,11 @@ def _project_convergence_exponential(
     result = {
         'projected_additional_steps': steps,
         'projected_additional_trials': point_trials,
+        'simple_proj_additional_trials': simple_proj,
+        'trajectory_signal': (
+            _trajectory_signal(point_trials, simple_proj)
+            if target == 'projected_width' else None
+        ),
         'proximity_ratio': proximity_ratio,
         'convergence_target': target,
         'projected_width_at_termination': terminal_width,
@@ -444,6 +511,7 @@ def _project_convergence_exponential(
 def _project_convergence_linear(
     ci_widths, ci_slopes, delta, slope_threshold, step_size, max_steps,
     n_bootstrap, final_width, final_slope, slope_of_slopes, proximity_ratio,
+    simple_proj=0.0,
 ):
     """Build projection result using linear extrapolation (fallback)."""
     # Point estimate
@@ -515,6 +583,11 @@ def _project_convergence_linear(
     result = {
         'projected_additional_steps': steps,
         'projected_additional_trials': point_trials,
+        'simple_proj_additional_trials': simple_proj,
+        'trajectory_signal': (
+            _trajectory_signal(point_trials, simple_proj)
+            if target == 'projected_width' else None
+        ),
         'proximity_ratio': proximity_ratio,
         'convergence_target': target,
         'projected_width_at_termination': terminal_width,

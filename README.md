@@ -269,9 +269,10 @@ for log in logs:
         for grouping, history in diagnostics['stabilization_histories'].items():
             if 'convergence_projection' in history:
                 proj = history['convergence_projection']
-                print(f"{grouping}: ~{proj['projected_additional_trials']} more trials needed")
-                print(f"  Basis: {proj['projection_basis']}")
-                print(f"  Target: {proj['convergence_target']}")
+                print(f"{grouping}: ~{proj['simple_proj_additional_trials']:.0f} more trials (1/√n estimate)")
+                print(f"  Proximity: {proj['proximity_ratio']:.1f}x away from target")
+                print(f"  Trajectory: {proj['trajectory_signal'] or 'n/a'}")
+                print(f"  Exponential estimate: ~{proj['projected_additional_trials']} trials (order-sensitive)")
                 print(f"  80% CI: {proj['uncertainty']['ci_trials_80']} trials")
 ```
 

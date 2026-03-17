@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `_log_mcmc_diagnostics` helper logs divergence count, min ESS, and max R-hat at WARNING level when concerning (DEBUG otherwise)
 - On sampling failure, the package returns max-uncertainty estimates (CI width = 1.0), preventing premature stopping while allowing the next scheduled MCMC call to retry with more data
 
+#### Convergence Projection Stable Companions
+- New `simple_proj_additional_trials` field: conservative 1/√n projection, stable across item orderings (CV 0.03-0.09 vs 0.47-3.16 for the exponential projection)
+- New `trajectory_signal` field: qualitative categorical (`'faster'`/`'on_pace'`/`'slower'`) indicating whether the trajectory-based projection suggests faster or slower convergence than the 1/√n baseline
+- Existing `projected_additional_trials` retained but documented as order-sensitive (treat as rough guide)
+
 ### Changed
 
 #### Ordinal Hybrid Stopping (Pathway 2) - Mechanism Fix

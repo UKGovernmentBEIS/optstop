@@ -1190,7 +1190,9 @@ The projection is only populated when CI width history is available (at least on
         "convergence_projection": {
             # Point estimate
             "projected_additional_steps": 15,        # In observation-step units
-            "projected_additional_trials": 150,      # steps * reanalysis_interval
+            "projected_additional_trials": 120,      # steps * reanalysis_interval (order-sensitive)
+            "simple_proj_additional_trials": 276.0,  # 1/sqrt(n) projection (order-stable)
+            "trajectory_signal": "faster",           # 'faster'/'on_pace'/'slower' vs 1/sqrt(n) (120/276=0.43)
             "proximity_ratio": 2.4,                  # final_width / delta_cap (>1 = not converged)
 
             # Outcome classification
@@ -1236,7 +1238,9 @@ The projection is only populated when CI width history is available (at least on
 | Field | Type | Description |
 |-------|------|-------------|
 | `projected_additional_steps` | int | Projected observation steps to convergence |
-| `projected_additional_trials` | int | Projected additional trials needed (= steps × reanalysis_interval) |
+| `projected_additional_trials` | int | Projected additional trials needed (= steps × reanalysis_interval). Derived from exponential or linear trajectory fit - sensitive to item ordering (CV 0.5-3.0). Treat as order-of-magnitude guide |
+| `simple_proj_additional_trials` | float | Conservative projection assuming CI contracts as 1/√n. Stable across item orderings (CV 0.03-0.09). Use for quantitative planning |
+| `trajectory_signal` | str/None | `'faster'`, `'on_pace'`, or `'slower'` - whether the trajectory-based projection suggests faster or slower convergence than the 1/√n baseline. None when the comparison is unavailable |
 | `proximity_ratio` | float | Current CI width / `delta_cap` (the group-level CI width threshold, default 0.05). Values > 1 indicate not yet converged; 1.0-1.5 suggests near-convergence; > 3.0 suggests substantial additional data needed |
 | `convergence_target` | str | `'projected_width'` (CI narrows below delta), `'projected_slope_stabilisation'` (CI plateaus above delta), or `'projected_capped'` (neither within projection horizon) |
 | `projected_width_at_termination` | float | Projected CI width at the convergence/plateau/cap point |
