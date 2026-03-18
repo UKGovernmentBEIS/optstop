@@ -4570,7 +4570,7 @@ def optimal_stopping_live_single(
                 current_n_items <= cached_model_n_items):
                 # Safe to reuse - current data fits within allocated model size
                 model = binary_group_cache['model']
-                # logger.debug(f"✓ CACHE HIT: Reusing binary model (current={current_n_items}, allocated={cached_model_n_items})")
+                # logger.debug(f"CACHE HIT: Reusing binary model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
                 # Must recreate - mode changed or current data exceeds allocated model size
                 if cached_use_preallocation != use_preallocation:
@@ -4671,7 +4671,7 @@ def optimal_stopping_live_single(
             if (cached_use_preallocation == use_preallocation and
                 current_n_items <= cached_model_n_items):
                 continuous_model = continuous_group_cache['model']
-                # logger.debug(f"✓ CACHE HIT: Reusing continuous model (current={current_n_items}, allocated={cached_model_n_items})")
+                # logger.debug(f"CACHE HIT: Reusing continuous model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
                 # Must recreate - mode changed or current data exceeds allocated model size
                 if cached_use_preallocation != use_preallocation:
@@ -4780,7 +4780,7 @@ def optimal_stopping_live_single(
                 cached_model_type == ordinal_model_type and
                 cached_use_preallocation == current_use_preallocation):
                 ordinal_model = ordinal_group_cache['model']
-                # logger.debug(f"✓ CACHE HIT: Reusing ordinal model (current={current_n_items}, allocated={cached_model_n_items})")
+                # logger.debug(f"CACHE HIT: Reusing ordinal model (current={current_n_items}, allocated={cached_model_n_items})")
             else:
                 logger.info(f"Ordinal model cache invalidated: n_items {current_n_items} > allocated {cached_model_n_items} or config changed (prealloc: {cached_use_preallocation} -> {current_use_preallocation})")
                 ordinal_group_cache.clear()
@@ -5018,7 +5018,7 @@ def optimal_stopping_live_single(
                 low_perf_threshold=low_perf_threshold
             )
 
-            # ⚠️ CRITICAL: Normalize width for comparison with delta_item
+            # CRITICAL: Normalize width for comparison with delta_item
             width_normalized = width / (upper_bound - lower_bound)
 
             # Check width criterion
@@ -5130,7 +5130,7 @@ def optimal_stopping_live_single(
                         _sigma_mean_str = f"{_diag_sigma_group.mean():.4f}" if _diag_sigma_group is not None else "N/A"
                         _sigma_std_str = f"{_diag_sigma_group.std():.6f}" if _diag_sigma_group is not None else "N/A"
                         logger.warning(
-                            f"🔬 BINARY POSTERIOR [{grouping_name}] prealloc={use_preallocation}: "
+                            f"[DIAG] BINARY POSTERIOR [{grouping_name}] prealloc={use_preallocation}: "
                             f"n_items={n_observed}, accuracy={_diag_accuracy:.4f}, "
                             f"mu_group: mean={_diag_mu_group.mean():.4f} std={_diag_mu_group.std():.6f}, "
                             f"sigma_group: mean={_sigma_mean_str} std={_sigma_std_str}"
@@ -5150,7 +5150,7 @@ def optimal_stopping_live_single(
                             'use_preallocation': use_preallocation,
                         })
                     except Exception as e:
-                        logger.warning(f"🔬 BINARY POSTERIOR DIAGNOSTIC failed: {e}")
+                        logger.warning(f"[DIAG] BINARY POSTERIOR DIAGNOSTIC failed: {e}")
                 # === END DIAGNOSTIC LOGGING ===
 
                 if trace is not None:
@@ -5166,7 +5166,7 @@ def optimal_stopping_live_single(
                     # Previous approaches and their problems:
                     # - Theta[0] (first item only): arbitrary, depends on data ordering
                     # - sigmoid(mu_group): measures "typical item" (z=0), not expected accuracy
-                    # - mean(Theta): correctly computes expected group accuracy ✓
+                    # - mean(Theta): correctly computes expected group accuracy (correct)
                     try:
                         # Extract item-level Theta posterior samples (shape: chains × draws × items)
                         theta_samples = trace.posterior["Theta"].values
@@ -5200,7 +5200,7 @@ def optimal_stopping_live_single(
 
                 # === CI DIAGNOSTIC LOGGING ===
                 logger.warning(
-                    f"🔬 BINARY CI [{grouping_name}] prealloc={use_preallocation}: "
+                    f"[DIAG] BINARY CI [{grouping_name}] prealloc={use_preallocation}: "
                     f"CI=[{theta_lo:.6f}, {theta_hi:.6f}], width={theta_width:.6f}, "
                     f"n_checks={len(stabilization_history.get('ci_width_history', []))+1}, "
                     f"method=mean(Theta)"
@@ -5268,7 +5268,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Binary inference complete
             _binary_elapsed = time.perf_counter() - _binary_start
-            # logger.warning(f"🕐 TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
+            # logger.warning(f"TIMING_TEST: Binary group inference took {_binary_elapsed:.3f}s for {len(item_summaries)} items")
 
         elif score_type == 'ordinal':
             # === ORDINAL GROUP-LEVEL STOPPING (HIERARCHICAL) ===
@@ -5416,7 +5416,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Ordinal inference complete
             _ordinal_elapsed = time.perf_counter() - _ordinal_start
-            # logger.warning(f"🕐 TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")
+            # logger.warning(f"TIMING_TEST: Ordinal group inference took {_ordinal_elapsed:.3f}s for {len(item_summaries)} items, mode={ordinal_inference}")
 
         elif score_type in ['continuous_01', 'continuous_bounded']:
             # === CONTINUOUS GROUP-LEVEL STOPPING (HIERARCHICAL) ===
@@ -5461,7 +5461,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Data aggregation complete
             _aggregation_elapsed = time.perf_counter() - _aggregation_start
-            # logger.warning(f"🕐 TIMING_TEST: Continuous data aggregation took {_aggregation_elapsed:.3f}s (aggregated {total_obs_count} obs → {n_items_actual} means)")
+            # logger.warning(f"TIMING_TEST: Continuous data aggregation took {_aggregation_elapsed:.3f}s (aggregated {total_obs_count} obs → {n_items_actual} means)")
 
             # Compute performance estimate for conservatism check
             # Use aggregated item means (already in [0,1] scale)
@@ -5554,7 +5554,7 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: PyMC MCMC sampling complete
             _mcmc_elapsed = time.perf_counter() - _mcmc_start
-            # logger.warning(f"🕐 TIMING_TEST: Continuous PyMC MCMC sampling took {_mcmc_elapsed:.3f}s for {n_items_actual} items (aggregated {total_obs_count} obs)")
+            # logger.warning(f"TIMING_TEST: Continuous PyMC MCMC sampling took {_mcmc_elapsed:.3f}s for {n_items_actual} items (aggregated {total_obs_count} obs)")
 
             # Append normalized width to history for stabilization tracking
             stabilization_history['ci_width_history'].append(float(width_normalized))
@@ -5616,14 +5616,14 @@ def optimal_stopping_live_single(
 
             # TIMING_TEST: Continuous inference complete
             _continuous_elapsed = time.perf_counter() - _continuous_start
-            # logger.warning(f"🕐 TIMING_TEST: Continuous group inference TOTAL took {_continuous_elapsed:.3f}s for {len(item_summaries)} items")
+            # logger.warning(f"TIMING_TEST: Continuous group inference TOTAL took {_continuous_elapsed:.3f}s for {len(item_summaries)} items")
 
     # Update samples evaluated count
     stabilization_history['n_samples_evaluated'] = len(item_summaries)
 
     # TIMING_TEST: Overall function complete
     _function_elapsed = time.perf_counter() - _function_start_time
-    # logger.warning(f"🕐 TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
+    # logger.warning(f"TIMING_TEST: optimal_stopping_live_single TOTAL took {_function_elapsed:.3f}s for '{grouping_name}' ({score_type})")
 
     # Rebuild model_caches dict for return (OPTIMIZATION #2)
     model_caches_out = {

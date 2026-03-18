@@ -19,6 +19,16 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 - Convergence projection: estimates additional trials needed when evaluation ends before convergence
 - inspect_ai integration for LLM evaluation workflows with adaptive early stopping
 
+## Installation
+
+```bash
+pip install optstop            # Core package
+pip install optstop[inspect]   # With inspect_ai integration
+pip install optstop[gpu]       # With GPU acceleration (NVIDIA/Apple Silicon)
+```
+
+See [detailed installation options](#installation-1) for development setup and platform-specific notes.
+
 ## Using optstop with inspect_ai
 
 `optstop` now provides seamless integration with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Safety Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, enabling **statistically-rigorous adaptive early stopping** for your LLM evaluations.
@@ -301,7 +311,7 @@ See the Convergence Projection Fields section in `BRIDGE_API_REFERENCE.md` for t
 
 ### Compatibility
 
-- **optstop version**: 0.3.1
+- **optstop version**: 0.4.0
 - **inspect_ai version**: 0.3.0+
 - **Python version**: 3.10+
 

@@ -1,8 +1,8 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.3.1
+**Version:** 0.4.0
 
-**Last Updated:** 2026-02-11
+**Last Updated:** 2026-03-18
 
 **Status:** Beta
 
@@ -1989,7 +1989,14 @@ manager = OptimalStoppingManager(
 
 ## Version History
 
-### v0.3.1 (Current)
+### v0.4.0 (Current)
+- **MCMC failure handling**: All `pm.sample()` calls wrapped in try/except with graceful degradation (max-uncertainty fallback prevents premature stopping). New `_log_mcmc_diagnostics` helper logs divergence count, min ESS, and max R-hat
+- **Convergence projection stable companions**: New `simple_proj_additional_trials` (1/sqrt(n), CV 0.03-0.09) and `trajectory_signal` ('faster'/'on_pace'/'slower') fields provide stable alternatives to the order-sensitive exponential projection
+- **Ordinal Pathway 2 mechanism fix**: Replaced relative-change criterion (mathematically incapable of firing) with absolute entropy CI width convergence on [0,1] scale
+- **`prior_sigma` parameter**: Exposed at all API levels (default: 1.5 for binary/continuous, 2.0 for ordinal)
+- **`entropy_threshold`** default changed from 0.7 to 0.8; `entropy_stabilization_threshold` renamed to `entropy_convergence_threshold`
+
+### v0.3.1
 - **Continuous score type support**: Full hierarchical Beta model for `continuous_01` and `continuous_bounded` score types in both posthoc and live modes
 - **CI extraction methodology fix**: Changed from using HDI on individual item Theta values to using `mean(Theta)` / `mean(mu_item)` across all items, which correctly accounts for between-item variance (sigma_group)
 - **Diagnostic logging**: Added diagnostic logging for posterior analysis debugging (mu_group, sigma_group statistics)
@@ -2041,9 +2048,11 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2026-02-11
-**Document Version:** 1.6
+**Last Updated:** 2026-03-18
+**Document Version:** 1.7
 **Phase:** Beta (Phase 1-3 Complete)
+
+**v1.7 Changes:** Updated for v0.4.0: MCMC failure handling, convergence projection stable companions (`simple_proj_additional_trials`, `trajectory_signal`), ordinal P2 mechanism fix, `prior_sigma` and `entropy_convergence_threshold` parameters.
 
 **v1.5 Changes:** Added v0.3.1 version history entry documenting continuous score type support, CI extraction methodology fix (mean(Theta) for correct between-item variance handling), and diagnostic logging additions.
 

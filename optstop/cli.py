@@ -6,6 +6,7 @@ import argparse
 import pandas as pd
 from .rule import configure_optstop_logging, optimal_stopping_posthoc, optimal_stopping_live
 from .convergence import convergence_posthoc
+from .__version__ import __version__
 
 def close_all_log_handlers():
     """Close all logging handlers to release file locks (needed for Windows test cleanup)."""
@@ -36,6 +37,7 @@ def main():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         parser = argparse.ArgumentParser(description="Run post-hoc optimal stopping analysis.")
+        parser.add_argument('--version', action='version', version=f'optstop {__version__}')
         parser.add_argument('--csv', required=True, help='Path to input CSV file')
         parser.add_argument('--output', required=True, help='Path to output pruned CSV file')
         parser.add_argument('--summary', required=False, help='Path to output summary CSV file')
@@ -160,6 +162,7 @@ def main_live():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         parser = argparse.ArgumentParser(description="Run live optimal stopping analysis.")
+        parser.add_argument('--version', action='version', version=f'optstop {__version__}')
         parser.add_argument('--csv', required=True, help='Path to input CSV file (current data)')
         parser.add_argument('--log', default='optstop_live.log', help='Path to log file')
         parser.add_argument('--grouping_columns', required=True, help='Comma-separated list of column names to use for grouping (e.g., "subject,task") or a single column name')
@@ -266,6 +269,7 @@ def main_convergence():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         parser = argparse.ArgumentParser(description="Run post-hoc convergence analysis.")
+        parser.add_argument('--version', action='version', version=f'optstop {__version__}')
         parser.add_argument('--csv', required=True, help='Path to input CSV file')
         parser.add_argument('--output', required=True, help='Path to output convergence stats CSV file')
         parser.add_argument('--log', default='optstop_convergence.log', help='Path to log file')

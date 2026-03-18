@@ -338,27 +338,12 @@ class TestTaskValidation:
         assert len(manager_basic.compiled_dataset) == 3 * 5  # 3 samples × 5 epochs
 
     @pytest.mark.asyncio
-    async def test_task_with_none_dataset(self, manager_basic):
-        """Test rejection of task with None dataset."""
+    async def test_task_with_empty_samples(self, manager_basic):
+        """Test rejection of task with empty samples list."""
         mock_task = Mock()
-        mock_task.dataset = None
-        mock_task.config = Mock(epochs=5)
 
-        with pytest.raises(ValueError, match="task.dataset is None"):
-            await manager_basic.start_task(mock_task, mock_samples, epochs=5)
-
-    @pytest.mark.asyncio
-    async def test_task_with_empty_sample_ids(self, manager_basic):
-        """Test rejection of task with empty sample_ids."""
-        mock_dataset = Mock()
-        mock_dataset.sample_ids = []
-
-        mock_task = Mock()
-        mock_task.dataset = mock_dataset
-        mock_task.config = Mock(epochs=5)
-
-        with pytest.raises(ValueError, match="sample_ids is empty"):
-            await manager_basic.start_task(mock_task, mock_samples, epochs=5)
+        with pytest.raises(ValueError, match="samples list is empty"):
+            await manager_basic.start_task(mock_task, [], epochs=5)
 
     @pytest.mark.asyncio
     async def test_task_with_none_config(self, manager_basic, caplog):

@@ -4,28 +4,38 @@ Thank you for your interest in contributing to optstop! This document provides g
 
 ## Development Setup
 
-1. **Fork the repository** on GitHub
-2. **Clone your fork** locally:
+1. **Clone the repository**:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/optstop.git
+   git clone https://github.com/UKGovernmentBEIS/optstop.git
    cd optstop
    ```
-3. **Install in development mode**:
+2. **Create a virtual environment** (recommended):
    ```bash
-   pip install -e .
+   python -m venv venv
+   source venv/bin/activate  # Linux/macOS
    ```
-4. **Install development dependencies**:
+3. **Install in development mode** with dev dependencies:
    ```bash
-   pip install pytest
+   pip install -e ".[dev]"
+   ```
+   For GPU support (NVIDIA or Apple Silicon):
+   ```bash
+   pip install -e ".[dev,gpu]"
    ```
 
 ## Running Tests
 
-Before submitting any changes, please ensure all tests pass:
+Before submitting any changes, ensure tests pass:
 
 ```bash
 python -m pytest tests/ -v
 ```
+
+Notes on the test suite:
+- Some tests involve real MCMC sampling and take 1-3 minutes each.
+- Tests marked `@pytest.mark.slow` (ordinal entropy MCMC) take >3 minutes. Deselect with `-m 'not slow'`.
+- A small number of tests are inherently stochastic (depend on MCMC randomness) and may occasionally fail. If a failure appears unrelated to your changes, re-run to confirm.
+- The package uses `pymc`, `arviz`, and `numpyro` for Bayesian inference - these produce compilation caches that the test fixtures clean up automatically.
 
 ## Code Style
 
@@ -33,6 +43,7 @@ python -m pytest tests/ -v
 - Use meaningful variable and function names
 - Add docstrings to all public functions
 - Include type hints where appropriate
+- Use spaced hyphens (` - `) in documentation, not em-dashes
 
 ## Submitting Changes
 
@@ -55,18 +66,19 @@ python -m pytest tests/ -v
 
 - Provide a clear description of the changes
 - Include tests for new functionality
-- Update documentation if needed
-- Ensure all tests pass
+- Update documentation if needed (README.md, BRIDGE_API_REFERENCE.md, CHANGELOG.md)
+- Ensure all tests pass (excluding known stochastic failures)
 
 ## Reporting Issues
 
 When reporting issues, please include:
+- optstop version (`optstop-posthoc --version`)
 - Python version
 - Operating system
 - Steps to reproduce
 - Expected vs actual behavior
-- Any error messages
+- Any error messages or log output
 
 ## Questions?
 
-If you have questions about contributing, please open an issue on GitHub. 
+If you have questions about contributing, please open an issue on [GitHub](https://github.com/UKGovernmentBEIS/optstop/issues).

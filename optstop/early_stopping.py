@@ -475,14 +475,14 @@ class OptimalStoppingManager(EarlyStopping):
         print("="*80)
 
         # Dataset Configuration
-        print("\n📊 Dataset Configuration:")
+        print("\nDataset Configuration:")
         print(f"  • Samples: {num_samples}")
         print(f"  • Epochs per sample: {num_epochs}")
         print(f"  • Total planned trials: {num_samples * num_epochs}")
         print(f"  • Grouping columns: {', '.join(self.grouping_columns)}")
 
         # Stopping Parameters (from optstop_params)
-        print("\n🎯 Optimal Stopping Parameters:")
+        print("\nOptimal Stopping Parameters:")
         params_to_show = {
             'delta_item': ('Item CI width threshold', 0.05),
             'delta_cap': ('Grouping CI width threshold', 0.05),

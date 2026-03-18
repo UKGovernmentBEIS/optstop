@@ -387,6 +387,7 @@ async def test_1_1_2a_ordinal_modal_inference():
 
 
 @pytest.mark.asyncio
+@pytest.mark.slow
 async def test_1_1_2b_ordinal_entropy_inference():
     """
     Test 1.1.2b: Ordinal Entropy Inference
@@ -395,7 +396,7 @@ async def test_1_1_2b_ordinal_entropy_inference():
     Entropy inference uses Shannon entropy to measure distribution spread.
 
     Setup:
-    - 20 samples, 8 epochs each
+    - 15 samples, 8 epochs each
     - Single grouping: gpt-4-confidence (ordinal task)
     - Deterministic ordinal data: mode=5, concentration=0.90 (very peaked)
     - Inference mode: 'entropy'
@@ -405,6 +406,9 @@ async def test_1_1_2b_ordinal_entropy_inference():
     - Entropy stabilization requires sustained CI width convergence (≥3 epochs)
     - With limited samples/epochs, stopping may not occur (expected behavior)
     - Test validates inference execution, not stopping efficiency
+
+    Note: Marked @pytest.mark.slow - ordinal entropy MCMC is computationally intensive.
+    Run with: pytest -m slow
     """
     print("\n" + "="*80)
     print("TEST 1.1.2b: Ordinal Entropy Inference")

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optstop"
-version = "0.3.1"
+version = "0.4.0"
 description = "Adaptive optimal stopping rule algorithms for efficient data collection and analysis"
 authors = [
     { name = "Toby D. Pilditch, PhD" }
@@ -28,7 +28,6 @@ dependencies = [
     "pymc>=5.10.0",
     "arviz",
     "scipy",
-    "statsmodels",
     "matplotlib",
     "tqdm",
     "numba",
@@ -69,4 +68,9 @@ dev = [
 optstop-posthoc = "optstop.cli:main"
 optstop-live = "optstop.cli:main_live"
 
-optstop-convergence = "optstop.cli:main_convergence" 
+optstop-convergence = "optstop.cli:main_convergence"
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (ordinal MCMC, >3 min). Deselect with: -m 'not slow'",
+]

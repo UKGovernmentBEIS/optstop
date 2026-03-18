@@ -338,7 +338,8 @@ class TestOrdinalEntropyCIAdaptive:
         )
 
         assert 'model' in model_cache
-        assert model_cache['n_items_last'] == len(scores1)
+        # n_items is always 1 after scaling fix (all scores treated as single distribution)
+        assert model_cache['n_items_last'] == 1
 
         # Second call (reuses model)
         lo2, hi2, width2, diag2 = _ordinal_entropy_ci_adaptive(
@@ -349,7 +350,7 @@ class TestOrdinalEntropyCIAdaptive:
             model_cache=model_cache
         )
 
-        assert model_cache['n_items_last'] == len(scores2)
+        assert model_cache['n_items_last'] == 1
 
     def test_convergence_diagnostics(self):
         """Test convergence diagnostics are returned"""

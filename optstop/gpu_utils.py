@@ -869,16 +869,16 @@ def log_gpu_status(gpu_available: bool, backend: str, gpu_info: Dict[str, Any]) 
 
     # Final Status
     if gpu_available:
-        logger.info(f"✅ PyMC will use GPU acceleration via {gpu_info.get('backend_used', 'unknown')}")
+        logger.info(f"PyMC will use GPU acceleration via {gpu_info.get('backend_used', 'unknown')}")
     else:
         if gpu_info.get('system_gpus_detected'):
-            logger.warning("⚠️  System GPUs detected but no PyMC GPU backend configured")
+            logger.warning("System GPUs detected but no PyMC GPU backend configured")
         else:
-            logger.info("ℹ️  No GPU acceleration available - using CPU-only sampling")
+            logger.info("No GPU acceleration available - using CPU-only sampling")
 
     # User Recommendations
     if gpu_info.get('recommendations'):
-        logger.info("📋 Recommendations:")
+        logger.info("Recommendations:")
         for i, rec in enumerate(gpu_info['recommendations'][:3], 1):  # Show top 3
             logger.info(f"   {i}. {rec}")
 

@@ -668,7 +668,7 @@ def _ordinal_entropy_ci_adaptive(
     compute_kwargs = compute_kwargs or {}
 
     # === DIAGNOSTIC LOGGING: Track parameter passing ===
-    # logger.warning(f"🔍 _ordinal_entropy_ci_adaptive called:")
+    # logger.warning(f"_ordinal_entropy_ci_adaptive called:")
     # logger.warning(f"   n_samples (default parameter): {n_samples}")
     # logger.warning(f"   n_tune (default parameter): {n_tune}")
     # logger.warning(f"   compute_kwargs received: {compute_kwargs}")

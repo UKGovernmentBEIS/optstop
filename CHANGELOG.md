@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.0] - 2026-03-18
 
 ### Added
 
@@ -19,6 +19,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `trajectory_signal` field: qualitative categorical (`'faster'`/`'on_pace'`/`'slower'`) indicating whether the trajectory-based projection suggests faster or slower convergence than the 1/√n baseline
 - Existing `projected_additional_trials` retained but documented as order-sensitive (treat as rough guide)
 
+#### New Features
+- Epoch-interleaved processing order (`processing_order='epoch_interleaved'`) for posthoc analysis, matching bridge trial ordering
+- `shuffle_items` and `shuffle_seed` parameters for posthoc item-order randomisation
+- `score_value_key` parameter for bridge integration with dict-valued scores
+
 ### Changed
 
 #### Ordinal Hybrid Stopping (Pathway 2) - Mechanism Fix
@@ -29,14 +34,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The new absolute-width criterion is guaranteed to be satisfied in finite time as the posterior concentrates
 - `prior_sigma` parameter now exposed at all API levels (default: 1.5 for binary/continuous, 2.0 for ordinal)
 
+#### Default Changes
+- `conservatism` default changed from 10 to 5
+- `low_performance_threshold` default changed from 0.001 to 0.01 (1%)
+- `target_accept` unified to 0.95 for both CPU and GPU (was 0.90 for CPU)
+
+### Fixed
+- `convergence_posthoc` missing `entropy_convergence_threshold` in function signature (caused NameError)
+- 8 pre-existing test failures resolved (stale assertions, missing fixtures, parameter naming)
+
+### Removed
+- `setup.py` removed; `pyproject.toml` is now the sole build configuration
+
 ### Upgrade Notes
 - **`entropy_stabilization_threshold`**: The old parameter name still works but triggers a deprecation warning. The value semantics have changed - old values (e.g., 0.002) will be passed through but are on the wrong scale for the new mechanism. Remove custom values to use the new default (0.10), or set `entropy_convergence_threshold` explicitly.
 - **`entropy_threshold`**: The default is now 0.8 (was 0.7). Users who relied on the old default without setting it explicitly will see slightly more permissive Pathway 1 gating.
+- **`conservatism`**: Default changed from 10 to 5. Users who relied on the old default will see less aggressive CI inflation for low-performance groupings.
+- **`low_performance_threshold`**: Default changed from 0.001 to 0.01. The conservatism mechanism now activates for groupings with performance below 1% (was 0.1%).
 
 ### Planned
 - Full bridge usage guide (BRIDGE_USAGE_GUIDE.md)
 - Example evaluations in `examples/inspect_ai/`
 - Comprehensive integration tests for bridge
+
+---
+
+## [0.3.1] - 2026-01-23
+
+### Added
+- Continuous score type support: full hierarchical model for `continuous_01` and `continuous_bounded` in both posthoc and live modes
+- Convergence projection for non-stopped groupings (exponential decay model with linear fallback, bootstrap uncertainty)
+- Diagnostic logging for posterior analysis (mu_group, sigma_group statistics)
+
+### Fixed
+- CI extraction methodology: changed from individual item HDI to `mean(Theta)` / `mean(mu_item)` across all items, correctly accounting for between-item variance
+
+---
+
+## [0.3.0] - 2025-12-15
+
+### Added
+- Ordered Logistic (cumulative link) model as default for ordinal inference (~3x faster than Dirichlet)
+- `ordinal_model_type` parameter for model selection ('ordered_logistic' or 'dirichlet')
+- Adaptive cutpoint priors scaling with number of categories
+- Automatic fallback to Dirichlet if Ordered Logistic sampling fails
 
 ---
 

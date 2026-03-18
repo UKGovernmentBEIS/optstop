@@ -265,11 +265,14 @@ class TestContinuousEarlyStoppingIntegration:
             group_metadata = result['metadata']['group_stopping_reason']
             assert group_metadata is not None
 
-            # Should be either width or stabilization
+            # Should be either width or stabilization (item-level or group-level)
             assert group_metadata['reason'] in [
                 'continuous_bounded_ci_width',
+                'continuous_hierarchical_ci_width',
                 'continuous_bounded_stabilization',
-                'continuous_bounded_stabilization_low_perf'
+                'continuous_hierarchical_stabilization',
+                'continuous_bounded_stabilization_low_perf',
+                'continuous_hierarchical_stabilization_low_perf',
             ]
 
             if 'stabilization' in group_metadata['reason']:
