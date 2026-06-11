@@ -1,0 +1,56 @@
+{
+  "test_id": "test_1_2_1a",
+  "test_name": "Mixed Data Quality Across Groupings (ENHANCED)",
+  "configuration": {
+    "num_samples_per_grouping": 20,
+    "num_epochs": 8,
+    "num_groupings": 4,
+    "reanalysis_interval": 5,
+    "routing": "binary_discrete"
+  },
+  "grouping_results": {
+    "model-A-task-1": {
+      "success_rate": 0.95,
+      "total_planned": 160,
+      "total_ran": 60,
+      "total_skipped": 100,
+      "efficiency": 62.5
+    },
+    "model-A-task-2": {
+      "success_rate": 0.7,
+      "total_planned": 160,
+      "total_ran": 160,
+      "total_skipped": 0,
+      "efficiency": 0.0
+    },
+    "model-B-task-1": {
+      "success_rate": 1.0,
+      "total_planned": 160,
+      "total_ran": 40,
+      "total_skipped": 120,
+      "efficiency": 75.0
+    },
+    "model-B-task-2": {
+      "success_rate": 0.6,
+      "total_planned": 160,
+      "total_ran": 160,
+      "total_skipped": 0,
+      "efficiency": 0.0
+    }
+  },
+  "overall_diagnostics": {
+    "total_planned": 640,
+    "total_ran": 420,
+    "total_skipped": 220,
+    "efficiency": 34.38
+  },
+  "validation": {
+    "routing_verified": false,
+    "model-A-task-1_stops": true,
+    "model-B-task-1_stops": true,
+    "model-A-task-2_efficiency": 0.0,
+    "model-B-task-2_efficiency": 0.0,
+    "independent_groupings": true,
+    "overall_efficiency_nonzero": true
+  }
+}

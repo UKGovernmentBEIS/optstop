@@ -1,0 +1,51 @@
+{
+  "test": "1.1.3e_perfect_score_validation",
+  "data_type": "perfect_scores",
+  "score_range": [
+    0.95,
+    1.0
+  ],
+  "aggregation": "mean",
+  "n_scorers": 3,
+  "n_samples": 20,
+  "epochs_per_sample": 10,
+  "relaxed_thresholds": {
+    "delta_item": 0.2,
+    "delta_cap": 0.18
+  },
+  "total_planned": 200,
+  "completed_trials": 25,
+  "stopped_trials": 175,
+  "efficiency_percent": 87.5,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-accuracy"
+  ],
+  "stopped_samples_count": 3,
+  "sample_epoch_counts": {
+    "sample_0": 10,
+    "sample_1": 10,
+    "sample_2": 5,
+    "sample_3": 0,
+    "sample_4": 0,
+    "sample_5": 0,
+    "sample_6": 0,
+    "sample_7": 0,
+    "sample_8": 0,
+    "sample_9": 0,
+    "sample_10": 0,
+    "sample_11": 0,
+    "sample_12": 0,
+    "sample_13": 0,
+    "sample_14": 0,
+    "sample_15": 0,
+    "sample_16": 0,
+    "sample_17": 0,
+    "sample_18": 0,
+    "sample_19": 0
+  },
+  "validation": {
+    "perfect_scores": true,
+    "expected_stopping": true,
+    "continuous_bounded": true
+  }
+}

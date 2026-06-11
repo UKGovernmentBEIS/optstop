@@ -1,0 +1,23 @@
+{
+  "normal_mode": {
+    "completed": 9,
+    "stopped": 111,
+    "efficiency_percent": 92.5,
+    "stopped_groupings": [
+      "gpt-4-math"
+    ]
+  },
+  "shadow_mode": {
+    "completed": 120,
+    "stopped": 0,
+    "efficiency_percent": 0.0,
+    "stopped_groupings": [
+      "gpt-4-math"
+    ]
+  },
+  "validation": {
+    "shadow_mode_prevented_stopping": true,
+    "normal_mode_stopped": true,
+    "test_passed": true
+  }
+}

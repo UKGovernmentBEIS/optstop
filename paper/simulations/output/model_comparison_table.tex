@@ -1,0 +1,17 @@
+\begin{table}[h]
+\centering
+\caption{Logit-Normal vs Beta-Binomial hierarchical model comparison under Beta-Binomial data generating process. Metrics averaged across sample sizes (20, 50, 100 items) and 25 replications per condition. Bias ratio $<1$ favours Beta-Binomial; CI width ratio $<1$ indicates narrower Beta-Binomial intervals.}
+\label{tab:model_comparison}
+\small
+\begin{tabular}{@{}l cc cc cc c@{}}
+\toprule
+ & \multicolumn{2}{c}{Abs.\ Bias} & \multicolumn{2}{c}{CI Width} & \multicolumn{2}{c}{Coverage} & Diverg. \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5} \cmidrule(lr){6-7} \cmidrule(lr){8-8}
+Region & L-N & B-B & L-N & B-B & L-N & B-B & Ratio \\
+\midrule
+Mid-range (0.1--0.9) & 0.022 & 0.022 & 0.070 & 0.070 & 0.80 & 0.81 & 120.0$\times$ \\
+Near-boundary (0.05, 0.95) & 0.012 & 0.012 & 0.039 & 0.038 & 0.78 & 0.78 & 192.1$\times$ \\
+Boundary (0.0, 1.0) & 0.007 & 0.005 & 0.011 & 0.011 & 0.00 & 0.00 & 9205.8$\times$ \\
+\bottomrule
+\end{tabular}
+\end{table}

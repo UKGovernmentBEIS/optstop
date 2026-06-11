@@ -1,0 +1,216 @@
+{
+  "description": "Bayesian hierarchical meta-analysis across 9 matrix cells. Addresses multiplicity by sharing information via partial pooling.",
+  "model": "Normal-Normal random effects (known cell-level SEs)",
+  "rope_width": 0.02,
+  "hdi_prob": 0.97,
+  "n_cells": 9,
+  "mu_overall": {
+    "mean": 0.00032364376149678043,
+    "median": 0.0003306367322067164,
+    "std": 0.0010533763324583228,
+    "hdi": [
+      -0.0019984226522811845,
+      0.0030856410114333535
+    ],
+    "rope_decision": "accept_null"
+  },
+  "tau_heterogeneity": {
+    "mean": 0.0015229034758787799,
+    "median": 0.0010868488351269473,
+    "std": 0.0014822119885421943
+  },
+  "cells": [
+    {
+      "cell_id": "low_binary",
+      "pathway": "binary",
+      "mu_obs": 0.006499999999999999,
+      "se": 0.009488875065043274,
+      "n_items": 200,
+      "delta_shrunk_mean": 0.000574210463886786,
+      "delta_shrunk_hdi": [
+        -0.004529422993198459,
+        0.006630319348140755
+      ],
+      "shrinkage_toward_mu": 0.005925789536113213,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "mid_binary",
+      "pathway": "binary",
+      "mu_obs": -0.01111111111111111,
+      "se": 0.00957008147465722,
+      "n_items": 198,
+      "delta_shrunk_mean": -0.0001378693508525683,
+      "delta_shrunk_hdi": [
+        -0.006403683140190715,
+        0.00512247990796206
+      ],
+      "shrinkage_toward_mu": -0.010973241760258542,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "high_binary",
+      "pathway": "binary",
+      "mu_obs": 0.004666666666666668,
+      "se": 0.004082755061094026,
+      "n_items": 200,
+      "delta_shrunk_mean": 0.0009431915639861516,
+      "delta_shrunk_hdi": [
+        -0.0031039908189278336,
+        0.005820795552587778
+      ],
+      "shrinkage_toward_mu": 0.0037234751026805164,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "low_ordinal",
+      "pathway": "ordinal",
+      "mu_obs": 1.666666666666694e-05,
+      "se": 0.000872575211657998,
+      "n_items": 200,
+      "delta_shrunk_mean": 0.00014395109099791416,
+      "delta_shrunk_hdi": [
+        -0.0015338004988820198,
+        0.0017264983518934676
+      ],
+      "shrinkage_toward_mu": -0.00012728442433124722,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "mid_ordinal",
+      "pathway": "ordinal",
+      "mu_obs": 0.0005000000000000004,
+      "se": 0.0012534951136721675,
+      "n_items": 200,
+      "delta_shrunk_mean": 0.00041430544316486674,
+      "delta_shrunk_hdi": [
+        -0.001742567890257804,
+        0.002568935803358785
+      ],
+      "shrinkage_toward_mu": 8.56945568351337e-05,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "high_ordinal",
+      "pathway": "ordinal",
+      "mu_obs": -0.005986842105263159,
+      "se": 0.003042377099863243,
+      "n_items": 152,
+      "delta_shrunk_mean": -0.0009439693458246976,
+      "delta_shrunk_hdi": [
+        -0.00665155718428208,
+        0.0023618674814423844
+      ],
+      "shrinkage_toward_mu": -0.005042872759438462,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "low_continuous",
+      "pathway": "continuous",
+      "mu_obs": 0.0014074074074074076,
+      "se": 0.0019041717464914132,
+      "n_items": 54,
+      "delta_shrunk_mean": 0.0006705763870371499,
+      "delta_shrunk_hdi": [
+        -0.001998671911812304,
+        0.0036683430353120143
+      ],
+      "shrinkage_toward_mu": 0.0007368310203702576,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "mid_continuous",
+      "pathway": "continuous",
+      "mu_obs": 0.00040845070422534897,
+      "se": 0.0022025520114134192,
+      "n_items": 142,
+      "delta_shrunk_mean": 0.00034928848879259533,
+      "delta_shrunk_hdi": [
+        -0.00270265152957891,
+        0.0035822951267823985
+      ],
+      "shrinkage_toward_mu": 5.916221543275364e-05,
+      "rope_decision": "accept_null"
+    },
+    {
+      "cell_id": "high_continuous",
+      "pathway": "continuous",
+      "mu_obs": 0.003239999999999999,
+      "se": 0.002858920075832831,
+      "n_items": 100,
+      "delta_shrunk_mean": 0.0009464326336043475,
+      "delta_shrunk_hdi": [
+        -0.0022319402811489726,
+        0.005252224559112017
+      ],
+      "shrinkage_toward_mu": 0.0022935673663956515,
+      "rope_decision": "accept_null"
+    }
+  ],
+  "convergence": {
+    "mu_rhat": 1.0001597238382862,
+    "tau_rhat": 1.0006020704345802,
+    "mu_ess": 4348.917150096861,
+    "tau_ess": 3537.4806939736523,
+    "n_divergences": 11,
+    "n_total_draws": 16000
+  },
+  "prior_sensitivity": [
+    {
+      "label": "default",
+      "mu_prior_sigma": 0.1,
+      "tau_prior_sigma": 0.05,
+      "mu_mean": 0.00032364376149678043,
+      "mu_median": 0.0003306367322067164,
+      "tau_mean": 0.0015229034758787799,
+      "tau_median": 0.0010868488351269473,
+      "mu_hdi": [
+        -0.0019984226522811845,
+        0.0030856410114333535
+      ],
+      "rope_decision": "accept_null"
+    },
+    {
+      "label": "wide_mu",
+      "mu_prior_sigma": 0.5,
+      "tau_prior_sigma": 0.05,
+      "mu_mean": 0.0003622717789610123,
+      "mu_median": 0.00034607648758853645,
+      "tau_mean": 0.0014749674767048804,
+      "tau_median": 0.0010643893340116831,
+      "mu_hdi": [
+        -0.0021273496628275057,
+        0.0028222275618695904
+      ],
+      "rope_decision": "accept_null"
+    },
+    {
+      "label": "tight_tau",
+      "mu_prior_sigma": 0.1,
+      "tau_prior_sigma": 0.02,
+      "mu_mean": 0.0003492286318306406,
+      "mu_median": 0.00032612011547334264,
+      "tau_mean": 0.0014696408222355985,
+      "tau_median": 0.0010760216099889159,
+      "mu_hdi": [
+        -0.002169805427059477,
+        0.002752500123285085
+      ],
+      "rope_decision": "accept_null"
+    },
+    {
+      "label": "wide_tau",
+      "mu_prior_sigma": 0.1,
+      "tau_prior_sigma": 0.1,
+      "mu_mean": 0.0002945833358270839,
+      "mu_median": 0.0003072523639130513,
+      "tau_mean": 0.0014943843938530846,
+      "tau_median": 0.0010586538616639582,
+      "mu_hdi": [
+        -0.002093790598955185,
+        0.0027923797832856367
+      ],
+      "rope_decision": "accept_null"
+    }
+  ]
+}

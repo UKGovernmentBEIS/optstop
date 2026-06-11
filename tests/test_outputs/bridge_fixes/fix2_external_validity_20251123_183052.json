@@ -1,0 +1,34 @@
+{
+  "standalone": {
+    "stop_sample_ids": [
+      "gpt-4-math:::sample_0",
+      "gpt-4-math:::sample_1",
+      "gpt-4-math:::sample_10",
+      "gpt-4-math:::sample_11",
+      "gpt-4-math:::sample_2",
+      "gpt-4-math:::sample_3",
+      "gpt-4-math:::sample_4",
+      "gpt-4-math:::sample_5",
+      "gpt-4-math:::sample_6",
+      "gpt-4-math:::sample_7",
+      "gpt-4-math:::sample_8"
+    ],
+    "stop_this_grouping": [
+      "gpt-4-math"
+    ],
+    "final_ci_width": null,
+    "n_samples": null
+  },
+  "bridge": {
+    "stopped_samples_count": 11,
+    "stopped_groupings": [
+      "gpt-4-math"
+    ],
+    "final_ci_width": 0.06075800944296483,
+    "efficiency_percent": 0.0
+  },
+  "validation": {
+    "group_stopping_matches": true,
+    "test_passed": true
+  }
+}

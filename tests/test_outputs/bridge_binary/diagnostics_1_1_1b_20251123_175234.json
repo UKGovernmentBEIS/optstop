@@ -1,0 +1,70 @@
+{
+  "manager": "test_multi_grouping",
+  "total_planned_trials": 200,
+  "total_ran": 200,
+  "total_skipped": 0,
+  "efficiency_percent": 0.0,
+  "stopped_samples_count": 0,
+  "grouping_columns": [
+    "model",
+    "task"
+  ],
+  "reanalysis_interval": 5,
+  "min_samples_per_grouping": 3,
+  "stopped_samples_per_grouping": {
+    "gpt-4-math": 0,
+    "gpt-4-coding": 0,
+    "gpt-3.5-math": 0,
+    "gpt-3.5-coding": 0
+  },
+  "stopped_groupings": [],
+  "stopped_groupings_count": 0,
+  "decision_counters": {
+    "gpt-4-math": {
+      "completed_samples": 50,
+      "inference_calls": 10,
+      "next_inference_at": 55
+    },
+    "gpt-4-coding": {
+      "completed_samples": 50,
+      "inference_calls": 10,
+      "next_inference_at": 55
+    },
+    "gpt-3.5-math": {
+      "completed_samples": 50,
+      "inference_calls": 10,
+      "next_inference_at": 55
+    },
+    "gpt-3.5-coding": {
+      "completed_samples": 50,
+      "inference_calls": 10,
+      "next_inference_at": 55
+    }
+  },
+  "stabilization_histories": {
+    "gpt-4-math": {
+      "n_samples": 10,
+      "final_ci_width": 0.18661102727078172,
+      "final_slope": null,
+      "n_group_checks": 8
+    },
+    "gpt-4-coding": {
+      "n_samples": 10,
+      "final_ci_width": 0.3067786264176169,
+      "final_slope": null,
+      "n_group_checks": 8
+    },
+    "gpt-3.5-math": {
+      "n_samples": 10,
+      "final_ci_width": 0.37388231570182934,
+      "final_slope": null,
+      "n_group_checks": 8
+    },
+    "gpt-3.5-coding": {
+      "n_samples": 10,
+      "final_ci_width": 0.32207326388416047,
+      "final_slope": null,
+      "n_group_checks": 8
+    }
+  }
+}

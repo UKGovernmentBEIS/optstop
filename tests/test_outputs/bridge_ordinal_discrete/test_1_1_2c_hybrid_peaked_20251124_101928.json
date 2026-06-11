@@ -1,0 +1,39 @@
+{
+  "test": "1.1.2c_ordinal_hybrid_peaked",
+  "inference_mode": "hybrid",
+  "data_type": "peaked",
+  "ordinal_max_score": 5,
+  "n_samples": 15,
+  "epochs_per_sample": 8,
+  "total_planned": 120,
+  "completed_trials": 18,
+  "stopped_trials": 102,
+  "efficiency_percent": 85.0,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-rating"
+  ],
+  "stopped_samples_count": 2,
+  "sample_epoch_counts": {
+    "sample_0": 8,
+    "sample_1": 8,
+    "sample_2": 2,
+    "sample_3": 0,
+    "sample_4": 0,
+    "sample_5": 0,
+    "sample_6": 0,
+    "sample_7": 0,
+    "sample_8": 0,
+    "sample_9": 0,
+    "sample_10": 0,
+    "sample_11": 0,
+    "sample_12": 0,
+    "sample_13": 0,
+    "sample_14": 0
+  },
+  "validation": {
+    "hybrid_inference_used": true,
+    "peaked_data": true,
+    "expected_mode": "modal (low entropy)",
+    "some_stopping": true
+  }
+}

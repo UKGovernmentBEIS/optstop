@@ -1,0 +1,39 @@
+{
+  "test": "1.1.2d_ordinal_hybrid_diffuse",
+  "inference_mode": "hybrid",
+  "data_type": "diffuse",
+  "ordinal_max_score": 5,
+  "n_samples": 15,
+  "epochs_per_sample": 10,
+  "total_planned": 150,
+  "completed_trials": 36,
+  "stopped_trials": 114,
+  "efficiency_percent": 76.0,
+  "stopped_groupings": [
+    "gpt-4-gpt-4-rating"
+  ],
+  "stopped_samples_count": 0,
+  "sample_epoch_counts": {
+    "sample_0": 10,
+    "sample_1": 10,
+    "sample_2": 10,
+    "sample_3": 6,
+    "sample_4": 0,
+    "sample_5": 0,
+    "sample_6": 0,
+    "sample_7": 0,
+    "sample_8": 0,
+    "sample_9": 0,
+    "sample_10": 0,
+    "sample_11": 0,
+    "sample_12": 0,
+    "sample_13": 0,
+    "sample_14": 0
+  },
+  "validation": {
+    "hybrid_inference_used": true,
+    "diffuse_data": true,
+    "expected_mode": "entropy (high entropy)",
+    "test_completed": true
+  }
+}

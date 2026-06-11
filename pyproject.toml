@@ -1,0 +1,89 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optstop"
+version = "0.4.0"
+description = "Adaptive optimal stopping rule algorithms for efficient data collection and analysis"
+authors = [
+    { name = "Toby D. Pilditch, PhD" }
+]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+]
+# Runtime deps use lower bounds only. optstop was validated against the
+# numpy 1.x / pandas 2.x / pymc 5.x generation; rather than cap the next major
+# here (upper caps on a library constrain downstream consumers' environments),
+# the committed requirements-lock.txt pins the exact validated set - including
+# transitive deps - for a reproducible install and test run.
+dependencies = [
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "pymc>=5.10.0",
+    "arviz>=0.17",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "tqdm>=4.60",
+    "numba>=0.58",
+    "pydantic>=2.0",
+    "typing_extensions>=4.0.0; python_version < '3.12'"
+]
+
+[project.urls]
+Homepage = "https://github.com/UKGovernmentBEIS/optstop"
+Repository = "https://github.com/UKGovernmentBEIS/optstop.git"
+Issues = "https://github.com/UKGovernmentBEIS/optstop/issues"
+Changelog = "https://github.com/UKGovernmentBEIS/optstop/blob/main/CHANGELOG.md"
+
+[project.optional-dependencies]
+inspect = [
+    "inspect-ai>=0.3.0"
+]
+gpu = [
+    "jax[cuda12_pip] ; sys_platform != 'darwin'",
+    "jax[metal] ; sys_platform == 'darwin'",
+    "numpyro",
+    "blackjax"
+]
+performance = [
+    "jax>=0.4.0",
+    "numpyro>=0.13.0"
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    # Optional per-test process isolation, useful for debugging a single test in
+    # a clean interpreter (PyMC's model-context stack can desync across the many
+    # MCMC/bridge tests in one process). Run the *full* suite per file instead -
+    # see README "Running the tests".
+    "pytest-forked>=1.6.0",
+    "black>=22.0",
+    "flake8>=5.0",
+    "mypy>=1.0"
+]
+
+[project.scripts]
+optstop-posthoc = "optstop.cli:main"
+optstop-live = "optstop.cli:main_live"
+
+optstop-convergence = "optstop.cli:main_convergence"
+
+[tool.pytest.ini_options]
+# Make the `optstop` package importable from the repo root when running the test
+# suite, so tests need no sys.path manipulation (and no hard-coded paths).
+pythonpath = ["."]
+markers = [
+    "slow: marks tests as slow (ordinal MCMC, >3 min). Deselect with: -m 'not slow'",
+]

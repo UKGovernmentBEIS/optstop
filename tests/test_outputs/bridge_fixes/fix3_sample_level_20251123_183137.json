@@ -1,0 +1,34 @@
+{
+  "stopped_samples_count": 0,
+  "stopped_groupings_count": 1,
+  "sample_epoch_counts": {
+    "sample_0": 10,
+    "sample_1": 2,
+    "sample_2": 0,
+    "sample_3": 0,
+    "sample_4": 0,
+    "sample_5": 0,
+    "sample_6": 0,
+    "sample_7": 0,
+    "sample_8": 0,
+    "sample_9": 0
+  },
+  "stopped_early": [
+    "sample_1",
+    "sample_2",
+    "sample_3",
+    "sample_4",
+    "sample_5",
+    "sample_6",
+    "sample_7",
+    "sample_8",
+    "sample_9"
+  ],
+  "completed_all": [
+    "sample_0"
+  ],
+  "validation": {
+    "sample_level_stopping_triggered": true,
+    "mechanism_exists": true
+  }
+}
