@@ -12,22 +12,24 @@ Adaptive Optimal Stopping Rule Algorithms for Efficient Data Collection and Anal
 
 This repository is the reference implementation accompanying the paper:
 
-> Pilditch, T. D. (2026). *Knowing When to Stop: Bayesian Optimal Stopping for LLM Evaluations*. In *Proceedings of the 43rd International Conference on Machine Learning (ICML 2026)*.
+> Pilditch, T. D. (2026). *Knowing When to Stop: Bayesian Optimal Stopping for LLM Evaluations*. arXiv:2608.14425. Presented at the ICML 2026 Workshop on Statistical Frameworks for Uncertainty in Agentic Systems.
 
-The camera-ready PDF, along with supporting simulation scripts, validation outputs, and reproducibility materials, is in the [`paper/`](paper/) directory.
+The paper PDF, along with supporting simulation scripts, validation outputs, and reproducibility materials, is in the [`paper/`](paper/) directory.
 
 ### Citing
 
 If you use `optstop` in your research, please cite the paper:
 
 ```bibtex
-@inproceedings{pilditch2026knowing,
+@misc{pilditch2026knowing,
   title={Knowing When to Stop: {B}ayesian Optimal Stopping for {LLM} Evaluations},
   author={Pilditch, Toby D.},
-  booktitle={Proceedings of the 43rd International Conference on Machine Learning},
   year={2026},
-  publisher={PMLR},
-  note={To appear}
+  eprint={2608.14425},
+  archivePrefix={arXiv},
+  primaryClass={cs.AI},
+  doi={10.48550/arXiv.2608.14425},
+  note={Presented at the ICML 2026 Workshop on Statistical Frameworks for Uncertainty in Agentic Systems}
 }
 ```
 
@@ -738,7 +740,7 @@ The package logs a warning when category sparsity is detected under ordinal infe
 **Ordinal estimand note:** The ordinal pathway estimates the *modal category* (most probable score), not the mean score. The group-level theta reported for ordinal groupings is `modal_category / max_score`, and credible intervals bracket the mode. This differs from binary and continuous pathways, which estimate mean performance. When comparing theta values across pathways, be aware that ordinal theta reflects categorical concentration rather than average score.
 
 **Binary Model Details:**
-The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, sigma)` on the logit scale, where sigma defaults to 1.5 when `prior_sigma` is None). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval coverage, and stopping behaviour. At exact boundaries (0.0 or 1.0), the Beta-Binomial produces ~50% less point-estimate bias but its credible intervals are 12% narrower with no improvement in coverage - both models show reduced boundary coverage (~0.45 vs nominal 0.97) due to fundamental information limitations with sparse binary data. The logit-normal's wider boundary intervals function as implicit conservatism, delaying stopping where estimates are least reliable. The Beta-Binomial also exhibited 10-100× more MCMC sampling divergences at boundaries, indicating worse posterior geometry in the regime where it claims an advantage.
+The binary inference pathway uses a logit-normal hierarchical model (`mu_group ~ Normal(prior_mu, sigma)` on the logit scale, where sigma defaults to 1.5 when `prior_sigma` is None). A Beta-Binomial alternative was evaluated through controlled simulation under conditions favouring the Beta-Binomial (Beta-Binomial data generating process with κ=10, 94% HDI credible intervals). In the mid-range (0.1-0.9 true performance), the two models are statistically indistinguishable in bias, credible interval width, coverage, and stopping behaviour (absolute bias 0.022 vs 0.022, CI width 0.070 vs 0.070). At exact boundaries (0.0 or 1.0), point-estimate bias is marginally lower for the Beta-Binomial (0.007 vs 0.005) but credible interval widths are near-identical (0.011 vs 0.011), and both models show zero coverage - an expected consequence of the degenerate boundary data-generating process, not a model deficiency. Because equivalent CI widths imply equivalent stopping times, the model choice does not alter stopping behaviour where evaluations typically operate. The decisive difference is computational reliability: the Beta-Binomial produced 120× more MCMC divergences than the logit-normal in the mid-range, rising to 9,206× at exact boundaries (with effective sample sizes as low as 7), indicating a poorly conditioned posterior geometry in precisely the sparse, boundary-adjacent regime an adaptive stopping framework must handle robustly.
 
 **Continuous Bounded Model Details:**
 The continuous bounded pathway uses a hierarchical Beta model with the following structure:
