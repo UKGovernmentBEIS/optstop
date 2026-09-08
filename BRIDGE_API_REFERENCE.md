@@ -1,8 +1,8 @@
 # OptimalStoppingManager API Reference
 
-**Version:** 0.4.0
+**Version:** 0.5.0
 
-**Last Updated:** 2026-03-18
+**Last Updated:** 2026-09-03
 
 **Status:** Beta
 
@@ -16,7 +16,7 @@
 2. [Quick Start](#quick-start)
 3. [Performance Considerations](#performance-considerations)
 4. [Class: OptimalStoppingManager](#class-optimalstoppingmanager)
-5. [Initialization Parameters](#initialization-parameters)
+5. [Initialisation Parameters](#initialisation-parameters)
 6. [Routing Logic](#routing-logic)
 7. [Configuration Patterns](#configuration-patterns)
 8. [Protocol Methods](#protocol-methods)
@@ -56,7 +56,7 @@ Note: Although logs and randomisation seeds allow for transparency and a degree 
 
 > **IMPORTANT:** The `early_stopping` parameter must be attached to **Task objects**, not passed to `eval()`.
 >
-> The `eval()` function does **NOT** have an `early_stopping` parameter. Passing it to `eval()` will silently fail—the parameter gets absorbed by `**kwargs` and ignored, resulting in no early stopping behavior.
+> The `eval()` function does **NOT** have an `early_stopping` parameter. Passing it to `eval()` will silently fail - the parameter gets absorbed by `**kwargs` and ignored, resulting in no early stopping behaviour.
 
 **Correct usage patterns:**
 
@@ -139,7 +139,7 @@ See [Score Extraction Parameters](#score-extraction-parameters) for full details
 
 **Ordinal or continuous scores?** Add `ordinal_tasks=['task_name_substring']` and `ordinal_max_score=N` to the manager. See [Performance Considerations](#performance-considerations) for guidance on choosing between ordinal and continuous pathways.
 
-For the full parameter reference, see [Initialization Parameters](#initialization-parameters).
+For the full parameter reference, see [Initialisation Parameters](#initialisation-parameters).
 
 ---
 
@@ -213,7 +213,7 @@ With default settings (`reanalysis_interval=10`) and typical LLM trial durations
 
 **Edge case - potential bottleneck:** If your evaluation has very fast-completing trials (< 5 seconds), a large number of ordinal categories (20+), or both, inference may not complete before the next trigger. In this scenario, consider:
 - Increasing `reanalysis_interval` (e.g., 20-30) to allow more time between triggers
-- Enabling GPU acceleration (2-4x MCMC speedup)
+- Enabling GPU acceleration
 - Using `modal` inference mode if your ordinal distributions are reliably peaked
 
 ---
@@ -241,7 +241,7 @@ With default settings (`reanalysis_interval=10`) and typical LLM trial durations
 In comparative testing (WritingBench, 100 samples, 5 epochs, delta_item=0.05, delta_cap=0.05), ordinal hybrid achieved ~63% efficiency vs ~96% for continuous on the same data. This difference reflects the entropy validation gate requiring more data to confirm distributional peakedness - not inference speed.
 
 **GPU acceleration:**
-GPU provides a 2-4x MCMC speedup and is beneficial for evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), where inference may not complete between reanalysis triggers:
+GPU acceleration speeds up MCMC sampling and is beneficial for evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), where inference may not complete between reanalysis triggers:
 
 ```python
 manager = OptimalStoppingManager(
@@ -249,7 +249,7 @@ manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating'],
     ordinal_inference='hybrid',
-    gpu_ids=[0]  # 2-4× MCMC speedup
+    gpu_ids=[0]  # GPU-accelerated MCMC sampling
 )
 ```
 
@@ -259,7 +259,7 @@ Integer-valued scores can be routed to either pathway. The choice depends on sco
 
 - **Aggregated scores** (`score_agg='mean'` or `score_agg='median'`): Routes to continuous bounded automatically. This is the natural fit when scores are averaged across sub-criteria.
 - **Raw discrete scores with well-populated categories**: The ordinal pathway (`ordinal_tasks`) preserves rank structure without interval-scale assumptions. Requires all categories observed and items per grouping >= 5x the number of categories.
-- **Raw discrete scores with sparse categories**: Ordinal models can produce biased estimates and miscalibrated CIs (coverage as low as 25% at nominal 97%). Consider aggregating scores or adjusting evaluation design for better category coverage. Routing raw sparse scores via `continuous_tasks` is possible but imposes interval-scale assumptions.
+- **Raw discrete scores with sparse categories**: Ordinal models can produce biased estimates and miscalibrated CIs (coverage as low as 25% at nominal 97%). Consider aggregating scores or adjusting evaluation design for better category coverage. Routing such scores to the continuous bounded pathway (via `score_agg='mean'` or `score_agg='median'`) is possible but imposes interval-scale assumptions.
 
 The package logs a warning when category sparsity is detected under ordinal inference.
 
@@ -276,7 +276,7 @@ INFO - Inference completed in 2.3 minutes
 **If inference time exceeds time between triggers** (visible as queued inference calls in logs):
 
 1. **Increase reanalysis_interval** to allow more time between triggers
-2. **Enable GPU** for 2-4x MCMC speedup (see guidelines above)
+2. **Enable GPU** to speed up MCMC sampling (see guidelines above)
 3. **Reduce MCMC parameters** (draws/tune) if convergence diagnostics allow (check R-hat < 1.01, ESS > 400)
 4. **Switch ordinal mode** from hybrid to modal, if you are confident distributions will be reliably peaked
 
@@ -322,7 +322,7 @@ manager = OptimalStoppingManager(
 
 ---
 
-## Initialization Parameters
+## Initialisation Parameters
 
 ### Required Parameters
 
@@ -332,11 +332,17 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 **Common parameters:**
 - `delta_item` (float, default: 0.05): Maximum acceptable CI width for individual samples
 - `delta_cap` (float, default: 0.05): Maximum acceptable CI width for groupings/tasks
-- `cred_level` (float, default: 0.97): Credibility level for confidence intervals (0.97 = 97% CI)
+- `cred_level` (float, default: 0.97): Credibility level for credible intervals (0.97 = 97% CI)
 - `conservatism` (float, default: 5): Conservatism factor for rare events (higher = more conservative)
-- `low_performance_threshold` (float, default: 0.01): Success rate below which conservative stopping applies
+- `low_performance_threshold` (float, default: 0.01): Success rate below which group-level stops are suppressed for all three pathways (binary, continuous, and ordinal); for ordinal the item-level CI width is additionally inflated rather than gated. See the parameter-interaction notes below.
 
-**Parameter interaction - `conservatism` and `low_performance_threshold`:** When a grouping's estimated performance falls below `low_performance_threshold`, the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01. If you raise `low_performance_threshold`, more groupings will trigger conservatism; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect.
+**Parameter interaction - `conservatism` and `low_performance_threshold` (ordinal):** For ordinal groupings, when estimated performance falls below `low_performance_threshold` the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01. If you raise `low_performance_threshold`, more groupings enter this conservative regime; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect. (For binary and continuous groupings the below-threshold behaviour is *suppression* rather than a tightened target - see the next paragraph.)
+
+**`low_performance_threshold` as a stop gate (all three pathways):** At the *group* level, automatic precision and slope-stabilisation stops are *suppressed* while observed performance is below `low_performance_threshold` (the grouping reports `low_perf_stop_suppressed=True`), and sampling continues even if accumulated null data would otherwise satisfy the width or slope criterion. This keeps a rare-capability search open until the event is observed, rather than stopping on the pre-event null. It applies to binary, continuous *and* ordinal groupings. (At very low continuous rates the reported interval can also narrow spuriously; the continuous likelihood applies a separate variance clamp in this regime, whose interaction with the reported width is not fully characterised and is not relied on here.)
+
+The *item* level is where the pathways differ. The issue-#3 artefact is a clamp on the CI *location* (the `±6` logit clamp in the binary/continuous builders): on a near-zero rate it pins the whole interval just above `sigmoid(-6)` with a spuriously tiny *width*, so an ungated item would precision-stop at `n=2` (false certainty). Binary and continuous item-stops are therefore gated behind the same `low_performance_threshold` check. Ordinal has no such location clamp; its estimators instead apply a sample-size-scaled minimum-*width* floor (`1/(ordinal_max_score·√n)`) that runs the opposite way - it inflates the width on homogeneous near-zero data so an item does not stop early (at `n=2`, `ordinal_max_score=10`, the floor `≈0.071 > delta_item`), and below `low_performance_threshold` the effective width is further multiplied by `conservatism`. So an ordinal *item* is already held off a premature stop and needs no separate item gate. That floor decays as `1/√n`, however, so on a genuinely absent capability the *group* modal width eventually crosses `delta_cap` (e.g. `≈0.037` by `n=180` at `ordinal_max_score=10`, `conservatism=5`) - which is exactly why the group-level suppression above is applied to ordinal as well, as a backstop. A below-threshold ordinal grouping is also flagged with `low_perf_floor=True` (a data-faithful telemetry marker; unlike binary/continuous `pinned` it carries no reliability caveat, since there is no location-clamp artefact).
+
+To detect a rare capability and stop once it is observed, set `low_performance_threshold` to the success rate of interest - see the README section "Detecting low base-rate capabilities".
 
 **Advanced parameters (performance-critical):**
 - `draws` (int, default: 1000 CPU / 2000 GPU): Number of MCMC samples
@@ -346,14 +352,14 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
   - **Performance impact:** Linear scaling with inference time
   - Defaults are now CPU/GPU-aware for balanced speed and quality
 - `chains` (int, default: 4): Number of MCMC chains
-  - Can reduce to 2 for faster inference (2× speedup)
+  - Can reduce to 2 for faster inference
 - `cores` (int, default: 4): Number of CPU cores for sampling
   - Usually matches `chains`
 - `target_accept` (float, default: 0.95): Target acceptance rate for NUTS sampler
   - **Higher values** (0.97-0.99): Reduce divergences, but increase computation time
   - **Lower values** (0.80-0.90): Faster sampling, but may have more divergences
-- `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilization
-- `stab_window` (int, default: 15): Window size for stabilization assessment
+- `CI_delta` (float, default: 0.00001): Slope threshold for CI stabilisation
+- `stab_window` (int, default: 15): Window size for stabilisation assessment
 - `entropy_convergence_threshold` (float, default: 0.10): Absolute entropy CI width threshold on [0,1] scale for ordinal Pathway 2 convergence
   - Width < threshold means entropy is known to within ±(threshold/2) of maximum. Default 0.10 = ±5% precision.
   - For safety-critical evaluations, consider 0.08 (±4% precision, lower false positive rate)
@@ -363,12 +369,12 @@ Dictionary of optimal stopping parameters passed to the underlying optstop algor
 
 **Note:** MCMC defaults are now CPU/GPU-aware (1000/1000 for CPU, 2000/2000 for GPU). These values balance inference quality with practical performance. For publication-quality posteriors, you may increase draws/tune, but this is rarely needed for early stopping decisions.
 
-**Example (production-optimized):**
+**Example (production-optimised):**
 ```python
 optstop_params = {
     'delta_item': 0.15,      # Allow wider CI for samples (more aggressive stopping)
     'delta_cap': 0.10,       # Require tighter CI for groupings (conservative)
-    'cred_level': 0.97,      # 97% confidence intervals
+    'cred_level': 0.97,      # 97% credible intervals
     'conservatism': 5,      # Standard conservatism
     'draws': 1000,            # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
     'tune': 1000,             # Baseline production recommendation (could drop lower, depending on how well behaved score distributions can be anticipated as being)
@@ -458,7 +464,7 @@ Aggregate multiple scores using the specified method.
 
 **Use when:** You have multiple scorers and want to combine them.
 
-**Important routing behavior:**
+**Important routing behaviour:**
 - If `score_agg in ['mean', 'median']`: Routes to **continuous bounded** inference (hierarchical Beta model)
 - If `score_agg in ['mode', 'max']`: Routes to **discrete** inference (binary or ordinal), as these produce discrete values
 - If `score_agg is None`: Routes to **discrete** inference (binary or ordinal, depending on `ordinal_tasks`)
@@ -471,7 +477,7 @@ score_agg='mean'  # Mean = 0.67 → continuous bounded inference
 
 **Mutually exclusive with** `score_choice`.
 
-**Default behavior (both None):** Uses first score from dictionary (dict iteration order).
+**Default behaviour (both None):** Uses first score from dictionary (dict iteration order).
 
 #### Mixed-type scoring (binary + ordinal scorers)
 
@@ -508,7 +514,7 @@ Minimum number of completed samples before running first inference for a groupin
 #### `ordinal_tasks: Optional[list[str]] = None`
 List of substrings to identify ordinal scoring tasks.
 
-**Important routing behavior:**
+**Important routing behaviour:**
 - Tasks matching these substrings use **ordinal discrete** inference
 - Tasks not matching use **binary discrete** inference (if no `score_agg`)
 - Matching is case-insensitive substring match
@@ -538,7 +544,7 @@ Maximum value for ordinal scores. Scores are expected to be **0-indexed**, i.e.,
 
 Both approaches produce correct stopping decisions in practice.
 
-**Used for:** Score validation and normalization.
+**Used for:** Score validation and normalisation.
 
 #### `ordinal_inference: str = 'hybrid'`
 Inference mode for ordinal tasks.
@@ -558,7 +564,7 @@ Inference mode for ordinal tasks.
 - **Modal:** Fast, but cannot handle diffuse distributions (CI stays wide indefinitely)
 - **Hybrid/Entropy:** Handles all distribution types. The key practical difference is **convergence behaviour** - ordinal's entropy validation gate requires more data to converge, resulting in lower efficiency than binary or continuous pathways at the same precision threshold.
 
-For evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), GPU acceleration (2-4x MCMC speedup) may be beneficial. See [Performance Considerations - Ordinal Inference Mode Selection](#4-ordinal-inference-mode-selection) for details.
+For evaluations with very fast-completing trials (< 5 seconds) or large ordinal scales (20+ categories), GPU acceleration may be beneficial. See [Performance Considerations - Ordinal Inference Mode Selection](#4-ordinal-inference-mode-selection) for details.
 
 #### `ordinal_model_type: str = 'ordered_logistic'`
 Statistical model for ordinal inference.
@@ -577,7 +583,7 @@ Statistical model for ordinal inference.
 | Sparse categories | May struggle | Handles well |
 | Best for | Peaked/unimodal distributions | Bimodal/unusual distributions |
 
-**Fallback behavior:** If `ordered_logistic` sampling fails (rare), the system automatically falls back to `dirichlet` with a warning.
+**Fallback behaviour:** If `ordered_logistic` sampling fails (rare), the system automatically falls back to `dirichlet` with a warning.
 
 **Example:**
 ```python
@@ -610,7 +616,7 @@ List of GPU device IDs to use for inference.
 **Example:**
 ```python
 gpu_ids=[0]        # Use first GPU
-gpu_ids=[0, 1]     # Use first two GPUs (not currently parallelized)
+gpu_ids=[0, 1]     # Use first two GPUs (not currently parallelised)
 gpu_ids=None       # CPU-only mode (default)
 ```
 
@@ -657,12 +663,12 @@ Scale (standard deviation) of the group-level Normal prior on the logit scale. C
 
 **Interpretation:**
 - `prior_sigma=None` (default) → Uses pathway-specific defaults: 1.5 for binary/continuous, 2.0 for ordinal
-- `prior_sigma=1.0` → More informative, provides stronger regularization toward `prior_mu` (all pathways)
+- `prior_sigma=1.0` → More informative, provides stronger regularisation toward `prior_mu` (all pathways)
 - `prior_sigma=1.5` → Weakly informative for binary/continuous (matches default)
 - `prior_sigma=2.0` → More diffuse, matches ordinal default
 
 **When to adjust:**
-- Most users should not need to change this. The pathway-specific defaults provide appropriate regularization while allowing data to dominate after 15-20 items.
+- Most users should not need to change this. The pathway-specific defaults provide appropriate regularisation while allowing data to dominate after 15-20 items.
 - Set explicitly if you want the same sigma across all pathways.
 - Smaller values (e.g., 1.0) may be useful when you have strong prior knowledge and want faster convergence.
 - Larger values (e.g., 2.0) may be useful when you expect high variability across items within a grouping.
@@ -688,7 +694,7 @@ If True, run all trials without actually stopping, but track what would have sto
 - A/B testing: Measure efficiency gains without affecting results
 - Debugging: Verify stopping decisions without altering trial execution
 
-**Behavior:**
+**Behaviour:**
 - `schedule_sample()` always returns `None` (run all trials)
 - Inference still runs and stopping decisions are tracked
 - `complete_task()` diagnostics include `stopped_at_trial_count` (per-grouping global trial count and completed samples at the time stopping first triggered) and a `shadow_mode_summary` block with `would_have_stopped_at` and `potential_efficiency_percent`
@@ -701,12 +707,12 @@ If True, run all trials without actually stopping, but track what would have sto
 #### `random_seed: Optional[int] = None`
 Random seed for MCMC sampling reproducibility.
 
-**Behavior:**
+**Behaviour:**
 - If **specified** (e.g., `random_seed=42`): Uses the provided seed for all MCMC inference
 - If **not specified** (default): Auto-generates a random seed using system entropy
 
 **Key features:**
-- Seed is **always logged** at manager initialization:
+- Seed is **always logged** at manager initialisation:
   ```
   INFO:optstop.early_stopping:Random seed: 1614538249 (auto_generated)
   INFO:optstop.early_stopping:Random seed: 42 (user_specified)
@@ -724,7 +730,7 @@ Random seed for MCMC sampling reproducibility.
 
 **Use cases:**
 - **Debugging:** Reproduce exact stopping decisions by using the same seed
-- **Testing:** Verify consistent behavior across runs
+- **Testing:** Verify consistent behaviour across runs
 - **Validation:** Compare results with controlled randomness
 
 **Example:**
@@ -756,7 +762,7 @@ The manager automatically routes to different inference algorithms based on conf
 
 ```
 ┌─────────────────────────────────────────────┐
-│   Initialization Parameters                  │
+│   Initialisation Parameters                  │
 └──────────────┬──────────────────────────────┘
                │
                ▼
@@ -1022,7 +1028,7 @@ The `OptimalStoppingManager` implements the `EarlyStopping` protocol with four m
 
 ### `async start_task(task, samples, epochs) -> str`
 
-Called once at the beginning of evaluation to initialize the manager.
+Called once at the beginning of evaluation to initialise the manager.
 
 **Parameters:**
 - `task: EvalSpec` - Evaluation specification from inspect_ai
@@ -1031,10 +1037,10 @@ Called once at the beginning of evaluation to initialize the manager.
 
 **Returns:** Manager name string
 
-**Behavior:**
+**Behaviour:**
 - Creates `compiled_dataset` with all planned trials (samples × epochs)
 - Extracts grouping columns from EvalSpec and sample metadata
-- Initializes internal tracking structures
+- Initialises internal tracking structures
 - Prints configuration summary to console
 
 **User action:** None required (called automatically by inspect_ai)
@@ -1060,7 +1066,7 @@ class EarlyStop(BaseModel):
     metadata: dict[str, JsonValue] | None  # Additional metadata
 ```
 
-**Behavior:**
+**Behaviour:**
 - Fast DataFrame lookup (< 1ms typical)
 - Checks `schedule_status` flag in compiled_dataset
 - Uses cache for repeated lookups
@@ -1079,7 +1085,7 @@ Called after each trial completes to update scores and potentially trigger infer
 
 **Returns:** None
 
-**Behavior:**
+**Behaviour:**
 1. Extracts score value using `score_choice`, `score_value_key`, and/or `score_agg`
 2. Validates score (type, range)
 3. Updates `compiled_dataset` with score and marks trial as complete
@@ -1097,7 +1103,7 @@ Called once at the end of evaluation to generate final diagnostics.
 
 **Returns:** Dictionary with comprehensive diagnostics (see Diagnostics section)
 
-**Behavior:**
+**Behaviour:**
 - Shuts down inference executor gracefully
 - Calculates efficiency metrics
 - Compiles stopped samples information
@@ -1137,6 +1143,8 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
 }
 # In shadow mode, an additional key is appended:
 #   "shadow_mode_summary": dict          # would_have_stopped_at, potential_efficiency_percent
+# For discrete ordinal inference (ordinal_tasks set and scores not aggregated), an additional key is appended:
+#   "ordinal_glossary": dict             # explanations of the ordinal stopping-reason strings
 ```
 
 **Note:** `item_entropy_histories` is maintained internally by `OptimalStoppingManager` to persist per-sample entropy state across successive inference calls (used for Pathway 2 convergence detection). It is not included in the metadata returned by `complete_task()`.
@@ -1173,7 +1181,7 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
 }
 ```
 
-### Stabilization Histories Structure
+### Stabilisation Histories Structure
 
 ```python
 "stabilization_histories": {
@@ -1189,9 +1197,9 @@ The `complete_task()` method returns a comprehensive diagnostics dictionary:
 
 #### Convergence Projection (Non-Stopped Groupings)
 
-For groupings that have **not** stopped by the end of evaluation, a `convergence_projection` key is included in the stabilization history entry. This estimates how many additional trials would be needed for convergence, using an exponential decay model (primary) with linear extrapolation fallback.
+For groupings that have **not** stopped by the end of evaluation, a `convergence_projection` key is included in the stabilisation history entry. This estimates how many additional trials would be needed for convergence, using an exponential decay model (primary) with linear extrapolation fallback.
 
-The projection is only populated when CI width history is available (at least one group-level inference check has run). It is **absent** for stopped groupings and groupings with no CI width data.
+The projection is only populated when CI width history is available (at least one group-level inference check has run). It is **absent** for stopped groupings, groupings with no CI width data, and low base-rate groupings whose stop was suppressed (`low_perf_stop_suppressed` True).
 
 ```python
 "stabilization_histories": {
@@ -1203,9 +1211,9 @@ The projection is only populated when CI width history is available (at least on
         "convergence_projection": {
             # Point estimate
             "projected_additional_steps": 15,        # In observation-step units
-            "projected_additional_trials": 120,      # steps * reanalysis_interval (order-sensitive)
+            "projected_additional_trials": 150,      # steps * reanalysis_interval (order-sensitive)
             "simple_proj_additional_trials": 276.0,  # 1/sqrt(n) projection (order-stable)
-            "trajectory_signal": "faster",           # 'faster'/'on_pace'/'slower' vs 1/sqrt(n) (120/276=0.43)
+            "trajectory_signal": "faster",           # 'faster'/'on_pace'/'slower' vs 1/sqrt(n) (150/276=0.54)
             "proximity_ratio": 2.4,                  # final_width / delta_cap (>1 = not converged)
 
             # Outcome classification
@@ -1288,7 +1296,7 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
         # Standard fields (all score types)
         "n_samples": 47,
         "final_ci_width": 0.12,
-        "final_slope": 0.00003,
+        "final_slope": null,  # ordinal groupings do not populate a slope history
         "n_group_checks": 4,
 
         # Ordinal-specific fields (only for ordinal groupings)
@@ -1318,6 +1326,20 @@ For ordinal groupings (tasks matching `ordinal_tasks` patterns), additional diag
 **Note:** These ordinal-specific fields are only populated when the grouping matches an `ordinal_tasks` pattern. For binary and continuous groupings, these fields are omitted entirely (not set to `null`).
 
 **Ordinal estimand:** For ordinal groupings, the group-level performance estimate (theta) represents `modal_category / max_score` - the most probable score category, normalised to [0,1]. This differs from binary and continuous pathways, which estimate mean performance. Credible intervals bracket the mode, not the mean. Convergence for ordinal groupings therefore reflects stability of the modal category estimate, not stability of average score.
+
+#### Low Base-Rate Fields (binary/continuous)
+
+Several fields report on behaviour at very low success rates. For binary and continuous groupings, group-level inference clamps the likelihood logit to `±6`, so it cannot resolve rates below `sigmoid(-6) ≈ 0.0025`; since version 0.5.0 the reported interval is read from an unclipped transform and can approach 0, but below that floor it is prior-dominated and qualitative. The ordinal pathway has no such clamp; its `low_perf_floor` field is a purely descriptive marker of a very-low-performance resolution (see below).
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `pinned` | bool | (binary/continuous only) `True` when the whole reported credible interval lies below the resolution floor (`sigmoid(-6) ≈ 0.0025`). The estimate is qualitative - report the raw observed proportion alongside it. Default `False`. |
+| `low_perf_floor` | bool | (ordinal only) `True` when the resolved normalised performance is below `low_performance_threshold` - i.e. the grouping resolved at a very-low performance level (the same regime in which an ordinal group stop is suppressed). This is the ordinal counterpart to `pinned`, but note the difference: the ordinal estimator has **no** sigmoid location clamp, so unlike `pinned` this is **not** a reliability caveat - the low estimate is data-faithful. It is telemetry only and does not affect stopping. Keyed off the performance point estimate (mode-independent: modal, entropy, and hybrid), so it is not defeated by the ordinal minimum-width floor. Default `False`. |
+| `low_perf_stop_suppressed` | bool | `True` when a group-level stop (binary, continuous, or ordinal) was withheld because observed performance was below `low_performance_threshold`. Reset per refresh, so it reflects the most recent check. Default `False`. |
+
+The `±6` clamp is symmetric, so the upper bound saturates near `sigmoid(+6) ≈ 0.9975` in the same way the lower bound floors near `sigmoid(-6)`. There is deliberately **no** near-ceiling counterpart to `pinned`: `pinned` exists to warn about the issue-#3 hazard - a low, unresolved rate being reported as a confidently tiny non-zero value, which for hazardous-capability screening is a false negative. A near-ceiling grouping is the opposite case (capability clearly present, near-perfect performance slightly understated), which is not a false-certainty hazard, so no flag is raised. As with the floor, since 0.5.0 the reported upper bound is read from the unclipped transform and can approach 1.0.
+
+See the README section "Detecting low base-rate capabilities" for how to use `low_performance_threshold` as a detection-then-stop trigger.
 
 ### Accessing Diagnostics
 
@@ -1386,7 +1408,7 @@ optstop_params = {
 optstop_params = {
     'delta_item': 0.20,   # Wider CI allowed
     'delta_cap': 0.15,    # Wider grouping CI
-    'cred_level': 0.90,   # 90% confidence
+    'cred_level': 0.90,   # 90% credible intervals
     'conservatism': 3,    # Less conservative
 }
 ```
@@ -1475,7 +1497,7 @@ for log in logs:
             json.dump(log.results.early_stopping.metadata, f, indent=2)
 
 # Track over multiple runs
-# Analyze: which groupings stop? At what thresholds? What's the efficiency trend?
+# Analyse: which groupings stop? At what thresholds? What's the efficiency trend?
 ```
 
 ### 6. Use Ordinal Inference Wisely
@@ -1600,7 +1622,7 @@ manager = OptimalStoppingManager(
 - Binary discrete (p≥0.9): 70-90% efficiency expected
 - Ordinal discrete: depends on distribution concentration
 
-**Solution:** Understand that 0% efficiency is valid behavior for moderate-variance data.
+**Solution:** Understand that 0% efficiency is valid behaviour for moderate-variance data.
 
 ### 4. Insufficient Data Per Grouping
 
@@ -1673,7 +1695,7 @@ manager = OptimalStoppingManager(
 )
 ```
 
-### 7. Not Checking Logs for Validation Warnings
+### 8. Not Checking Logs for Validation Warnings
 
 **Problem:** Invalid scores silently skipped, inference never runs.
 
@@ -1682,7 +1704,7 @@ manager = OptimalStoppingManager(
 WARNING: Invalid score for sample_id=123, epoch=2: Binary task has score > 1 (5.0)
 ```
 
-### 8. Using Shadow Mode in Production
+### 9. Using Shadow Mode in Production
 
 **Problem:** Forgetting to disable shadow mode, running all trials.
 
@@ -1841,7 +1863,7 @@ task_with(task, early_stopping=manager, epochs=15)
 
 logs = eval(task, model="openai/gpt-4")
 
-# Analyze per difficulty level
+# Analyse per difficulty level
 for log in logs:
     if log.results.early_stopping:
         diagnostics = log.results.early_stopping.metadata
@@ -1889,7 +1911,7 @@ from inspect_ai._eval.task import task_with
 aggressive_params = {
     'delta_item': 0.25,        # Very wide CI allowed
     'delta_cap': 0.20,         # Wide grouping CI
-    'cred_level': 0.85,        # 85% confidence (less conservative)
+    'cred_level': 0.85,        # 85% credible intervals (less conservative)
     'conservatism': 2,         # Low conservatism
 }
 
@@ -1996,13 +2018,19 @@ manager = OptimalStoppingManager(
 **Solution:** See [Performance Considerations](#performance-considerations) for detailed guidance. Quick fixes:
 - Reduce `draws`/`tune` to 1000-2000
 - Increase `reanalysis_interval`
-- Enable GPU with `gpu_ids=[0]` (2-4× speedup for ordinal inference)
+- Enable GPU with `gpu_ids=[0]` (speeds up ordinal inference)
 
 ---
 
 ## Version History
 
-### v0.4.0 (Current)
+### v0.5.0 (Current)
+- **Resolution floor on group-level credible intervals (issue #3)**: binary and continuous group-level intervals are now read from an unclipped reporting transform (`Theta_report` / `mu_item_report`), so the lower bound can approach 0 and the interval can contain a low truth. The likelihood retains the `±6` logit clamp for sampler stability, so below the resolution floor (`sigmoid(-6) ≈ 0.0025`) the reported bounds are prior-dominated and qualitative - the hard floor is removed, but sub-floor coverage is not calibrated. Report the raw proportion alongside the interval for rates below ~0.25%
+- **Low-performance stopping gate**: at the group level, precision and slope-stabilisation stops are suppressed for all three pathways (binary, continuous, and ordinal) while observed performance is below `low_performance_threshold`, so a low-base-rate search keeps sampling until the event is observed rather than stopping on the pre-event null. At the item/sample level the gate applies to binary and continuous only (ordinal items are held by their minimum-width floor)
+- **New diagnostic fields**: `pinned` (binary/continuous - whole reported interval below the resolution floor, estimate qualitative), `low_perf_floor` (ordinal - resolved below `low_performance_threshold`; telemetry only, data-faithful, no reliability caveat), and `low_perf_stop_suppressed` (a group-level stop was withheld below `low_performance_threshold`)
+- **CLI reliability (issue #4)**: entry points exit non-zero when every grouping fails or none is produced; version-tolerant `arviz.hdi` wrapper; forced UTF-8 stdout/stderr
+
+### v0.4.0
 - **MCMC failure handling**: All `pm.sample()` calls wrapped in try/except with graceful degradation (max-uncertainty fallback prevents premature stopping). New `_log_mcmc_diagnostics` helper logs divergence count, min ESS, and max R-hat
 - **Convergence projection stable companions**: New `simple_proj_additional_trials` (1/sqrt(n), CV 0.03-0.09) and `trajectory_signal` ('faster'/'on_pace'/'slower') fields provide stable alternatives to the order-sensitive exponential projection
 - **Ordinal Pathway 2 mechanism fix**: Replaced relative-change criterion (mathematically incapable of firing) with absolute entropy CI width convergence on [0,1] scale
@@ -2041,7 +2069,7 @@ manager = OptimalStoppingManager(
 ### Future Releases
 - Advanced scenarios (mixed groupings, edge cases)
 - Integration testing with real inspect_ai workflows
-- GPU configuration optimization for inspect_ai
+- GPU configuration optimisation for inspect_ai
 - Convergence warning system
 - Parameter tuning utilities
 
@@ -2061,9 +2089,11 @@ For issues, questions, or feedback:
 
 ---
 
-**Last Updated:** 2026-03-18
-**Document Version:** 1.7
+**Last Updated:** 2026-09-03
+**Document Version:** 1.8
 **Phase:** Beta (Phase 1-3 Complete)
+
+**v1.8 Changes:** Updated for v0.5.0: issue-#3 resolution-floor fix for group-level binary/continuous credible intervals (unclipped reporting transform), group-level low-performance stopping gate across all three pathways, new `pinned` / `low_perf_floor` / `low_perf_stop_suppressed` diagnostic fields, and issue-#4 CLI reliability changes.
 
 **v1.7 Changes:** Updated for v0.4.0: MCMC failure handling, convergence projection stable companions (`simple_proj_additional_trials`, `trajectory_signal`), ordinal P2 mechanism fix, `prior_sigma` and `entropy_convergence_threshold` parameters.
 

@@ -38,7 +38,7 @@ setup(
         "numpy>=1.24",
         "pandas>=2.0",
         "pymc>=5.10.0",
-        "arviz>=0.17",
+        "arviz>=0.17,<1.0",  # arviz 1.x changed hdi() return structure; also pins pymc<6
         "scipy>=1.10",
         "matplotlib>=3.7",
         "tqdm>=4.60",
@@ -87,6 +87,7 @@ setup(
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: Scientific/Engineering",
     ],
 )

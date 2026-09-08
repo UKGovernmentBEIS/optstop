@@ -1,0 +1,8 @@
+# Normalise line endings: store text as LF in the repository and check out
+# as LF on all platforms. Prevents CRLF/LF churn across editors and OSes
+# (the Windows CI leg in particular).
+* text=auto eol=lf
+
+# Binary assets - never modify.
+*.png binary
+*.pdf binary

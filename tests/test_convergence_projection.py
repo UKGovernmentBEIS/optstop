@@ -433,10 +433,11 @@ class TestBridgeIntegration:
         }
 
         with patch('optstop.convergence.project_convergence', return_value={'projected_additional_steps': 5}) as mock_pc:
-            # Low performance
+            # Low performance: slope_threshold = CI_delta / conservatism, and the
+            # mock manager sets conservatism=5 (the current default; was 10 pre-2026-03).
             history_low = {**base_history, 'current_perf_estimate': 0.0005}
             self._call_build(manager, 'low-perf', history_low)
-            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 10)
+            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 5)
 
             mock_pc.reset_mock()
 

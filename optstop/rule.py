@@ -39,6 +39,9 @@ import pytensor.tensor as pt
 from . import gpu_utils
 from . import cleanup_utils
 
+# arviz version-compatibility shim (hdi_prob -> prob rename in arviz-stats 1.0)
+from ._compat import hdi as _hdi
+
 # Import ordinal scoring utilities
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
@@ -95,6 +98,44 @@ warnings.filterwarnings('ignore', category=DeprecationWarning)
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='pymc')
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='arviz')
 warnings.filterwarnings('ignore', category=RuntimeWarning, module='pytensor')
+
+# ---------------------------------------------------------------------------
+# Shared numerical constants (issue #3: credible-interval resolution floor)
+# ---------------------------------------------------------------------------
+# LOGIT_CLAMP bounds the logit-scale item effects fed into the likelihood, for
+# MCMC stability. This clamp must NOT be used to floor the *reported* credible
+# interval - reading the CI off the clamped transform is what produced the
+# sigmoid(-6) floor reported in issue #3. Reporting reads an unclipped transform
+# (Theta_report / mu_item_report); the clamp stays inside the likelihood only.
+LOGIT_CLAMP = 6.0
+# RESOLUTION_FLOOR = sigmoid(-LOGIT_CLAMP): the probability-scale value below
+# which the clamped likelihood is flat, so reported bounds there are
+# prior-dominated (qualitative), not data-identified. Diagnostic reference only;
+# never used to re-clamp a stored bound.
+RESOLUTION_FLOOR = 1.0 / (1.0 + np.exp(LOGIT_CLAMP))
+
+# Issue #3: the group-level CI is read off the unclipped reporting transform
+# (mean over items of Theta_report / mu_item_report). If that extraction throws,
+# each block falls back to sigmoid(mu_group) - a DIFFERENT, lower-fidelity
+# estimand (the z=0 "typical item", not the item mean), which is floor-free but
+# not consistent with the primary path. That silent estimand switch is exactly
+# the wrong failure mode in the near-floor regime this fix targets, so surface it.
+# Warn once per process to avoid log spam if the fallback fires every refresh.
+_ci_fallback_warned = False
+
+
+def _warn_ci_fallback(exc: Exception) -> None:
+    """Log a one-time warning when a group CI read falls back to sigmoid(mu_group)."""
+    global _ci_fallback_warned
+    if not _ci_fallback_warned:
+        _ci_fallback_warned = True
+        logging.getLogger('optstop').warning(
+            "Group CI read fell back to sigmoid(mu_group) (issue #3 fallback path): "
+            f"{type(exc).__name__}: {exc}. Reported bounds are the z=0 'typical item' "
+            "estimand, NOT mean(Theta_report/mu_item_report); low-rate bounds may be "
+            "less reliable. This warning is emitted once per process."
+        )
+
 
 # Note: Column validation is now done at the beginning of each function
 
@@ -502,7 +543,7 @@ def _compute_bayesian_hdi_per_task(df: pd.DataFrame, confidence: float = 0.97, s
                 
                 try:
                     idata = az.from_dict(posterior={"Theta": bootstrap_means.reshape(1, 1, -1)})
-                    hdi = az.hdi(idata, hdi_prob=confidence)["Theta"]
+                    hdi = _hdi(idata, confidence)["Theta"]
                     
                     try:
                         ci_low = float(hdi.sel(hdi='lower').values)
@@ -1549,8 +1590,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
 
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items_total)
                 mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                 Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
 
                 binomial_dist = pm.Binomial.dist(n=trials_data, p=Theta)
                 log_lik = obs_weight_data * pm.logp(binomial_dist, successes_data)
@@ -1635,8 +1678,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items_total)
                 mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
                 mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                         pm.math.clip(mu_item_logit, -6.0, 6.0))
+                                                         pm.math.clip(mu_item_logit, -LOGIT_CLAMP, LOGIT_CLAMP))
                 mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+                # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                mu_item_report = pm.Deterministic("mu_item_report", pm.math.sigmoid(mu_item_logit))
 
                 z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_total)
                 log_phi_item = pm.Deterministic("log_phi_item",
@@ -1673,6 +1718,21 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
         all_epochs = sorted(df_part['epoch_num'].unique())
         trial_counter = 0
         stopped = False
+        # issue #3 (option 1): set True when a continuous grouping meets a stop
+        # criterion but is below low_performance_threshold, so the stop is
+        # suppressed and sampling continues to exhaustion.
+        # LATCHES: this batch worker runs once to exhaustion and returns a single
+        # result dict, so the flag is set once and only ever raised to True (never
+        # reset) - the terminal value means "a stop was suppressed at some point
+        # during this analysis". (live_single resets per refresh instead - see
+        # optimal_stopping_live_single, where the flag drives the live bridge
+        # projection guard and must reflect only the current refresh.)
+        low_perf_stop_suppressed = False
+        # issue #3 (Option C): ordinal-only telemetry counterpart to `pinned`. Set True in the
+        # ordinal branch when the resolved normalised performance is below low_performance_threshold
+        # (the grouping resolved at a very-low performance level). Kept as a pre-initialised bool
+        # because current_perf_normalized is scoped to the ordinal branch only.
+        ordinal_low_perf_floor = False
         theta_lo, theta_hi, theta_width = 0.0, 1.0, 1.0
         last_refresh_n_observed = 0
 
@@ -1716,7 +1776,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                     )
                     state['ci_record'].append(ci_width)
 
-                    if ci_width < delta_item:
+                    # Issue #3: gate the binary item-stop behind perf >= low_perf_threshold so
+                    # low-performance binary items flow to group-level governance rather than
+                    # item-stopping on a near-floor CI (mirrors the continuous item gate below).
+                    if ci_width < delta_item and item_perf >= low_perf_threshold:
                         item_stopped.add(item_id)
                     elif len(state['ci_record']) >= stab_window:
                         recent = state['ci_record'][-stab_window:]
@@ -1727,7 +1790,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             recent_slopes = state['ci_slopes_hist'][-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if item_perf >= low_perf_threshold or abs(slope) <= slope_threshold:
+                                # Issue #3: low-perf binary does NOT slope-stab item-stop; flow to
+                                # group governance (was a tautological `perf>=thr OR |slope|<=thr`).
+                                if item_perf >= low_perf_threshold:
                                     item_stopped.add(item_id)
 
                 elif score_type in ['continuous_01', 'continuous_bounded'] and len(state['accumulated_scores']) >= 2:
@@ -1742,7 +1807,14 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                     normalized_width = ci_width / (cont_upper - cont_lower) if cont_upper > cont_lower else ci_width
                     state['ci_record'].append(normalized_width)
 
-                    if normalized_width < delta_item:
+                    # Issue #3: gate the continuous item-stop behind
+                    # perf >= low_perf_threshold. On near-floor data _continuous_bounded_ci_adaptive
+                    # collapses to a tiny width, so ungated continuous items item-stop at n=2. Gating
+                    # here keeps low-performance continuous items sampling; the group-level stop routes
+                    # are likewise perf-gated (see below), so a below-threshold continuous grouping
+                    # runs to exhaustion. Binary is gated symmetrically at the item level (above);
+                    # ordinal is out of scope.
+                    if normalized_width < delta_item and item_perf_norm >= low_perf_threshold:
                         item_stopped.add(item_id)
                     elif len(state['ci_record']) >= stab_window:
                         recent = state['ci_record'][-stab_window:]
@@ -1753,7 +1825,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             recent_slopes = state['ci_slopes_hist'][-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if item_perf_norm >= low_perf_threshold or abs(slope) <= slope_threshold:
+                                # Issue #3 / Option A: drop the low-perf slope allowance so low-performance
+                                # continuous items do NOT slope-stab item-stop (was: perf>=thr OR |slope|<=thr).
+                                if item_perf_norm >= low_perf_threshold:
                                     item_stopped.add(item_id)
 
                 elif score_type == 'ordinal' and len(state['accumulated_scores']) >= 2:
@@ -1895,18 +1969,19 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             if trace is not None:
                                 _log_mcmc_diagnostics(trace, logger, f"binary interleaved {pid}")
                                 try:
-                                    theta_samples = trace.posterior["Theta"].values
+                                    theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
                                     theta_samples = theta_samples[:, :, :n_observed]
                                     mean_theta_samples = theta_samples.mean(axis=2)
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                                except Exception:
+                                except Exception as _ci_exc:
+                                    _warn_ci_fallback(_ci_exc)
                                     mu_group_samples = trace.posterior["mu_group"].values
                                     group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                                 theta_width = theta_hi - theta_lo
@@ -1915,10 +1990,16 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             CI_record.append(theta_width)
 
                             effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                            if effective_width < delta_cap:
+                            # issue #3: gate the below-threshold stop so accumulated null data
+                            # cannot stop a rare-capability grouping before the event is observed.
+                            # Matches the continuous pathway (conservatism widening retained).
+                            if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                                 logger.info(f"Stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                                 stopped = True
                                 break
+                            elif effective_width < delta_cap:
+                                low_perf_stop_suppressed = True
+                                logger.debug(f"Suppressing low-perf binary stop (width) for grouping {pid}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                             if len(CI_record) >= stab_window:
                                 recent_widths = CI_record[-stab_window:]
@@ -1934,9 +2015,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             stopped = True
                                             break
                                         else:
-                                            logger.info(f"Stopping low-perf grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
-                                            stopped = True
-                                            break
+                                            # issue #3: below low_performance_threshold, do not
+                                            # stabilisation-stop; keep sampling to exhaustion.
+                                            low_perf_stop_suppressed = True
+                                            logger.debug(f"Suppressing low-perf binary stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                     # === ORDINAL GROUP-LEVEL STOPPING ===
                     elif score_type == 'ordinal':
@@ -1944,6 +2026,8 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                         item_ns = np.array([s['n_obs'] for s in summaries_list])
 
                         current_perf_normalized = current_perf_estimate  # Already normalized above
+                        # issue #3 (Option C): telemetry - resolved at a very-low performance level.
+                        ordinal_low_perf_floor = bool(current_perf_normalized < low_perf_threshold)
 
                         if len(item_ns) > 0 and np.sum(item_ns) > 0:
                             if ordinal_inference == 'modal':
@@ -1996,14 +2080,30 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             # already includes conservatism internally. Do not multiply again.
                             effective_width = theta_width
 
+                            # Issue #3: gate every ordinal group-stop behind
+                            # current_perf >= low_perf_threshold, mirroring the binary/continuous
+                            # pathways. At near-zero performance an all-category-0 grouping looks
+                            # confidently peaked at 0 (narrow modal CI, low entropy, narrow entropy
+                            # CI, flat width slope), so all inference modes - hybrid Pathways 1 & 2,
+                            # the modal/entropy width stop, and the slope-stabilisation stop - would
+                            # fire before a rare positive category is ever observed. Conservatism
+                            # widening and the entropy validation gate do not protect this case.
                             if ordinal_inference == 'hybrid' and should_stop_group:
-                                logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
-                                stopped = True
-                                break
+                                if current_perf_estimate >= low_perf_threshold:
+                                    logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
+                                    stopped = True
+                                    break
+                                else:
+                                    low_perf_stop_suppressed = True
+                                    logger.debug(f"Suppressing low-perf ordinal hybrid stop ({reason_group}) for grouping {pid}: perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
                             elif ordinal_inference != 'hybrid' and effective_width < delta_cap:
-                                logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
-                                stopped = True
-                                break
+                                if current_perf_estimate >= low_perf_threshold:
+                                    logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
+                                    stopped = True
+                                    break
+                                else:
+                                    low_perf_stop_suppressed = True
+                                    logger.debug(f"Suppressing low-perf ordinal stop (width) for grouping {pid}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                             if len(CI_record) >= stab_window:
                                 recent_widths = CI_record[-stab_window:]
@@ -2019,9 +2119,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             stopped = True
                                             break
                                         else:
-                                            logger.info(f"Stopping low-perf ordinal grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
-                                            stopped = True
-                                            break
+                                            # issue #3: below low_performance_threshold, do not
+                                            # stabilisation-stop; keep sampling to exhaustion.
+                                            low_perf_stop_suppressed = True
+                                            logger.debug(f"Suppressing low-perf ordinal stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                     # === CONTINUOUS GROUP-LEVEL STOPPING ===
                     elif score_type in ['continuous_01', 'continuous_bounded']:
@@ -2069,18 +2170,19 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                 if trace is not None:
                                     _log_mcmc_diagnostics(trace, logger, f"continuous interleaved {pid}")
                                     try:
-                                        mu_item_samples = trace.posterior["mu_item"].values
+                                        mu_item_samples = trace.posterior["mu_item_report"].values  # Issue #3: unclipped reporting transform
                                         mu_item_samples = mu_item_samples[:, :, :n_observed]
                                         mean_mu_samples = mu_item_samples.mean(axis=2)
                                         with suppress_all_output():
-                                            group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                            group_hdi = _hdi({"mean_mu": mean_mu_samples}, cred_level)
                                         theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
                                         theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                                    except Exception:
+                                    except Exception as _ci_exc:
+                                        _warn_ci_fallback(_ci_exc)
                                         mu_group_samples = trace.posterior["mu_group"].values
                                         group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                         with suppress_all_output():
-                                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                            group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                         theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                         theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                                     theta_width = theta_hi - theta_lo
@@ -2088,12 +2190,19 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                     theta_width = 1.0
 
                             CI_record.append(theta_width)
+                            # issue #3: conservatism widening is retained for the
+                            # (unused-when-suppressed) width comparison; below-threshold stops
+                            # are gated so a spuriously narrow near-zero width cannot trigger a
+                            # false stop.
                             effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
 
-                            if effective_width < delta_cap:
+                            if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                                 logger.info(f"Stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                                 stopped = True
                                 break
+                            elif effective_width < delta_cap:
+                                low_perf_stop_suppressed = True
+                                logger.debug(f"Suppressing low-perf continuous stop (width) for grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion | items: {n_observed}, trials: {trial_counter}")
 
                             if len(CI_record) >= stab_window:
                                 recent_widths = CI_record[-stab_window:]
@@ -2109,9 +2218,10 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                                             stopped = True
                                             break
                                         else:
-                                            logger.info(f"Stopping low-perf continuous grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | items: {n_observed}, trials: {trial_counter}")
-                                            stopped = True
-                                            break
+                                            # issue #3: below low_performance_threshold, do not
+                                            # stabilisation-stop; keep sampling to exhaustion.
+                                            low_perf_stop_suppressed = True
+                                            logger.debug(f"Suppressing low-perf continuous stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion | items: {n_observed}, trials: {trial_counter}")
 
         # === POST-LOOP FINAL GROUP REFRESH ===
         # When all data is exhausted without triggering group-level stopping,
@@ -2165,25 +2275,33 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                     if trace is not None:
                         _log_mcmc_diagnostics(trace, logger, f"binary interleaved post-loop {pid}")
                         try:
-                            theta_samples = trace.posterior["Theta"].values
+                            theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
                             theta_samples = theta_samples[:, :, :n_observed]
                             mean_theta_samples = theta_samples.mean(axis=2)
                             with suppress_all_output():
-                                group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                             theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                             theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                        except Exception:
+                        except Exception as _ci_exc:
+                            _warn_ci_fallback(_ci_exc)
                             mu_group_samples = trace.posterior["mu_group"].values
                             group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                             with suppress_all_output():
-                                group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                             theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                             theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                         theta_width = theta_hi - theta_lo
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                        if effective_width < delta_cap:
+                        # issue #3: gate the below-threshold post-loop stop (matches the in-loop
+                        # gate and the continuous pathway). Data is exhausted here, so suppression
+                        # has no sampling effect, but it avoids reporting a false low-rate stop and
+                        # keeps the low_perf_stop_suppressed telemetry consistent.
+                        if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Post-loop stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                             stopped = True
+                        elif effective_width < delta_cap:
+                            low_perf_stop_suppressed = True
+                            logger.info(f"Post-loop: suppressing low-perf binary stop for grouping {pid}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}")
                         else:
                             logger.info(f"Data exhausted for binary grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
 
@@ -2191,6 +2309,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                 item_counts_matrix = np.array([s['counts'] for s in summaries_list])
                 item_ns = np.array([s['n_obs'] for s in summaries_list])
                 current_perf_normalized = current_perf_estimate
+                # issue #3 (Option C): telemetry - resolved at a very-low performance level
+                # (post-loop final refresh; updates the in-loop value with the final estimate).
+                ordinal_low_perf_floor = bool(current_perf_normalized < low_perf_threshold)
 
                 if len(item_ns) > 0 and np.sum(item_ns) > 0:
                     if ordinal_inference == 'hybrid':
@@ -2213,9 +2334,14 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             theta_lo, theta_hi = diag_group['modal_ci']
                         else:
                             theta_lo, theta_hi = 0.0, 1.0
-                        if should_stop_group:
+                        if should_stop_group and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Post-loop stopping ordinal grouping {pid}: Hybrid ({reason_group}) | items: {n_observed}, trials: {trial_counter}")
                             stopped = True
+                        elif should_stop_group:
+                            # issue #3: converged-looking but below low_performance_threshold - do
+                            # not mark as converged; record suppression (data exhausted anyway).
+                            low_perf_stop_suppressed = True
+                            logger.debug(f"Post-loop: suppressing low-perf ordinal hybrid stop for grouping {pid}: perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold} (data exhausted)")
                         else:
                             logger.info(f"Data exhausted for ordinal hybrid grouping {pid}: not converged ({reason_group})")
                     elif ordinal_inference == 'modal':
@@ -2230,9 +2356,12 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                             sampling_kwargs=sampling_kwargs
                         )
                         # theta_width already includes conservatism internally
-                        if theta_width < delta_cap:
+                        if theta_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Post-loop stopping ordinal grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                             stopped = True
+                        elif theta_width < delta_cap:
+                            low_perf_stop_suppressed = True
+                            logger.debug(f"Post-loop: suppressing low-perf ordinal modal stop for grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold} (data exhausted)")
                         else:
                             logger.info(f"Data exhausted for ordinal modal grouping {pid}: CI width {theta_width:.4f} > delta_cap {delta_cap}")
                     elif ordinal_inference == 'entropy':
@@ -2248,9 +2377,12 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                         )
                         theta_lo, theta_hi = entropy_lo, entropy_hi
                         # theta_width already includes conservatism internally
-                        if theta_width < delta_cap:
+                        if theta_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Post-loop stopping ordinal grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                             stopped = True
+                        elif theta_width < delta_cap:
+                            low_perf_stop_suppressed = True
+                            logger.debug(f"Post-loop: suppressing low-perf ordinal entropy stop for grouping {pid}: CI width {theta_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold} (data exhausted)")
                         else:
                             logger.info(f"Data exhausted for ordinal entropy grouping {pid}: CI width {theta_width:.4f} > delta_cap {delta_cap}")
 
@@ -2292,25 +2424,33 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
                         if trace is not None:
                             _log_mcmc_diagnostics(trace, logger, f"continuous interleaved post-loop {pid}")
                             try:
-                                mu_item_samples = trace.posterior["mu_item"].values
+                                mu_item_samples = trace.posterior["mu_item_report"].values  # Issue #3: unclipped reporting transform
                                 mu_item_samples = mu_item_samples[:, :, :n_observed]
                                 mean_mu_samples = mu_item_samples.mean(axis=2)
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"mean_mu": mean_mu_samples}, cred_level)
                                 theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                            except Exception:
+                            except Exception as _ci_exc:
+                                _warn_ci_fallback(_ci_exc)
                                 mu_group_samples = trace.posterior["mu_group"].values
                                 group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                 theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                             theta_width = theta_hi - theta_lo
                             effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                            if effective_width < delta_cap:
+                            if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                                 logger.info(f"Post-loop stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | items: {n_observed}, trials: {trial_counter}")
                                 stopped = True
+                            elif effective_width < delta_cap:
+                                # issue #3: at near-zero rates this width can be spuriously narrow
+                                # (the continuous variance clamp may contribute), so below threshold
+                                # it is not a real stop. Data is exhausted here anyway, so just
+                                # record suppression.
+                                low_perf_stop_suppressed = True
+                                logger.debug(f"Post-loop: suppressing low-perf continuous stop for grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold} (data exhausted)")
                             else:
                                 logger.info(f"Data exhausted for continuous grouping {pid}: CI width {effective_width:.4f} > delta_cap {delta_cap}")
 
@@ -2335,12 +2475,42 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
         if boundary_diagnostic:
             logger.info(f"Grouping '{grouping_name}': {boundary_diagnostic}")
 
+        # issue #3: surface a single, grouping-level notice when a low-performance
+        # stop was suppressed. The threshold value is interpolated from the
+        # resolved parameter (low_perf_threshold), not hard-coded, so it stays
+        # correct if the user overrides low_performance_threshold.
+        if low_perf_stop_suppressed:
+            logger.info(f"Grouping '{grouping_name}': automatic stop suppressed - observed performance is below low_performance_threshold ({low_perf_threshold}); to avoid a false stop on an unresolved low base rate (issue #3), all available samples were used.")
+
         result = {
             'grouping': pid,
             'n_items_used': len(item_summaries),
             'theta_ci_low': theta_lo,
             'theta_ci_high': theta_hi,
             'theta_ci_width': theta_width,
+            # issue #3: whole reported interval sits below the resolution floor
+            # (sigmoid(-LOGIT_CLAMP)); bounds are prior-dominated and qualitative.
+            # Only meaningful for binary/continuous, whose reported bounds come
+            # from the sigmoid transform. RESOLUTION_FLOOR has no meaning on the
+            # ordinal modal/entropy scale, so ordinal never sets pinned (matching
+            # optimal_stopping_live_single and the bridge).
+            'pinned': bool(
+                score_type in ('binary', 'continuous_01', 'continuous_bounded')
+                and theta_hi is not None and theta_hi <= RESOLUTION_FLOOR
+            ),
+            # Ordinal counterpart to `pinned` (telemetry only, does NOT affect
+            # stopping). True when the resolved normalised performance is below
+            # low_performance_threshold (the grouping resolved at a very-low
+            # performance level). Mode-independent (modal/entropy/hybrid), keyed off
+            # the point estimate rather than an interval bound so it is not defeated
+            # by the ordinal min-width floor and is never confused by the entropy
+            # pathway's non-performance bounds. Unlike `pinned`, this is NOT a
+            # reliability warning: the ordinal estimator has no sigmoid location clamp,
+            # so the low estimate is data-faithful. It exists purely as a cross-pathway
+            # low-base-rate marker (binary/continuous report the same regime via
+            # `pinned`). False for binary/continuous.
+            'low_perf_floor': ordinal_low_perf_floor,
+            'low_perf_stop_suppressed': low_perf_stop_suppressed,
             'percent_items_used': percent_trials_used,
             'avg_reps_per_item': avg_reps_per_item,
             'used_reps_dfs': used_reps_dfs,
@@ -2363,6 +2533,9 @@ def _process_posthoc_grouping_interleaved(args: Tuple[Any, pd.DataFrame, Dict[st
             'theta_ci_low': None,
             'theta_ci_high': None,
             'theta_ci_width': None,
+            'pinned': False,
+            'low_perf_floor': False,
+            'low_perf_stop_suppressed': False,
             'percent_items_used': None,
             'avg_reps_per_item': None,
             'used_reps_dfs': [],
@@ -2495,6 +2668,14 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             theta_lo, theta_hi, theta_width = None, None, None
             CI_record = []
             CI_slopes_hist = []
+            # issue #3 (option 1): see _process_posthoc_grouping_interleaved for rationale.
+            # LATCHES (batch worker, single result dict) - only ever raised to True,
+            # never reset; terminal value = "a stop was suppressed at some point".
+            low_perf_stop_suppressed = False
+            # issue #3 (Option C): ordinal-only telemetry counterpart to `pinned`. Set True in the
+            # ordinal branch when the resolved normalised performance is below low_performance_threshold.
+            # Pre-initialised bool (current_perf_normalized is scoped to the ordinal branch only).
+            ordinal_low_perf_floor = False
             entropy_history = []  # Track entropy CI history for hybrid stopping (item-level)
             group_entropy_history = []  # Track entropy CI history for hybrid stopping (group-level)
             ordinal_item_cache = {}  # Cache for item-level OrderedLogistic model reuse
@@ -2518,8 +2699,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     trials_data = pm.Data("trials", np.array([1]))
                     z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
                     mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                     Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
                     obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             elif score_type == 'ordinal':
                 # === ORDINAL HIERARCHICAL MODEL ===
@@ -2611,8 +2794,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
                     mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
                     mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                                                             pm.math.clip(mu_item_logit, -LOGIT_CLAMP, LOGIT_CLAMP))
                     mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    mu_item_report = pm.Deterministic("mu_item_report", pm.math.sigmoid(mu_item_logit))
 
                     # Item-level precision
                     z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
@@ -2739,7 +2924,32 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
                     # Check stopping criteria
                     # For hybrid ordinal, skip this check (hybrid function handles all stopping logic)
-                    if ordinal_inference != 'hybrid' and width < delta_item:
+                    # Issue #3: gate the binary AND continuous item-stop behind perf >= low_perf_threshold.
+                    # Near-floor data collapses the item CI to a tiny width, so an ungated item would
+                    # item-stop at n=2 and never reach the group-level governance the low-base-rate
+                    # guarantee relies on. Gating lets low-performance items flow to the group path.
+                    # Ordinal is deliberately out of scope, and NOT because it is unprotected. The
+                    # issue-#3 artefact is a clamp on the CI *location* (sigmoid(clip(mu,-6,6))) that
+                    # is unique to the binary/continuous builders: on near-zero data it pins the whole
+                    # interval just above sigmoid(-6) with a spuriously tiny *width*, which fires a
+                    # precision-stop (false certainty). Ordinal has no such location clamp; instead its
+                    # estimators (ordinal_utils: flat _aggregate_with_ci and _ordinal_ci_hierarchical_*)
+                    # apply a sample-size-scaled minimum-*width* floor, 1/(K*sqrt(n)), that runs the
+                    # OTHER way - it inflates the width on homogeneous near-zero data so the item does
+                    # not stop early (at n=2, floor ~= 0.071 > delta_item), and below low_perf_threshold
+                    # the effective width is further multiplied by conservatism, so a low-performing
+                    # ordinal item can only stop after ~100 consistent observations (where stopping is
+                    # correct, not a false stop). Extending the binary/continuous suppression gate here
+                    # would be redundant with that existing protection and risk double-suppression.
+                    _item_stop_ok = True
+                    if score_type == 'binary':
+                        _bin_item_perf = successes / trials if trials > 0 else 0.0
+                        _item_stop_ok = _bin_item_perf >= low_perf_threshold
+                    elif score_type in ['continuous_01', 'continuous_bounded']:
+                        _item_perf_norm = ((np.mean(accumulated_scores) - cont_lower) / (cont_upper - cont_lower)
+                                           if cont_upper > cont_lower else np.mean(accumulated_scores))
+                        _item_stop_ok = _item_perf_norm >= low_perf_threshold
+                    if ordinal_inference != 'hybrid' and width < delta_item and _item_stop_ok:
                         if score_type == 'binary':
                             logger.info(f"Stopping sample_id {item_id} (group {pid}) at epoch {batch['epoch_num'].iloc[-1]}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")
                         else:
@@ -2753,8 +2963,23 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
 
                         # Determine current performance for conservatism adjustment
                         if score_type == 'binary':
-                            current_item_perf = df_item[score_column].mean()
-                        else:
+                            # Issue #3 / Option B: use the incremental observed rate over the
+                            # reps consumed so far (successes/trials), NOT df_item[...].mean()
+                            # over the whole item. The latter is a look-ahead - it justifies a
+                            # stop-vs-suppress decision at rep k with reps the greedy loop has
+                            # not yet consumed, which can release the low-perf gate early on a
+                            # near-threshold item with an unlucky zero-prefix and apply the loose
+                            # slope threshold in the sub-threshold regime. Incremental keys the
+                            # gate on observed evidence only (issue #3 guarantee) and matches the
+                            # width route (2870) and the continuous slope route below. No-op for
+                            # mid/high perf (both estimates are far above low_performance_threshold).
+                            current_item_perf = successes / trials if trials > 0 else 0.0
+                        elif score_type in ['continuous_01', 'continuous_bounded']:
+                            # Issue #3 / Option A: continuous-correct normalization (was mean/ordinal_max_score,
+                            # a leftover ordinal scaling); matches (mean-lower)/(upper-lower) used at the other sites.
+                            current_item_perf = ((np.mean(accumulated_scores) - cont_lower) / (cont_upper - cont_lower)
+                                                 if cont_upper > cont_lower else np.mean(accumulated_scores))
+                        else:  # ordinal
                             current_item_perf = np.mean(accumulated_scores) / ordinal_max_score
 
                         slope_threshold = CI_delta / current_conservatism if current_item_perf < low_perf_threshold else CI_delta
@@ -2767,8 +2992,12 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                     n_obs = trials if score_type == 'binary' else len(accumulated_scores)
                                     logger.info(f"Stopping sample_id {item_id} (group {pid}) due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {n_obs}")
                                     break
-                                else:
-                                    n_obs = trials if score_type == 'binary' else len(accumulated_scores)
+                                elif score_type in ['continuous_01', 'continuous_bounded', 'binary']:
+                                    # Issue #3: low-perf binary/continuous do NOT slope-stab item-stop;
+                                    # let them flow to group-level governance. Ordinal is out of scope.
+                                    pass
+                                else:  # ordinal
+                                    n_obs = len(accumulated_scores)
                                     logger.info(f"Stopping low-performance sample_id {item_id} (group {pid}) due to CI stabilization (low-perf): slope {slope:.6f} | epochs used: {n_obs}")
                                     break
 
@@ -2857,19 +3086,20 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         if trace is not None:
                             try:
                                 # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                                theta_samples = trace.posterior["Theta"].values
+                                theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
                                 # Compute mean across items for each posterior sample
                                 mean_theta_samples = theta_samples.mean(axis=2)
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                                 theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                            except Exception:
+                            except Exception as _ci_exc:
+                                _warn_ci_fallback(_ci_exc)
                                 # Fallback: use sigmoid(mu_group)
                                 mu_group_samples = trace.posterior["mu_group"].values
                                 group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                 theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                         else:
@@ -2878,9 +3108,15 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                        if effective_width < delta_cap:
+                        # issue #3: gate the below-threshold stop so accumulated null data cannot
+                        # stop a rare-capability grouping before the event is observed. Matches the
+                        # continuous pathway (conservatism widening retained).
+                        if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Stopping grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
                             break
+                        elif effective_width < delta_cap:
+                            low_perf_stop_suppressed = True
+                            logger.debug(f"Suppressing low-perf binary stop (width) for grouping {pid}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
                             slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
@@ -2894,8 +3130,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                         logger.info(f"Stopping grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
                                     else:
-                                        logger.info(f"Stopping low-performance grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                        break
+                                        # issue #3: below low_performance_threshold, do not
+                                        # stabilisation-stop; keep sampling to exhaustion.
+                                        low_perf_stop_suppressed = True
+                                        logger.debug(f"Suppressing low-perf binary stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                 # Group-level stopping for ordinal scoring (HIERARCHICAL)
                 elif score_type == 'ordinal' and (((item_idx + 1) % pymc_refresh_every == 0) or (item_idx == len(item_ids) - 1)):
@@ -2904,6 +3142,8 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                     item_ns = np.array([s['n_obs'] for s in item_summaries])
 
                     current_perf_normalized = current_perf_estimate  # Already normalized to [0,1] at L2769
+                    # issue #3 (Option C): telemetry - resolved at a very-low performance level.
+                    ordinal_low_perf_floor = bool(current_perf_normalized < low_perf_threshold)
 
                     if len(item_ns) > 0 and np.sum(item_ns) > 0:
                         # Compute group-level CI using hierarchical inference
@@ -2965,13 +3205,25 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                         # already includes conservatism internally. Do not multiply again.
                         effective_width = theta_width
 
-                        # For hybrid, use the hybrid stopping decision directly
+                        # For hybrid, use the hybrid stopping decision directly.
+                        # Issue #3: gate every ordinal group-stop behind
+                        # current_perf >= low_perf_threshold (see the interleaved worker for the
+                        # full rationale - near-zero data looks confidently peaked at category 0
+                        # to all inference modes).
                         if ordinal_inference == 'hybrid' and should_stop_group:
-                            logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | sample_ids used: {len(item_summaries)}")
-                            break
+                            if current_perf_estimate >= low_perf_threshold:
+                                logger.info(f"Stopping ordinal grouping {pid}: Hybrid group-level ({reason_group}) | sample_ids used: {len(item_summaries)}")
+                                break
+                            else:
+                                low_perf_stop_suppressed = True
+                                logger.debug(f"Suppressing low-perf ordinal hybrid stop ({reason_group}) for grouping {pid}: perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
                         elif ordinal_inference != 'hybrid' and effective_width < delta_cap:
-                            logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
-                            break
+                            if current_perf_estimate >= low_perf_threshold:
+                                logger.info(f"Stopping ordinal grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
+                                break
+                            else:
+                                low_perf_stop_suppressed = True
+                                logger.debug(f"Suppressing low-perf ordinal stop (width) for grouping {pid}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
@@ -2986,8 +3238,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                         logger.info(f"Stopping ordinal grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
                                     else:
-                                        logger.info(f"Stopping low-performance ordinal grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                        break
+                                        # issue #3: below low_performance_threshold, do not
+                                        # stabilisation-stop; keep sampling to exhaustion.
+                                        low_perf_stop_suppressed = True
+                                        logger.debug(f"Suppressing low-perf ordinal stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                 # Group-level stopping for continuous scoring (HIERARCHICAL)
                 # Uses hierarchical Beta model with group-level mu_group parameter
@@ -3040,19 +3294,20 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             if trace is not None:
                                 try:
                                     # Extract item-level mu_item posterior samples (shape: chains × draws × items)
-                                    mu_item_samples = trace.posterior["mu_item"].values
+                                    mu_item_samples = trace.posterior["mu_item_report"].values  # Issue #3: unclipped reporting transform
                                     # Compute mean across items for each posterior sample
                                     mean_mu_samples = mu_item_samples.mean(axis=2)
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"mean_mu": mean_mu_samples}, cred_level)
                                     theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                                except Exception:
+                                except Exception as _ci_exc:
+                                    _warn_ci_fallback(_ci_exc)
                                     # Fallback: use sigmoid(mu_group)
                                     mu_group_samples = trace.posterior["mu_group"].values
                                     group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                             else:
@@ -3063,11 +3318,16 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                             theta_width = theta_hi - theta_lo
 
                         CI_record.append(theta_width)
+                        # issue #3: conservatism widening retained; below-threshold stops
+                        # gated so a spuriously narrow near-zero width cannot force a false stop.
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
 
-                        if effective_width < delta_cap:
+                        if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             logger.info(f"Stopping continuous grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")
                             break
+                        elif effective_width < delta_cap:
+                            low_perf_stop_suppressed = True
+                            logger.debug(f"Suppressing low-perf continuous stop (width) for grouping {pid}: CI width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion | sample_ids used: {len(item_summaries)}")
 
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
@@ -3082,8 +3342,10 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                                         logger.info(f"Stopping continuous grouping {pid} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | sample_ids used: {len(item_summaries)}")
                                         break
                                     else:
-                                        logger.info(f"Stopping low-performance continuous grouping {pid} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")
-                                        break
+                                        # issue #3 (option 1): below low_performance_threshold,
+                                        # do not stabilisation-stop; keep sampling to exhaustion.
+                                        low_perf_stop_suppressed = True
+                                        logger.debug(f"Suppressing low-perf continuous stop (stabilization) for grouping {pid}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion | sample_ids used: {len(item_summaries)}")
 
             avg_reps_per_item = np.mean([len(df) for df in used_reps_dfs]) if used_reps_dfs else 0
 
@@ -3092,12 +3354,33 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
             if boundary_diagnostic:
                 logger.info(f"Grouping '{grouping_name}': {boundary_diagnostic}")
 
+            # issue #3: surface a single, grouping-level notice when a low-performance
+            # stop was suppressed. The threshold value is interpolated from the
+            # resolved parameter (low_perf_threshold), not hard-coded, so it stays
+            # correct if the user overrides low_performance_threshold.
+            if low_perf_stop_suppressed:
+                logger.info(f"Grouping '{grouping_name}': automatic stop suppressed - observed performance is below low_performance_threshold ({low_perf_threshold}); to avoid a false stop on an unresolved low base rate (issue #3), all available samples were used.")
+
             result = {
                 'grouping': pid,
                 'n_items_used': len(item_summaries),
                 'theta_ci_low': theta_lo,
                 'theta_ci_high': theta_hi,
                 'theta_ci_width': theta_width,
+                # issue #3: whole reported interval below the resolution floor
+                # (sigmoid(-LOGIT_CLAMP)); bounds are prior-dominated and qualitative.
+                # Scoped to binary/continuous - the sigmoid(-6) floor only exists in
+                # those pathways; ordinal group CIs come from separate estimators.
+                'pinned': bool(
+                    score_type in ('binary', 'continuous_01', 'continuous_bounded')
+                    and theta_hi is not None and theta_hi <= RESOLUTION_FLOOR
+                ),
+                # Ordinal counterpart to `pinned` (telemetry only, does NOT affect
+                # stopping): resolved normalised performance below low_performance_threshold.
+                # Mode-independent, data-faithful, not a reliability warning - see the
+                # interleaved worker for the full rationale. False for binary/continuous.
+                'low_perf_floor': ordinal_low_perf_floor,
+                'low_perf_stop_suppressed': low_perf_stop_suppressed,
                 'percent_items_used': len(item_summaries) / len(item_ids) if item_ids else 0,
                 'avg_reps_per_item': avg_reps_per_item,
                 'used_reps_dfs': used_reps_dfs,
@@ -3117,6 +3400,9 @@ def _process_posthoc_grouping(args: Tuple[Any, pd.DataFrame, Dict[str, Any], str
                 'theta_ci_low': None,
                 'theta_ci_high': None,
                 'theta_ci_width': None,
+                'pinned': False,
+                'low_perf_floor': False,
+                'low_perf_stop_suppressed': False,
                 'percent_items_used': None,
                 'avg_reps_per_item': None,
                 'used_reps_dfs': [],
@@ -3343,8 +3629,10 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 trials_data = pm.Data("trials", np.array([1]))
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
                 mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                 Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
                 obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
 
         # Continuous model cache for continuous score types
@@ -3372,8 +3660,10 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
                 mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
                 mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                         pm.math.clip(mu_item_logit, -6.0, 6.0))
+                                                         pm.math.clip(mu_item_logit, -LOGIT_CLAMP, LOGIT_CLAMP))
                 mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+                # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                mu_item_report = pm.Deterministic("mu_item_report", pm.math.sigmoid(mu_item_logit))
 
                 # Item-level precision
                 z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
@@ -3421,7 +3711,9 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         low_perf_threshold=low_perf_threshold
                     )
                     ci_record.append(width)
-                    if width < delta_item:
+                    # Issue #3: gate the binary item-stop behind perf >= low_perf_threshold so
+                    # low-performance binary items flow to group-level governance (mirrors continuous below).
+                    if width < delta_item and df_item[score_column].mean() >= low_perf_threshold:
                         # logger.info(f"Stopping sample_id {item_id} in grouping {grouping}: CI width {width:.4f} < delta_item {delta_item} | epochs used: {trials}")  # Results in output
                         # Get the original sample_id value for this numeric ID
                         original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
@@ -3436,13 +3728,9 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             recent_slopes = ci_slopes_hist[-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
+                                # Issue #3: low-perf binary does NOT slope-stab item-stop; flow to group governance.
                                 if df_item[score_column].mean() >= low_perf_threshold:
                                     # logger.info(f"Stopping sample_id {item_id} in grouping {grouping} due to CI stabilization: slope {slope:.6f} <= threshold {slope_threshold:.6f} | epochs used: {trials}")  # Results in output
-                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
-                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
-                                    break
-                                else:
-                                    # logger.info(f"Stopping low-performance sample_id {item_id} in grouping {grouping} due to CI stabilization (low-perf): slope {slope:.6f} | epochs used: {trials}")  # Results in output
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
@@ -3461,7 +3749,12 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                 used_reps = []
                 ci_record = []
                 ci_slopes_hist = []
-                current_conservatism = conservatism if df_item[score_column].mean() < low_perf_threshold else 1.0
+                # Issue #3 / Option A: use a continuous-correct normalized item perf (was RAW
+                # df_item[score_column].mean() compared to a [0,1] threshold - wrong when bounds != [0,1];
+                # a no-op for continuous_01). Drives conservatism, slope_threshold, and the item-stop gate.
+                item_perf_norm = ((df_item[score_column].mean() - cont_lower) / (cont_upper - cont_lower)
+                                  if cont_upper > cont_lower else df_item[score_column].mean())
+                current_conservatism = conservatism if item_perf_norm < low_perf_threshold else 1.0
 
                 for start in range(0, len(df_item), rep_batch_size):
                     batch = df_item.iloc[start:start+rep_batch_size]
@@ -3481,7 +3774,10 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                     width = width / (cont_upper - cont_lower)
                     ci_record.append(width)
 
-                    if width < delta_item:
+                    # Issue #3: gate the continuous item-stop behind perf >= low_perf_threshold
+                    # so low-performance continuous items flow to group-level governance (the same group
+                    # path binary reaches; binary is gated symmetrically above, ordinal is out of scope).
+                    if width < delta_item and item_perf_norm >= low_perf_threshold:
                         original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                         stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                         break
@@ -3490,19 +3786,17 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         recent_widths = ci_record[-stab_window:]
                         slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
                         ci_slopes_hist.append(slope)
-                        slope_threshold = CI_delta / current_conservatism if df_item[score_column].mean() < low_perf_threshold else CI_delta
+                        slope_threshold = CI_delta / current_conservatism if item_perf_norm < low_perf_threshold else CI_delta
                         if (abs(slope) <= slope_threshold) and (len(ci_slopes_hist) >= 4):
                             recent_slopes = ci_slopes_hist[-3:]
                             slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                             if slope_slopes >= 0:
-                                if df_item[score_column].mean() >= low_perf_threshold:
+                                if item_perf_norm >= low_perf_threshold:
                                     original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
                                     stop_sample_ids.append(f"{grouping}_{original_sample_id}")
                                     break
-                                else:
-                                    original_sample_id = df_grouping[df_grouping['sample_id_num'] == item_id][sample_id_column].iloc[0]
-                                    stop_sample_ids.append(f"{grouping}_{original_sample_id}")
-                                    break
+                                # Issue #3 / Option A: low-perf continuous does NOT slope-stab item-stop;
+                                # let it flow to group-level governance.
 
                 sample_ci_records[item_id] = ci_record
                 sample_ci_slopes[item_id] = ci_slopes_hist
@@ -3656,19 +3950,20 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         if trace is not None:
                             try:
                                 # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                                theta_samples = trace.posterior["Theta"].values
+                                theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
                                 # Compute mean across items for each posterior sample
                                 mean_theta_samples = theta_samples.mean(axis=2)
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                                 theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                            except Exception:
+                            except Exception as _ci_exc:
+                                _warn_ci_fallback(_ci_exc)
                                 # Fallback: use sigmoid(mu_group)
                                 mu_group_samples = trace.posterior["mu_group"].values
                                 group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                 with suppress_all_output():
-                                    group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                    group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                 theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                 theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                         else:
@@ -3677,10 +3972,16 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                         theta_width = theta_hi - theta_lo
                         CI_record.append(theta_width)
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                        if effective_width < delta_cap:
+                        # issue #3: gate the below-threshold stop so accumulated null data cannot
+                        # stop a rare-capability grouping before the event is observed. Matches the
+                        # continuous pathway; log-only here (this worker returns no CI fields).
+                        if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             # logger.info(f"Stopping grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
+                        elif effective_width < delta_cap:
+                            # below low_performance_threshold: suppress the width stop, keep sampling
+                            logger.debug(f"Suppressing low-perf binary stop (width) for grouping {grouping}: effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
                             slope = np.polyfit(range(len(recent_widths)), recent_widths, 1)[0]
@@ -3695,9 +3996,9 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                         stop_this_grouping.append(grouping)
                                         break
                                     else:
-                                        # logger.info(f"Stopping low-performance grouping {grouping} due to CI stabilization (low-perf): slope {slope:.6f} | sample_ids used: {len(item_summaries)}")  # Results in output
-                                        stop_this_grouping.append(grouping)
-                                        break
+                                        # issue #3: below low_performance_threshold, do not
+                                        # stabilisation-stop; keep sampling to exhaustion.
+                                        logger.debug(f"Suppressing low-perf binary stop (stabilization) for grouping {grouping}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                 elif score_type in ['continuous_01', 'continuous_bounded']:
                     # === CONTINUOUS GROUP-LEVEL STOPPING ===
@@ -3743,19 +4044,20 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             if trace is not None:
                                 try:
                                     # Extract item-level mu_item posterior samples (shape: chains × draws × items)
-                                    mu_item_samples = trace.posterior["mu_item"].values
+                                    mu_item_samples = trace.posterior["mu_item_report"].values  # Issue #3: unclipped reporting transform
                                     # Compute mean across items for each posterior sample
                                     mean_mu_samples = mu_item_samples.mean(axis=2)
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"mean_mu": mean_mu_samples}, cred_level)
                                     theta_lo = float(group_hdi["mean_mu"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                                except Exception:
+                                except Exception as _ci_exc:
+                                    _warn_ci_fallback(_ci_exc)
                                     # Fallback: use sigmoid(mu_group)
                                     mu_group_samples = trace.posterior["mu_group"].values
                                     group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                             else:
@@ -3765,11 +4067,16 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             theta_width = theta_hi - theta_lo
 
                         CI_record.append(theta_width)
+                        # issue #3: conservatism widening retained; below-threshold stops
+                        # gated so a spuriously narrow near-zero width cannot force a false stop.
                         effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
 
-                        if effective_width < delta_cap:
+                        if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                             stop_this_grouping.append(grouping)
                             break
+                        elif effective_width < delta_cap:
+                            # below low_performance_threshold: suppress the width stop, keep sampling
+                            logger.debug(f"Suppressing low-perf continuous stop (width) for grouping {grouping}: CI width {effective_width:.4f} < delta_cap {delta_cap} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                         if len(CI_record) >= stab_window:
                             recent_widths = CI_record[-stab_window:]
@@ -3784,8 +4091,9 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                                         stop_this_grouping.append(grouping)
                                         break
                                     else:
-                                        stop_this_grouping.append(grouping)
-                                        break
+                                        # issue #3 (option 1): below low_performance_threshold,
+                                        # do not stabilisation-stop; keep sampling to exhaustion.
+                                        logger.debug(f"Suppressing low-perf continuous stop (stabilization) for grouping {grouping}: slope {slope:.6f} but perf {current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                 elif score_type == 'ordinal':
                     # === ORDINAL GROUP-LEVEL STOPPING ===
@@ -3811,10 +4119,15 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             conservatism=current_conservatism,
                             low_perf_threshold=low_perf_threshold
                         )
-                        if width < delta_cap:
+                        # Issue #3: gate behind normalised perf >= low_perf_threshold so a near-zero
+                        # (peaked-at-0) ordinal grouping is not stopped before a rare positive
+                        # category can appear. current_perf_estimate_normalized set at ordinal setup.
+                        if width < delta_cap and current_perf_estimate_normalized >= low_perf_threshold:
                             # logger.info(f"Stopping ordinal grouping {grouping}: Modal CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
+                        elif width < delta_cap:
+                            logger.debug(f"Suppressing low-perf ordinal modal stop (width) for grouping {grouping}: width {width:.4f} < delta_cap {delta_cap} but normalised perf {current_perf_estimate_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                     elif ordinal_inference == 'entropy':
                         from .ordinal_model import _ordinal_entropy_ci_adaptive
@@ -3827,10 +4140,12 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
-                        if width < delta_cap:
+                        if width < delta_cap and current_perf_estimate_normalized >= low_perf_threshold:
                             # logger.info(f"Stopping ordinal grouping {grouping}: Entropy CI width {width:.4f} < delta_cap {delta_cap} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
+                        elif width < delta_cap:
+                            logger.debug(f"Suppressing low-perf ordinal entropy stop (width) for grouping {grouping}: width {width:.4f} < delta_cap {delta_cap} but normalised perf {current_perf_estimate_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
 
                     elif ordinal_inference == 'hybrid':
                         from .ordinal_model import _ordinal_hybrid_stopping_criterion
@@ -3847,11 +4162,13 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
                             model_cache=ordinal_item_cache,
                             compute_kwargs=sampling_kwargs
                         )
-                        if should_stop_group:
+                        if should_stop_group and current_perf_estimate_normalized >= low_perf_threshold:
                             # logger.info(f"Stopping ordinal grouping {grouping} via {reason_group} | sample_ids used: {len(item_summaries)}")  # Results in output
                             stop_this_grouping.append(grouping)
                             break
-        
+                        elif should_stop_group:
+                            logger.debug(f"Suppressing low-perf ordinal hybrid stop ({reason_group}) for grouping {grouping}: normalised perf {current_perf_estimate_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing to exhaustion")
+
         return {
             'grouping': grouping,
             'stop_sample_ids': stop_sample_ids,
@@ -3864,7 +4181,8 @@ def _process_live_grouping(args: Tuple[str, pd.DataFrame, Dict[str, Any], str, s
         return {
             'grouping': grouping,
             'stop_sample_ids': [],
-            'stop_this_grouping': []
+            'stop_this_grouping': [],
+            'error': str(e),
         }
     finally:
         sys.stdout = old_stdout
@@ -4172,6 +4490,10 @@ def optimal_stopping_posthoc(
             else:
                 worker_fn = _process_posthoc_grouping_with_init
 
+            # Issue #3 crash fix: signal the pool width to workers (inherited via spawn)
+            # so get_sampling_kwargs clamps cores proportionally (see gpu_utils). Popped in finally.
+            os.environ['OPTSTOP_WORKER_POOL_SIZE'] = str(final_max_workers)
+
             with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
                 # Submit tasks with individual worker initialization
                 futures = []
@@ -4195,7 +4517,10 @@ def optimal_stopping_posthoc(
                         # Add empty result to maintain consistency
                         results.append({
                             'grouping': None, 'n_items_used': None, 'theta_ci_low': None,
-                            'theta_ci_high': None, 'theta_ci_width': None, 'percent_items_used': None,
+                            'theta_ci_high': None, 'theta_ci_width': None, 'pinned': False,
+                            'low_perf_floor': False,
+                            'low_perf_stop_suppressed': False,
+                            'percent_items_used': None,
                             'avg_reps_per_item': None, 'used_reps_dfs': [], 'boundary_diagnostic': None,
                             'error': str(e)
                         })
@@ -4208,6 +4533,9 @@ def optimal_stopping_posthoc(
                 except RuntimeError:
                     # Start method can only be set once, ignore if already set
                     pass
+            # Issue #3 crash fix: clear the pool-width signal so it never leaks into
+            # subsequent main-process sampling.
+            os.environ.pop('OPTSTOP_WORKER_POOL_SIZE', None)
 
         final_used_data = []
         participant_results = []
@@ -4227,6 +4555,9 @@ def optimal_stopping_posthoc(
                 'theta_ci_low': to_native(res['theta_ci_low']),
                 'theta_ci_high': to_native(res['theta_ci_high']),
                 'theta_ci_width': to_native(res['theta_ci_width']),
+                'pinned': bool(res.get('pinned', False)),
+                'low_perf_floor': bool(res.get('low_perf_floor', False)),
+                'low_perf_stop_suppressed': bool(res.get('low_perf_stop_suppressed', False)),
                 'percent_items_used': to_native(res['percent_items_used']),
                 'avg_reps_per_item': to_native(res['avg_reps_per_item']),
                 'boundary_diagnostic': res.get('boundary_diagnostic'),
@@ -4599,8 +4930,10 @@ def optimal_stopping_live_single(
 
                     # Item-level means
                     mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                     Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
 
                     # EXPLICIT MASKING: Use weighted log-likelihood via Potential
                     # obs_weight=0 for unobserved items → zero contribution to likelihood
@@ -4619,8 +4952,10 @@ def optimal_stopping_live_single(
 
                     # Item-level means
                     mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                     Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
 
                     # Direct observation (original behavior)
                     obs = pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
@@ -4700,8 +5035,10 @@ def optimal_stopping_live_single(
                     z = pm.Normal("z", mu=0, sigma=1, shape=model_n_items)
                     mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
                     mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                                                             pm.math.clip(mu_item_logit, -LOGIT_CLAMP, LOGIT_CLAMP))
                     mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    mu_item_report = pm.Deterministic("mu_item_report", pm.math.sigmoid(mu_item_logit))
 
                     # Item-level precision (allows heterogeneity in within-item variance)
                     z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=model_n_items)
@@ -4731,8 +5068,10 @@ def optimal_stopping_live_single(
                     z = pm.Normal("z", mu=0, sigma=1, shape=n_items_data)
                     mu_item_logit = pm.Deterministic("mu_item_logit", mu_group + z * sigma_group)
                     mu_item_logit_clipped = pm.Deterministic("mu_item_logit_clipped",
-                                                             pm.math.clip(mu_item_logit, -6.0, 6.0))
+                                                             pm.math.clip(mu_item_logit, -LOGIT_CLAMP, LOGIT_CLAMP))
                     mu_item = pm.Deterministic("mu_item", pm.math.sigmoid(mu_item_logit_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    mu_item_report = pm.Deterministic("mu_item_report", pm.math.sigmoid(mu_item_logit))
 
                     # Item-level precision (allows heterogeneity in within-item variance)
                     z_phi = pm.Normal("z_phi", mu=0, sigma=1, shape=n_items_data)
@@ -4901,7 +5240,9 @@ def optimal_stopping_live_single(
             )
 
             # Check width criterion
-            if width < delta_item:
+            # Issue #3: gate the binary sample-stop behind perf >= low_perf_threshold so a
+            # not-yet-observed rare event is not locked out per-sample (mirrors continuous below).
+            if width < delta_item and current_perf >= low_perf_threshold:
                 stop_sample_ids.append(f"{grouping_name}:::{original_sample_id}")
                 metadata['sample_stopping_reasons'][str(original_sample_id)] = {
                     'reason': 'ci_width',
@@ -5005,7 +5346,10 @@ def optimal_stopping_live_single(
             accumulated_scores = df_item[score_column].values
 
             # Normalize performance for conservatism check (to [0, 1])
-            normalized_perf = np.mean(accumulated_scores) / upper_bound
+            # Issue #3 / Option A: normalize by (upper - lower), not upper alone (correct when lower != 0;
+            # a no-op for continuous_01). Drives conservatism and the Option A item-stop gate below.
+            normalized_perf = ((np.mean(accumulated_scores) - lower_bound) / (upper_bound - lower_bound)
+                               if upper_bound > lower_bound else np.mean(accumulated_scores))
             current_conservatism = conservatism if normalized_perf < low_perf_threshold else 1.0
 
             # Compute CI using fast Beta method (no MCMC at sample level)
@@ -5022,7 +5366,10 @@ def optimal_stopping_live_single(
             width_normalized = width / (upper_bound - lower_bound)
 
             # Check width criterion
-            if width_normalized < delta_item:
+            # Issue #3: gate the continuous sample-stop behind perf >= low_perf_threshold so
+            # low-performance continuous samples flow to group-level governance (the same group path
+            # binary reaches; binary is gated symmetrically above, ordinal is out of scope).
+            if width_normalized < delta_item and normalized_perf >= low_perf_threshold:
                 stop_sample_ids.append(f"{grouping_name}:::{original_sample_id}")
                 metadata['sample_stopping_reasons'][str(original_sample_id)] = {
                     'reason': 'continuous_bounded_ci_width',
@@ -5169,7 +5516,7 @@ def optimal_stopping_live_single(
                     # - mean(Theta): correctly computes expected group accuracy (correct)
                     try:
                         # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                        theta_samples = trace.posterior["Theta"].values
+                        theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
 
                         # For preallocation mode, only use first n_observed items
                         # (remaining items are padding with obs_weight=0)
@@ -5183,20 +5530,40 @@ def optimal_stopping_live_single(
 
                         # Compute HDI on the expected group accuracy
                         with suppress_all_output():
-                            group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                            group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                         theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                         theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                    except Exception:
+                    except Exception as _ci_exc:
+                        _warn_ci_fallback(_ci_exc)
                         # Fallback: if Theta extraction fails, use sigmoid(mu_group)
                         # This is less accurate but maintains backward compatibility
                         mu_group_samples = trace.posterior["mu_group"].values
                         group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                         with suppress_all_output():
-                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                         theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                         theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 theta_width = theta_hi - theta_lo
+
+                # issue #3: flag when the whole reported interval sits below the
+                # resolution floor (sigmoid(-LOGIT_CLAMP)). Below the floor the
+                # likelihood is flat, so these bounds are prior-dominated and
+                # qualitative - report the raw proportion alongside them.
+                pinned = bool(theta_hi <= RESOLUTION_FLOOR)
+                stabilization_history['pinned'] = pinned
+                # issue #3: reset the suppression flag per refresh (the bridge reads
+                # it per refresh as a projection guard). Raised below if a below-threshold
+                # stop is held off.
+                stabilization_history['low_perf_stop_suppressed'] = False
+                if pinned:
+                    logger.warning(
+                        f"[issue#3] Grouping '{grouping_name}': reported credible interval "
+                        f"[{theta_lo:.6f}, {theta_hi:.6f}] lies entirely below the resolution "
+                        f"floor ({RESOLUTION_FLOOR:.6f}). These bounds are prior-dominated and "
+                        f"qualitative, not coverage-calibrated; interpret the rate as "
+                        f"'below resolution' and report the raw proportion."
+                    )
 
                 # === CI DIAGNOSTIC LOGGING ===
                 logger.warning(
@@ -5223,7 +5590,10 @@ def optimal_stopping_live_single(
 
                 # Check width criterion
                 effective_width = theta_width * current_conservatism if current_perf_estimate < low_perf_threshold else theta_width
-                if effective_width < delta_cap:
+                # issue #3: gate the below-threshold stop so accumulated null data cannot
+                # stop a rare-capability grouping before the event is observed. Mirrors the
+                # continuous pathway.
+                if effective_width < delta_cap and current_perf_estimate >= low_perf_threshold:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
                         'reason': 'ci_width',
@@ -5233,6 +5603,14 @@ def optimal_stopping_live_single(
                         'samples_used': len(item_summaries)
                     }
                     # logger.info(f"Stopping grouping '{grouping_name}': CI {effective_width:.4f} < {delta_cap}")  # Results in output
+                elif effective_width < delta_cap:
+                    # below low_performance_threshold: suppress the width stop, keep sampling
+                    stabilization_history['low_perf_stop_suppressed'] = True
+                    logger.debug(
+                        f"Suppressing low-perf binary stop (width) for grouping '{grouping_name}': "
+                        f"effective_width {effective_width:.4f} < delta_cap {delta_cap} but perf "
+                        f"{current_perf_estimate:.4f} < low_performance_threshold {low_perf_threshold}; continuing"
+                    )
 
                 # Check stabilization criterion (if enough history)
                 if len(stabilization_history['ci_width_history']) >= stab_window:
@@ -5257,14 +5635,15 @@ def optimal_stopping_live_single(
                                 }
                                 # logger.info(f"Stopping grouping '{grouping_name}' via stabilization: slope {slope:.6f}")  # Results in output
                             else:
-                                stop_this_grouping.append(grouping_name)
-                                metadata['group_stopping_reason'] = {
-                                    'reason': 'ci_stabilization_low_perf',
-                                    'slope': float(slope),
-                                    'slope_threshold': slope_threshold,
-                                    'samples_used': len(item_summaries)
-                                }
-                                # logger.info(f"Stopping low-perf grouping '{grouping_name}' via CI stabilization (low-perf)")  # Results in output
+                                # issue #3: below low_performance_threshold, do not
+                                # stabilisation-stop; keep sampling so an unobserved rare
+                                # event cannot be locked out by a stabilised null interval.
+                                stabilization_history['low_perf_stop_suppressed'] = True
+                                logger.debug(
+                                    f"Suppressing low-perf binary stop (stabilization) for grouping "
+                                    f"'{grouping_name}': slope {slope:.6f} but perf {current_perf_estimate:.4f} "
+                                    f"< low_performance_threshold {low_perf_threshold}; continuing"
+                                )
 
             # TIMING_TEST: Binary inference complete
             _binary_elapsed = time.perf_counter() - _binary_start
@@ -5282,6 +5661,10 @@ def optimal_stopping_live_single(
 
             current_perf_normalized = current_perf_estimate / ordinal_max_score
             current_conservatism = conservatism if current_perf_normalized < low_perf_threshold else 1.0
+
+            # issue #3: default the suppression telemetry to False; set True below if a stop
+            # criterion fires but perf is below low_performance_threshold (latched at 6002).
+            stabilization_history['low_perf_stop_suppressed'] = False
 
             group_entropy_history = stabilization_history.get('entropy_history', [])
 
@@ -5305,7 +5688,10 @@ def optimal_stopping_live_single(
                 stabilization_history['final_modal_ci'] = [float(lo), float(hi)]
                 stabilization_history['ordinal_pathway'] = 'modal_hierarchical'
 
-                if width < delta_cap:
+                # Issue #3: gate behind normalised perf >= low_perf_threshold so a near-zero
+                # (peaked-at-0) ordinal grouping is not stopped before a rare positive category
+                # can appear. Mirrors the binary/continuous width gate above.
+                if width < delta_cap and current_perf_normalized >= low_perf_threshold:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
                         'reason': 'ordinal_modal_ci_width_hierarchical',
@@ -5315,6 +5701,9 @@ def optimal_stopping_live_single(
                         'n_items': len(item_ns)
                     }
                     # logger.info(f"Stopping ordinal grouping '{grouping_name}': Hierarchical Modal CI {width:.4f} < {delta_cap}")
+                elif width < delta_cap:
+                    stabilization_history['low_perf_stop_suppressed'] = True
+                    logger.debug(f"Suppressing low-perf ordinal modal stop (width) for grouping '{grouping_name}': width {width:.4f} < delta_cap {delta_cap} but normalised perf {current_perf_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing")
 
             elif ordinal_inference == 'entropy':
                 # Hierarchical entropy inference with partial pooling
@@ -5340,7 +5729,7 @@ def optimal_stopping_live_single(
                 group_entropy_history.append((lo, hi, width))
                 stabilization_history['entropy_history'] = group_entropy_history
 
-                if width < delta_cap:
+                if width < delta_cap and current_perf_normalized >= low_perf_threshold:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
                         'reason': 'ordinal_entropy_ci_width_hierarchical',
@@ -5351,6 +5740,9 @@ def optimal_stopping_live_single(
                         'diagnostics': diagnostics
                     }
                     # logger.info(f"Stopping ordinal grouping '{grouping_name}': Hierarchical Entropy CI {width:.4f} < {delta_cap}")
+                elif width < delta_cap:
+                    stabilization_history['low_perf_stop_suppressed'] = True
+                    logger.debug(f"Suppressing low-perf ordinal entropy stop (width) for grouping '{grouping_name}': width {width:.4f} < delta_cap {delta_cap} but normalised perf {current_perf_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing")
 
             elif ordinal_inference == 'hybrid':
                 # Hierarchical hybrid: uses Dirichlet-Multinomial model
@@ -5400,7 +5792,7 @@ def optimal_stopping_live_single(
                     if 'convergence_threshold' in diagnostics_group:
                         stabilization_history['final_convergence_threshold'] = float(diagnostics_group['convergence_threshold'])
 
-                if should_stop_group:
+                if should_stop_group and current_perf_normalized >= low_perf_threshold:
                     stop_this_grouping.append(grouping_name)
                     metadata['group_stopping_reason'] = {
                         'reason': reason_group,
@@ -5411,8 +5803,22 @@ def optimal_stopping_live_single(
                     if diagnostics_group:
                         stabilization_history['ordinal_pathway'] = diagnostics_group.get('pathway', 'hybrid')
                     # logger.info(f"Stopping ordinal grouping '{grouping_name}' via {reason_group}")  # Results in output
+                elif should_stop_group:
+                    # issue #3: hybrid Pathways 1 & 2 both fire on a near-zero peaked-at-0
+                    # distribution; suppress below low_performance_threshold and keep sampling.
+                    stabilization_history['low_perf_stop_suppressed'] = True
+                    logger.debug(f"Suppressing low-perf ordinal hybrid stop ({reason_group}) for grouping '{grouping_name}': normalised perf {current_perf_normalized:.4f} < low_performance_threshold {low_perf_threshold}; continuing")
 
             stabilization_history['entropy_history'] = group_entropy_history
+
+            # issue #3 (Option C): telemetry-only ordinal counterpart to binary/continuous
+            # `pinned`. True when the resolved normalised performance sits below
+            # low_performance_threshold (the grouping resolved at a very-low performance level -
+            # the same regime that suppresses an ordinal group stop above). Mode-independent
+            # (modal/entropy/hybrid). Does NOT affect stopping and is NOT a reliability warning -
+            # the ordinal estimator has no sigmoid location clamp, so the low estimate is
+            # data-faithful.
+            stabilization_history['low_perf_floor'] = bool(current_perf_normalized < low_perf_threshold)
 
             # TIMING_TEST: Ordinal inference complete
             _ordinal_elapsed = time.perf_counter() - _ordinal_start
@@ -5525,7 +5931,7 @@ def optimal_stopping_live_single(
                     try:
                         # Extract item-level mu_item posterior samples (shape: chains × draws × items)
                         # mu_item is already in [0,1] space (sigmoid applied in model)
-                        mu_item_samples = trace.posterior["mu_item"].values
+                        mu_item_samples = trace.posterior["mu_item_report"].values  # Issue #3: unclipped reporting transform
 
                         # For preallocation mode, only use first n_observed items
                         if use_preallocation:
@@ -5534,20 +5940,46 @@ def optimal_stopping_live_single(
                         # Compute mean across items for each posterior sample
                         mean_mu_samples = mu_item_samples.mean(axis=2)
                         with suppress_all_output():
-                            group_hdi = az.hdi({"mean_mu": mean_mu_samples}, hdi_prob=cred_level)
+                            group_hdi = _hdi({"mean_mu": mean_mu_samples}, cred_level)
                         mu_lo_normalized = float(group_hdi["mean_mu"].sel(hdi="lower").values)
                         mu_hi_normalized = float(group_hdi["mean_mu"].sel(hdi="higher").values)
-                    except Exception:
+                    except Exception as _ci_exc:
+                        _warn_ci_fallback(_ci_exc)
                         # Fallback: use sigmoid(mu_group)
                         mu_group_samples = trace.posterior["mu_group"].values
                         group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                         with suppress_all_output():
-                            group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                            group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                         mu_lo_normalized = float(group_hdi["group_theta"].sel(hdi="lower").values)
                         mu_hi_normalized = float(group_hdi["group_theta"].sel(hdi="higher").values)
 
                 # Compute width in normalized [0,1] space
                 width_normalized = mu_hi_normalized - mu_lo_normalized
+
+                # issue #3: flag when the whole reported interval sits below the
+                # resolution floor (sigmoid(-LOGIT_CLAMP)). The continuous pathway is
+                # the one in the original report ([0.00247, ...] false stop). Below the
+                # floor these bounds are prior-dominated and qualitative; a second
+                # variance clamp (clip(mu_item, 0.01, 0.99)) makes sub-1% intervals
+                # doubly heuristic - report the raw mean alongside them.
+                pinned = bool(mu_hi_normalized <= RESOLUTION_FLOOR)
+                stabilization_history['pinned'] = pinned
+                # issue #3 (option 1): RESETS each refresh (unlike the posthoc batch
+                # workers, which latch); set True below if a stop criterion is met but
+                # suppressed because perf < low_performance_threshold. Reset is required:
+                # the bridge reads this per-refresh as the projection guard
+                # (_build_stabilization_entry), so a stale True from an earlier
+                # below-threshold refresh must not gate a later above-threshold one. The
+                # per-refresh history entries still preserve each refresh's value.
+                stabilization_history['low_perf_stop_suppressed'] = False
+                if pinned:
+                    logger.warning(
+                        f"[issue#3] Grouping '{grouping_name}': reported credible interval "
+                        f"[{mu_lo_normalized:.6f}, {mu_hi_normalized:.6f}] (normalized) lies "
+                        f"entirely below the resolution floor ({RESOLUTION_FLOOR:.6f}). These "
+                        f"bounds are prior-dominated and qualitative, not coverage-calibrated; "
+                        f"interpret the rate as 'below resolution' and report the raw mean."
+                    )
 
                 # Scale back to original bounds for metadata
                 width_original = width_normalized * (upper_bound - lower_bound)
@@ -5562,7 +5994,13 @@ def optimal_stopping_live_single(
             # Check width criterion with conservatism adjustment
             effective_width = width_normalized * current_conservatism if normalized_perf < low_perf_threshold else width_normalized
 
-            if effective_width < delta_cap:
+            # issue #3: perf-gate the precision route: below the low-performance
+            # threshold the continuous CI can be spuriously narrow at near-zero
+            # rates (the obs-SD variance clamp clip(mu_item, 0.01, 0.99) is one
+            # contributor), so effective_width can dip under delta_cap while the
+            # true rate is ~0. Suppress the precision stop there and keep sampling;
+            # matches binary's operational behaviour.
+            if effective_width < delta_cap and normalized_perf >= low_perf_threshold:
                 stop_this_grouping.append(grouping_name)
                 metadata['group_stopping_reason'] = {
                     'reason': 'continuous_hierarchical_ci_width',
@@ -5575,6 +6013,17 @@ def optimal_stopping_live_single(
                     'bounds': {'lower': lower_bound, 'upper': upper_bound}
                 }
                 # logger.info(f"Stopping grouping '{grouping_name}': Hierarchical CI effective_width {effective_width:.4f} < {delta_cap}")  # Results in output
+            elif effective_width < delta_cap:
+                # issue #3: below the low-performance threshold the narrow width is
+                # not reliable evidence of real precision at near-zero rates.
+                # Suppress the stop and keep sampling to exhaustion.
+                stabilization_history['low_perf_stop_suppressed'] = True
+                logger.debug(
+                    f"Suppressing low-perf continuous stop (width) for grouping "
+                    f"'{grouping_name}': effective_width {effective_width:.4f} < {delta_cap} "
+                    f"but perf {normalized_perf:.4f} < low_performance_threshold "
+                    f"{low_perf_threshold}; continuing to exhaustion"
+                )
 
             # Check stabilization criterion (if enough history)
             if len(stabilization_history['ci_width_history']) >= stab_window:
@@ -5603,16 +6052,16 @@ def optimal_stopping_live_single(
                                 'samples_used': len(item_summaries)
                             }
                             # logger.info(f"Stopping grouping '{grouping_name}' via hierarchical continuous stabilization: slope {slope:.6f}")  # Results in output
-                        # For low performance, slope_threshold already tightened by conservatism divisor
+                        # issue #3: below low_performance_threshold, do not
+                        # stabilisation-stop; keep sampling to exhaustion.
                         else:
-                            stop_this_grouping.append(grouping_name)
-                            metadata['group_stopping_reason'] = {
-                                'reason': 'continuous_hierarchical_stabilization_low_perf',
-                                'slope': float(slope),
-                                'slope_threshold': slope_threshold,
-                                'samples_used': len(item_summaries)
-                            }
-                            # logger.info(f"Stopping low-perf grouping '{grouping_name}' via hierarchical continuous CI stabilization (low-perf)")  # Results in output
+                            stabilization_history['low_perf_stop_suppressed'] = True
+                            logger.debug(
+                                f"Suppressing low-perf continuous stop (stabilization) for "
+                                f"grouping '{grouping_name}': slope {slope:.6f} but perf "
+                                f"{normalized_perf:.4f} < low_performance_threshold "
+                                f"{low_perf_threshold}; continuing to exhaustion"
+                            )
 
             # TIMING_TEST: Continuous inference complete
             _continuous_elapsed = time.perf_counter() - _continuous_start
@@ -5620,6 +6069,18 @@ def optimal_stopping_live_single(
 
     # Update samples evaluated count
     stabilization_history['n_samples_evaluated'] = len(item_summaries)
+
+    # issue #3: surface a single, grouping-level notice the first time a low-performance
+    # stop is suppressed for this grouping. live_single is re-entered every refresh and
+    # resets low_perf_stop_suppressed each time, so latch on a private key in the
+    # persistent stabilization_history to emit exactly one INFO per grouping. The
+    # threshold value is interpolated from the resolved parameter (low_perf_threshold),
+    # not hard-coded, so it stays correct if the user overrides low_performance_threshold.
+    # The private '_' key is not read by _build_stabilization_entry, so it is not surfaced.
+    if (stabilization_history.get('low_perf_stop_suppressed')
+            and not stabilization_history.get('_low_perf_notice_logged')):
+        stabilization_history['_low_perf_notice_logged'] = True
+        logger.info(f"Grouping '{grouping_name}': automatic stop suppressed - observed performance is below low_performance_threshold ({low_perf_threshold}); continuing to sample to avoid a false stop on an unresolved low base rate (issue #3).")
 
     # TIMING_TEST: Overall function complete
     _function_elapsed = time.perf_counter() - _function_start_time
@@ -5778,7 +6239,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
         all_groupings = df['grouping'].unique()
         if not all_groupings.size:
             logger.info('No groupings to process; returning empty results.')
-            return {'stop_sample_ids': [], 'stop_task': []}
+            return {'stop_sample_ids': [], 'stop_task': [], 'n_total': 0, 'n_failed': 0}
 
         # Prepare arguments for parallel processing
         args_list = []
@@ -5789,7 +6250,7 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
 
         if not args_list:
             logger.info('No valid groupings to process; returning empty results.')
-            return {'stop_sample_ids': [], 'stop_task': []}
+            return {'stop_sample_ids': [], 'stop_task': [], 'n_total': 0, 'n_failed': 0}
 
         # Determine final worker count
         if validated_max_workers is None:
@@ -5819,6 +6280,10 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                 if mp.get_start_method() != 'spawn':
                     mp.set_start_method('spawn', force=True)
 
+                # Issue #3 crash fix: signal the pool width to workers (inherited via spawn)
+                # so get_sampling_kwargs clamps cores proportionally. Popped in finally.
+                os.environ['OPTSTOP_WORKER_POOL_SIZE'] = str(final_max_workers)
+
                 with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
                     # Submit tasks with individual worker initialization
                     futures = []
@@ -5839,11 +6304,15 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                             results.append(future.result())
                         except Exception as e:
                             logger.error(f"Worker task failed: {e}")
-                            # Add empty result to maintain consistency
+                            # Add empty result to maintain consistency. The
+                            # grouping name is unrecoverable here (as_completed
+                            # yields a bare future), so it stays None; the 'error'
+                            # field lets the aggregator count and report it.
                             results.append({
                                 'grouping': None,
                                 'stop_sample_ids': [],
-                                'stop_this_grouping': []
+                                'stop_this_grouping': [],
+                                'error': f'worker task failed: {e}',
                             })
 
             finally:
@@ -5854,19 +6323,46 @@ def optimal_stopping_live(df: pd.DataFrame, params: Dict[str, Any], grouping_col
                     except RuntimeError:
                         # Start method can only be set once, ignore if already set
                         pass
+                # Issue #3 crash fix: clear the pool-width signal (see posthoc path).
+                os.environ.pop('OPTSTOP_WORKER_POOL_SIZE', None)
 
             # Aggregate results
             stop_sample_ids = []
             stop_task_groupings = []
+            n_failed = 0
+            failed_groupings = []
 
             for res in results:
+                # A worker fails in one of two ways, both of which produce empty
+                # stop-lists indistinguishable from a clean "nothing to stop":
+                #   1. the future itself raises (process death/OOM) - collected
+                #      above as grouping=None with an 'error' field;
+                #   2. the worker catches its own exception internally (MCMC/hdi
+                #      crash, all-NaN) and returns grouping=<name> with an 'error'
+                #      field.
+                # Count BOTH so callers can distinguish an all-failed run from a
+                # genuine no-stop result (issue #4), and carry the per-grouping
+                # (name, error) so the CLI can report them like the posthoc and
+                # convergence paths do.
+                if res.get('grouping') is None or res.get('error') is not None:
+                    n_failed += 1
+                    failed_groupings.append({
+                        'grouping': res.get('grouping'),
+                        'error': res.get('error', 'unknown worker failure'),
+                    })
                 stop_sample_ids.extend(res['stop_sample_ids'])
                 stop_task_groupings.extend(res['stop_this_grouping'])
 
             logger.info('Live optimal stopping complete')
             # if os.getpid() == getattr(os, 'getppid', lambda: None)() or hasattr(sys, 'ps1'):
             #     print(f"Run complete. See the log file for details: {_get_logfile_path()}")
-            return {'stop_sample_ids': stop_sample_ids, 'stop_task': stop_task_groupings}
+            return {
+                'stop_sample_ids': stop_sample_ids,
+                'stop_task': stop_task_groupings,
+                'n_total': len(results),
+                'n_failed': n_failed,
+                'failed_groupings': failed_groupings,
+            }
     finally:
         sys.stdout = old_stdout
 
