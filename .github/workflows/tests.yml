@@ -6,28 +6,85 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  # Force UTF-8 so non-ASCII output cannot raise UnicodeEncodeError on the
+  # Windows runners (cp1252/cp437 console default) - issue #4.
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+  # PR/push CI runs the fast partition only: pure-logic tests plus a small
+  # curated MCMC smoke set (see the `smoke` marker in pyproject.toml). The heavy
+  # optimal-stopping / convergence suites run on demand via full-suite.yml. The
+  # OPTSTOP_MCMC_* ceilings shrink the smokes' sampler cost; they only ever LOWER
+  # the defaults (never raise), and are inert without these vars, so production
+  # behaviour is unchanged - see optstop/gpu_utils.py::get_sampling_kwargs.
+  OPTSTOP_MCMC_DRAWS: "150"
+  OPTSTOP_MCMC_TUNE: "150"
+  OPTSTOP_MCMC_CHAINS: "2"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    # The fast partition still starts a fresh interpreter per file (below), so a
+    # generous ceiling covers the slowest matrix leg (Windows import tax) without
+    # risking the 6h hard cap that the old full-suite PR run hit.
+    timeout-minutes: 40
     strategy:
+      # Don't cancel the whole matrix when one leg fails - we want to see every
+      # OS/Python combination's result.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
+      # The [dev] extra provides the test toolchain - crucially pytest-asyncio,
+      # without which every @pytest.mark.asyncio bridge test errors with "async
+      # def functions are not natively supported". Single source of truth with
+      # the documented local dev setup (pyproject.toml [dev]).
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
-        pip install pytest
-    
-    - name: Run tests
+        pip install -e ".[dev]"
+
+    - name: Run fast partition (logic + MCMC smokes)
+      # Use bash on every OS (GitHub provides Git bash on Windows runners) so the
+      # per-file loop is portable. Tests are run one file per process because the
+      # suite otherwise trips a PyMC model-context cascade under the shared
+      # interpreter (see "Running the tests" in the README).
+      #
+      # We first ask pytest which FILES actually contain a selected test and loop
+      # only those, rather than spinning up an interpreter for all ~30 test files
+      # (each pays a one-off `import pymc` cost of ~10-30s). This keeps the fast
+      # partition well inside the time budget on every OS.
+      shell: bash
       run: |
-        python -m pytest tests/ -v --tb=short 
+        MEXPR='(smoke or not (optstop or convergence)) and not slow'
+        echo "Selecting fast-partition files with: -m \"$MEXPR\""
+        FILES=$(python -m pytest tests/ --collect-only -q -m "$MEXPR" 2>/dev/null \
+                  | grep '::' | sed 's/::.*//' | sort -u)
+        if [ -z "$FILES" ]; then
+          echo "No files matched the fast-partition selector - failing loud." >&2
+          exit 1
+        fi
+        echo "Files:"; echo "$FILES"
+        status=0
+        for f in $FILES; do
+          echo "::group::$f"
+          # GitHub runs `shell: bash` with `-eo pipefail` (errexit), so a non-zero
+          # pytest exit would abort the whole step. Capture the code with `|| rc=$?`
+          # (the left side of `||` is exempt from errexit) so the loop keeps going
+          # and we decide pass/fail ourselves. Exit code 5 ("no tests collected")
+          # is a green outcome for us and only a real error code fails the job.
+          rc=0
+          python -m pytest "$f" -v --tb=short -m "$MEXPR" -p no:cacheprovider || rc=$?
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || status=1
+          echo "::endgroup::"
+        done
+        exit $status

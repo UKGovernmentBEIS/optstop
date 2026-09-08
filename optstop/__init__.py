@@ -1,3 +1,6 @@
+from ._compat import check_arviz_version as _check_arviz_version
+_check_arviz_version()
+
 from .rule import optimal_stopping_posthoc, optimal_stopping_live, optimal_stopping_live_single, configure_optstop_logging
 from .convergence import convergence_posthoc
 from . import gpu_utils

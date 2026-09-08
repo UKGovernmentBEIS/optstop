@@ -106,6 +106,7 @@ celerybeat.pid
 .venv
 env/
 venv/
+venv-lock/
 ENV/
 env.bak/
 venv.bak/
@@ -146,3 +147,7 @@ boundary_estimation_doc.md
 
 # Virtual environments in subdirectories
 **/venv_*/
+
+# Stray development artefacts (regenerated scratch plots, not shipped)
+/convergence_eval_grouped_needed.png
+/convergence_eval_score_scatter.png

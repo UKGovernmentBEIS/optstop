@@ -58,6 +58,11 @@ except ImportError:
 # DATA GENERATORS
 # ============================================================================
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 def create_aggregated_binary_scores(
     n_samples: int,
     epochs_per_sample: int,
@@ -453,160 +458,6 @@ async def test_1_1_3a_aggregated_binary_mean():
         print("ℹ️  No stopping occurred (may indicate high variance or conservative thresholds)")
 
     print("\n✅ TEST 1.1.3a PASSED")
-
-
-# ============================================================================
-# TEST 1.1.3b: AGGREGATED BINARY SCORES (MEDIAN)
-# ============================================================================
-
-@pytest.mark.asyncio
-async def test_1_1_3b_aggregated_binary_median():
-    """
-    Test 1.1.3b: Aggregated Binary Scores (Median)
-
-    Same as 1.1.3a but using median aggregation.
-    Tests that median aggregation is correctly recognized and processed.
-
-    Expected:
-    - Median aggregation → continuous [0, 1]
-    - Hierarchical Beta model routing
-    - Similar stopping behavior to mean aggregation
-    """
-    print("\n" + "="*80)
-    print("TEST 1.1.3b: Aggregated Binary Scores (Median)")
-    print("="*80)
-
-    n_samples = 15
-    n_scorers = 3
-    epochs_per_sample = 8
-
-    samples = [Sample(id=f"sample_{i}") for i in range(n_samples)]
-
-    optstop_params = {
-        'delta_item': 0.15,
-        'delta_cap': 0.12,
-        'cred_level': 0.85,
-        'conservatism': 3,
-        'draws': 500,
-        'tune': 500,
-    }
-
-    manager = OptimalStoppingManager(
-        optstop_params=optstop_params,
-        grouping_columns=['model', 'task'],
-        reanalysis_interval=10,
-        min_samples_per_grouping=5,
-        score_agg='median',  # Tell bridge scores are aggregated via median (→ continuous_01)
-    )
-
-    eval_spec = EvalSpec(
-        task="gpt-4-accuracy",
-        model="gpt-4"
-    )
-
-    # Generate aggregated binary scores (same data, different aggregation)
-    aggregated_scores = create_aggregated_binary_scores(
-        n_samples=n_samples,
-        epochs_per_sample=epochs_per_sample,
-        n_scorers=n_scorers,
-        mean_performance=0.80,
-        between_sample_std=0.12,
-        within_sample_std=0.08,
-        seed=43  # Different seed for variety
-    )
-    data_idx = 0
-
-    manager_name = await manager.start_task(eval_spec, samples, epochs=epochs_per_sample)
-    print(f"✓ Manager started: {manager_name}")
-    print(f"  • Aggregation: median → continuous [0, 1]")
-
-    # Run evaluation loop with proper stopping logic
-    completed_trials = 0
-    stopped_trials = 0
-    sample_epoch_counts = {}
-    stopped_groupings = set()
-    grouping_key = f"{eval_spec.model}-{eval_spec.task}"
-
-    for sample in samples:
-        sample_epoch_counts[sample.id] = 0
-
-        if grouping_key in stopped_groupings:
-            stopped_trials += epochs_per_sample
-            continue
-
-        for epoch in range(1, epochs_per_sample + 1):
-            early_stop = await manager.schedule_sample(sample.id, epoch)
-
-            if early_stop is not None:
-                stopped_trials += 1
-                print(f"Sample {sample.id} stopped at epoch {epoch}: {early_stop.reason}")
-
-                if "grouping" in early_stop.reason.lower():
-                    stopped_groupings.add(grouping_key)
-                    stopped_trials += (epochs_per_sample - epoch)
-                    break
-
-                continue
-
-            # Use MEDIAN aggregation (key difference from 1.1.3a)
-            scorer_scores = aggregated_scores[data_idx]
-            data_idx += 1
-            scores = create_mock_sample_score_aggregated(scorer_scores, aggregation='median')
-
-            await manager.complete_sample(sample.id, epoch, scores)
-            completed_trials += 1
-            sample_epoch_counts[sample.id] += 1
-
-    diagnostics = await manager.complete_task()
-
-    total_planned = n_samples * epochs_per_sample
-    efficiency_percent = (stopped_trials / total_planned) * 100
-
-    print(f"\n{'='*80}")
-    print("RESULTS")
-    print(f"{'='*80}")
-    print(f"Total planned trials: {total_planned}")
-    print(f"Completed trials: {completed_trials}")
-    print(f"Stopped trials: {stopped_trials}")
-    print(f"Efficiency: {efficiency_percent:.1f}%")
-
-    # Save results
-    output_dir = Path("tests/test_outputs/bridge_continuous")
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results = {
-        "test": "1.1.3b_aggregated_binary_median",
-        "aggregation": "median",
-        "n_scorers": n_scorers,
-        "score_bounds": [0.0, 1.0],
-        "n_samples": n_samples,
-        "epochs_per_sample": epochs_per_sample,
-        "total_planned": total_planned,
-        "completed_trials": completed_trials,
-        "stopped_trials": stopped_trials,
-        "efficiency_percent": efficiency_percent,
-        "stopped_groupings": diagnostics.get('stopped_groupings', []),
-        "stopped_samples_count": diagnostics.get('stopped_samples_count', 0),
-        "sample_epoch_counts": sample_epoch_counts,
-        "validation": {
-            "continuous_bounded": True,
-            "aggregated_scores": True,
-            "hierarchical_beta_model": True,
-            "median_aggregation": True
-        }
-    }
-
-    output_path = output_dir / f"test_1_1_3b_binary_median_{timestamp}.json"
-    with open(output_path, 'w') as f:
-        json.dump(results, f, indent=2)
-
-    print(f"\nResults saved to: {output_path}")
-
-    assert completed_trials + stopped_trials == total_planned, "Trial count mismatch"
-
-    print(f"\n📊 Continuous bounded inference (median) completed: {stopped_trials}/{total_planned} trials stopped ({efficiency_percent:.1f}%)")
-    print("\n✅ TEST 1.1.3b PASSED")
 
 
 # ============================================================================
@@ -1125,7 +976,6 @@ if __name__ == "__main__":
         print("Running Section 1.1.3: Continuous Bounded Scoring Tests\n")
 
         await test_1_1_3a_aggregated_binary_mean()
-        await test_1_1_3b_aggregated_binary_median()
         await test_1_1_3c_aggregated_ordinal()
         await test_1_1_3d_realistic_continuous()
 

@@ -18,6 +18,11 @@ import numpy as np
 from optstop.rule import optimal_stopping_live_single
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TestEntropyHistoryPersistence:
     """Test that entropy history is persisted across calls."""
 

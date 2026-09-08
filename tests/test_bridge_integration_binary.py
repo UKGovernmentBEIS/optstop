@@ -49,6 +49,11 @@ TEST_OUTPUT_DIR = Path(__file__).parent / "test_outputs" / "bridge_binary"
 TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class MockScore:
     """Mock score object that mimics inspect_ai's Score."""
     def __init__(self, value):

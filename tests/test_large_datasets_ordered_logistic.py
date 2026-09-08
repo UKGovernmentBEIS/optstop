@@ -36,7 +36,13 @@ from typing import Any, Optional
 from unittest.mock import Mock
 import numpy as np
 import pandas as pd
+import pytest
 from optstop.early_stopping import OptimalStoppingManager
+
+
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
 
 
 class TeeWriter:
@@ -680,6 +686,7 @@ async def run_large_dataset_test(
     return manager, grouping_results, accumulated_df, all_stopped_samples, diagnostics
 
 
+@pytest.mark.slow
 def test_large_datasets_ordered_logistic():
     """Pytest entry point for the large dataset test."""
     manager, results, accumulated_df, stopped_samples, diagnostics = asyncio.run(run_large_dataset_test())

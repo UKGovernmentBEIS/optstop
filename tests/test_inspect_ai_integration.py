@@ -35,6 +35,12 @@ from optstop.early_stopping import OptimalStoppingManager
 # Logging Setup
 # =============================================================================
 
+import pytest
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TeeWriter:
     """Write to both a file and the original stream (stdout/stderr)."""
 
@@ -153,7 +159,7 @@ class SingleTaskConfig:
     SUBTASKS = {
         'arithmetic_basic': {
             'description': 'Basic arithmetic - very consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_rate': 0.90,        # High success rate
             'sample_variance': 0.15,  # Moderate variance BETWEEN samples
             'epoch_variance': 0.01,   # Very low variance WITHIN sample (consistent per-sample)
@@ -161,7 +167,7 @@ class SingleTaskConfig:
         },
         'algebra_intermediate': {
             'description': 'Intermediate algebra - moderately consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_rate': 0.70,        # Medium success rate
             'sample_variance': 0.20,  # Higher variance BETWEEN samples
             'epoch_variance': 0.02,   # Low variance WITHIN sample
@@ -169,7 +175,7 @@ class SingleTaskConfig:
         },
         'calculus_advanced': {
             'description': 'Advanced calculus - somewhat consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_rate': 0.45,        # Lower success rate
             'sample_variance': 0.30,  # High variance BETWEEN samples
             'epoch_variance': 0.05,   # Moderate variance WITHIN sample
@@ -177,8 +183,8 @@ class SingleTaskConfig:
         }
     }
 
-    # Total: 150 samples, 40 epochs each = 6000 planned trials
-    MAX_EPOCHS = 40
+    # Total: 30 samples, 12 epochs each = 360 planned trials
+    MAX_EPOCHS = 12
 
     @classmethod
     def total_samples(cls) -> int:

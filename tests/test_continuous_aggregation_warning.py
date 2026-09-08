@@ -19,6 +19,11 @@ from optstop.early_stopping import OptimalStoppingManager
 
 
 # Helper functions to create mock objects
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 def create_mock_evalspec(model='gpt-4', task='test_task'):
     """Create a mock EvalSpec object."""
     mock = MagicMock()

@@ -1,0 +1,85 @@
+name: Full test suite (on demand)
+
+# The heavy optimal-stopping and convergence suites are expensive (full-fidelity
+# MCMC across a 3 OS x 4 Python matrix) and are NOT run on every push/PR - the
+# fast partition in tests.yml covers those. Trigger this manually from the
+# Actions tab (or `gh workflow run full-suite.yml -f suite=<all|optstop|convergence>`)
+# when you want the full run, e.g. before a release.
+on:
+  workflow_dispatch:
+    inputs:
+      suite:
+        description: "Which partition to run"
+        required: true
+        default: optstop
+        type: choice
+        options:
+          - all
+          - optstop
+          - convergence
+
+env:
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+  # No OPTSTOP_MCMC_* ceilings here: the on-demand run uses full-fidelity sampler
+  # defaults (1000 draws / 4 chains). Only tests.yml caps them for speed.
+
+jobs:
+  full:
+    runs-on: ${{ matrix.os }}
+    # Full-fidelity MCMC across the matrix is slow; give it plenty of headroom
+    # below the 6h hard cap. Individual legs finish well under this.
+    timeout-minutes: 350
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e ".[dev]"
+
+    - name: Run selected suite
+      # Same per-file-process loop as tests.yml (the shared interpreter trips a
+      # PyMC model-context cascade at full-suite scale - see the README). The
+      # `suite` input maps to a marker expression; `all` runs everything with no
+      # marker filter (never emit an empty `-m ""`, which matches nothing).
+      shell: bash
+      run: |
+        case "${{ github.event.inputs.suite }}" in
+          optstop)     MEXPR='optstop and not slow' ;;
+          convergence) MEXPR='convergence and not slow' ;;
+          all)         MEXPR='' ;;
+          *) echo "Unknown suite '${{ github.event.inputs.suite }}'" >&2; exit 1 ;;
+        esac
+        # Build the optional -m argument as an array so `all` passes no -m at all.
+        if [ -n "$MEXPR" ]; then MARG=(-m "$MEXPR"); else MARG=(); fi
+        echo "suite=${{ github.event.inputs.suite }}  marker expr: '${MEXPR:-<none>}'"
+
+        FILES=$(python -m pytest tests/ --collect-only -q "${MARG[@]}" 2>/dev/null \
+                  | grep '::' | sed 's/::.*//' | sort -u)
+        if [ -z "$FILES" ]; then
+          echo "No files matched suite '${{ github.event.inputs.suite }}' - failing loud." >&2
+          exit 1
+        fi
+        echo "Files:"; echo "$FILES"
+        status=0
+        for f in $FILES; do
+          echo "::group::$f"
+          rc=0
+          python -m pytest "$f" -v --tb=short "${MARG[@]}" -p no:cacheprovider || rc=$?
+          # 0 = passed, 5 = nothing collected in this file for the selector (green).
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || status=1
+          echo "::endgroup::"
+        done
+        exit $status

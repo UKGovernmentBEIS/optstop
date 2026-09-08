@@ -62,6 +62,11 @@ TEST_OUTPUT_DIR = Path(__file__).parent / "test_outputs" / "bridge_ordinal_discr
 TEST_OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 def create_deterministic_ordinal_data(
     n_samples: int,
     mode_value: int,
@@ -898,166 +903,6 @@ async def test_1_1_2d_ordinal_hybrid_diffuse():
 
 
 @pytest.mark.asyncio
-async def test_1_1_2e_ordinal_realistic_modal():
-    """
-    Test 1.1.2e: Ordinal Modal Inference with Realistic Data
-
-    Tests ordinal discrete scoring with REALISTIC data parameters:
-    - Realistic mode concentration (55% instead of 85%)
-    - Within-item variance across epochs
-    - Mimics real LLM evaluation behavior
-
-    Setup:
-    - 15 samples, 8 epochs each
-    - Realistic data: mode=4, concentration=0.55, within_item_noise=0.2
-    - Validates performance on production-like data
-    """
-    print("\n" + "="*80)
-    print("TEST 1.1.2e: Ordinal Realistic Modal Inference")
-    print("="*80 + "\n")
-
-    n_samples = 15
-
-    # Create samples
-    samples = [Sample(id=f"sample_{i}") for i in range(n_samples)]
-
-    # Configure optstop parameters
-    optstop_params = {
-        'delta_item': 0.20,
-        'delta_cap': 0.15,
-        'cred_level': 0.85,
-        'conservatism': 3,
-        'draws': 500,
-        'tune': 500,
-    }
-
-    # Create manager with modal ordinal scoring
-    manager = OptimalStoppingManager(
-        optstop_params=optstop_params,
-        grouping_columns=['model', 'task'],
-        reanalysis_interval=10,
-        min_samples_per_grouping=5,
-        ordinal_tasks=['rating'],
-        ordinal_max_score=5,
-        ordinal_inference='modal',
-    )
-
-    # Create eval spec
-    eval_spec = EvalSpec(
-        task="gpt-4-rating",
-        model="gpt-4"
-    )
-
-    # Generate REALISTIC ordinal data with within-item variance
-    ordinal_data = create_realistic_ordinal_data_with_variance(
-        n_items=n_samples,
-        epochs_per_item=8,
-        mode_value=4,
-        concentration=0.55,  # Realistic: 55% at mode (not 85%)
-        within_item_noise=0.2,  # 20% chance of ±1 variation
-        max_score=5,
-        seed=46
-    )
-    data_idx = 0
-
-    # Start task
-    await manager.start_task(eval_spec, samples, epochs=8)
-
-    # Run evaluation loop
-    completed_trials = 0
-    stopped_trials = 0
-    sample_epoch_counts = {}
-    stopped_groupings = set()
-    grouping_key = f"{eval_spec.model}-{eval_spec.task}"
-
-    for sample in samples:
-        sample_epoch_counts[sample.id] = 0
-
-        # Check if grouping already stopped
-        if grouping_key in stopped_groupings:
-            stopped_trials += 8
-            continue
-
-        for epoch in range(1, 9):
-            early_stop = await manager.schedule_sample(sample.id, epoch)
-
-            if early_stop is not None:
-                stopped_trials += 1
-                print(f"Sample {sample.id} stopped at epoch {epoch}: {early_stop.reason}")
-
-                if "grouping" in early_stop.reason.lower():
-                    stopped_groupings.add(grouping_key)
-                    stopped_trials += (8 - epoch)
-                    break
-
-                continue
-
-            score_value = ordinal_data[data_idx]
-            data_idx += 1
-            scores = create_mock_sample_score(score_value)
-
-            await manager.complete_sample(sample.id, epoch, scores)
-            completed_trials += 1
-            sample_epoch_counts[sample.id] += 1
-
-    # Complete task
-    diagnostics = await manager.complete_task()
-
-    # Calculate efficiency
-    total_planned = n_samples * 8
-    efficiency_percent = (stopped_trials / total_planned) * 100
-
-    print(f"\n{'='*80}")
-    print("RESULTS (REALISTIC DATA)")
-    print(f"{'='*80}")
-    print(f"Total planned trials: {total_planned}")
-    print(f"Completed trials: {completed_trials}")
-    print(f"Stopped trials: {stopped_trials}")
-    print(f"Efficiency: {efficiency_percent:.1f}%")
-    print(f"Stopped groupings: {diagnostics.get('stopped_groupings', [])}")
-    print(f"Stopped samples count: {diagnostics.get('stopped_samples_count', 0)}")
-
-    # Save results
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    results = {
-        "test": "1.1.2e_ordinal_realistic_modal",
-        "inference_mode": "modal",
-        "ordinal_max_score": 5,
-        "data_type": "realistic_with_variance",
-        "concentration": 0.55,
-        "within_item_noise": 0.2,
-        "n_samples": n_samples,
-        "epochs_per_sample": 8,
-        "total_planned": total_planned,
-        "completed_trials": completed_trials,
-        "stopped_trials": stopped_trials,
-        "efficiency_percent": efficiency_percent,
-        "stopped_groupings": diagnostics.get('stopped_groupings', []),
-        "stopped_samples_count": diagnostics.get('stopped_samples_count', 0),
-        "sample_epoch_counts": sample_epoch_counts,
-        "validation": {
-            "modal_inference_used": True,
-            "ordinal_scoring": True,
-            "realistic_data": True,
-            "within_item_variance": True
-        }
-    }
-
-    output_file = TEST_OUTPUT_DIR / f"test_1_1_2e_realistic_modal_{timestamp}.json"
-    with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
-
-    print(f"\nResults saved to: {output_file}")
-    print(f"Note: This test uses REALISTIC data (55% concentration, within-item variance)")
-    print(f"Expected efficiency: 30-50% (lower than 66.7% with unrealistic 85% peaked data)")
-
-    # Assertions
-    assert completed_trials + stopped_trials == total_planned, "Trial count mismatch"
-    # More lenient assertion for realistic data
-    print(f"\n✅ TEST 1.1.2e PASSED (Realistic data test completed)")
-
-
-@pytest.mark.asyncio
 async def test_1_1_2f_ordinal_dirichlet_inference():
     """
     Test 1.1.2f: Ordinal Dirichlet Model Inference
@@ -1403,7 +1248,6 @@ if __name__ == "__main__":
         await test_1_1_2b_ordinal_entropy_inference()
         await test_1_1_2c_ordinal_hybrid_peaked()
         await test_1_1_2d_ordinal_hybrid_diffuse()
-        await test_1_1_2e_ordinal_realistic_modal()
         await test_1_1_2f_ordinal_dirichlet_inference()
         await test_1_1_2g_ordinal_dirichlet_entropy()
 

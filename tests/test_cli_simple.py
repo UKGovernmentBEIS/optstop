@@ -5,6 +5,11 @@ from unittest.mock import patch
 from pathlib import Path
 
 
+
+# CI partition: invokes the real cli.main() end-to-end (real MCMC) - deselected from PR CI.
+pytestmark = pytest.mark.optstop
+
+
 def create_test_csv_data():
     """Create minimal test data for CLI testing"""
     return pd.DataFrame({

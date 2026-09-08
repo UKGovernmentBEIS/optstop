@@ -15,6 +15,11 @@ from optstop.convergence import project_convergence
 # Trajectory generators - realistic CI width patterns per pathway
 # ---------------------------------------------------------------------------
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.convergence
+
+
 def binary_trajectory(n_obs, true_p=0.7, noise_sd=0.005, seed=42):
     """Simulate binary CI width trajectory.
 

@@ -14,6 +14,11 @@ import pytest
 import warnings
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 def generate_synthetic_ordinal_data(
     n_items: int,
     n_obs_per_item: int,

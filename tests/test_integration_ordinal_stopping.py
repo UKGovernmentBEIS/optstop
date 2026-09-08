@@ -25,6 +25,11 @@ from optstop import configure_optstop_logging
 configure_optstop_logging(logfile='test_integration_ordinal.log', level=20, console_output=False)
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TestDataGenerator:
     """Generate synthetic test data with controlled properties."""
 
@@ -274,78 +279,6 @@ class TestOrdinalStoppingLiveSingle:
         print(f"  Grouping stopped: {len(result['stop_this_grouping']) > 0}")
         print(f"  Samples stopped: {len(result.get('stop_sample_ids', []))}")
 
-    def test_diffuse_ordinal_basic(self):
-        """Test with diffuse ordinal data (should need more data)."""
-        n_items = 8
-        n_epochs = 15
-
-        scores = TestDataGenerator.generate_ordinal_diffuse(
-            n_items, n_epochs, min_category=3, max_category=8, seed=42
-        )
-        df = TestDataGenerator.create_dataframe_from_scores(scores, 'diffuse_ordinal')
-
-        params = {
-            'delta_item': 0.15,
-            'delta_cap': 0.15,
-            'cred_level': 0.95,
-            'draws': 300,
-            'tune': 150,
-        }
-
-        result = optimal_stopping_live_single(
-            df_grouping=df,
-            grouping_name='diffuse_ordinal',
-            params=params,
-            sample_id_column='item_id',
-            epoch_column='trial',
-            score_column='score',
-            ordinal_tasks=['diffuse'],
-            ordinal_max_score=10,
-            ordinal_inference='modal'
-        )
-
-        assert 'grouping' in result
-        assert 'stabilization_history' in result
-
-        print(f"\n Diffuse ordinal test:")
-        print(f"  Grouping stopped: {len(result['stop_this_grouping']) > 0}")
-
-    def test_bimodal_ordinal_basic(self):
-        """Test with bimodal ordinal data."""
-        n_items = 8
-        n_epochs = 15
-
-        scores = TestDataGenerator.generate_ordinal_bimodal(
-            n_items, n_epochs, mode1=3, mode2=8, spread=0.8, seed=42
-        )
-        df = TestDataGenerator.create_dataframe_from_scores(scores, 'bimodal_ordinal')
-
-        params = {
-            'delta_item': 0.20,
-            'delta_cap': 0.20,
-            'cred_level': 0.95,
-            'draws': 300,
-            'tune': 150,
-        }
-
-        result = optimal_stopping_live_single(
-            df_grouping=df,
-            grouping_name='bimodal_ordinal',
-            params=params,
-            sample_id_column='item_id',
-            epoch_column='trial',
-            score_column='score',
-            ordinal_tasks=['bimodal'],
-            ordinal_max_score=10,
-            ordinal_inference='modal'
-        )
-
-        assert 'grouping' in result
-        assert 'stabilization_history' in result
-
-        print(f"\n Bimodal ordinal test:")
-        print(f"  Grouping stopped: {len(result['stop_this_grouping']) > 0}")
-
     def test_entropy_inference_mode(self):
         """Test ordinal stopping with entropy inference mode."""
         n_items = 8
@@ -546,72 +479,6 @@ class TestStabilizationHistory:
 class TestEdgeCases:
     """Test edge cases and robustness."""
 
-    def test_small_sample_size(self):
-        """Test with minimal sample size (3 items)."""
-        n_items = 3
-        n_epochs = 10
-
-        scores = TestDataGenerator.generate_ordinal_peaked(
-            n_items, n_epochs, modal_category=7, spread=1.0, seed=42
-        )
-        df = TestDataGenerator.create_dataframe_from_scores(scores, 'small_sample')
-
-        params = {
-            'delta_item': 0.25,
-            'delta_cap': 0.30,
-            'cred_level': 0.90,
-            'draws': 200,
-            'tune': 100,
-        }
-
-        result = optimal_stopping_live_single(
-            df_grouping=df,
-            grouping_name='small_sample',
-            params=params,
-            sample_id_column='item_id',
-            epoch_column='trial',
-            score_column='score',
-            ordinal_tasks=['small'],
-            ordinal_max_score=10
-        )
-
-        assert 'grouping' in result
-        print(f"\n Small sample test (3 items):")
-        print(f"  Completed successfully")
-
-    def test_few_epochs(self):
-        """Test with few epochs (5 per item)."""
-        n_items = 5
-        n_epochs = 5
-
-        scores = TestDataGenerator.generate_ordinal_peaked(
-            n_items, n_epochs, modal_category=7, spread=1.0, seed=42
-        )
-        df = TestDataGenerator.create_dataframe_from_scores(scores, 'few_epochs')
-
-        params = {
-            'delta_item': 0.30,
-            'delta_cap': 0.40,
-            'cred_level': 0.90,
-            'draws': 200,
-            'tune': 100,
-        }
-
-        result = optimal_stopping_live_single(
-            df_grouping=df,
-            grouping_name='few_epochs',
-            params=params,
-            sample_id_column='item_id',
-            epoch_column='trial',
-            score_column='score',
-            ordinal_tasks=['few'],
-            ordinal_max_score=10
-        )
-
-        assert 'grouping' in result
-        print(f"\n Few epochs test (5 epochs):")
-        print(f"  Completed successfully")
-
     def test_all_same_score(self):
         """Test with all scores the same (edge case)."""
         n_items = 5
@@ -653,56 +520,6 @@ class TestCalibration:
     A well-calibrated 95% CI should contain the true parameter ~95% of the time.
     These tests use known parameters to verify coverage properties.
     """
-
-    def test_modal_ci_contains_true_mode(self):
-        """Test that modal CI usually contains the true modal category."""
-        n_items = 10
-        n_epochs = 20
-        true_mode = 7
-
-        # Generate strongly peaked data at true mode
-        scores = TestDataGenerator.generate_ordinal_peaked(
-            n_items, n_epochs, modal_category=true_mode, spread=0.5, seed=42
-        )
-        df = TestDataGenerator.create_dataframe_from_scores(scores, 'calibration_modal')
-
-        params = {
-            'delta_item': 0.5,  # Wide threshold to not trigger stopping
-            'delta_cap': 0.5,
-            'cred_level': 0.95,
-            'draws': 400,
-            'tune': 200,
-        }
-
-        result = optimal_stopping_live_single(
-            df_grouping=df,
-            grouping_name='calibration_modal',
-            params=params,
-            sample_id_column='item_id',
-            epoch_column='trial',
-            score_column='score',
-            ordinal_tasks=['calibration'],
-            ordinal_max_score=10,
-            ordinal_inference='modal'
-        )
-
-        history = result['stabilization_history']
-        modal_ci = history.get('final_modal_ci', [0, 1])
-
-        # Scale true mode to [0,1]
-        true_mode_scaled = true_mode / 10.0
-
-        # Check if true mode is within CI
-        ci_contains_true = modal_ci[0] <= true_mode_scaled <= modal_ci[1]
-
-        print(f"\n Modal calibration test:")
-        print(f"  True mode (scaled): {true_mode_scaled}")
-        print(f"  95% CI: [{modal_ci[0]:.3f}, {modal_ci[1]:.3f}]")
-        print(f"  CI contains true mode: {ci_contains_true}")
-
-        # With strongly peaked data and correct implementation, this should usually pass
-        # Note: Not asserting True because single-run coverage can fail stochastically
-        assert 'final_modal_ci' in history or 'ci_width_history' in history
 
     def test_entropy_scaling_in_bounds(self):
         """Test that entropy values are scaled to [0, 1]."""

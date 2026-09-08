@@ -5,6 +5,112 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-03
+
+Behavioural fix for group-level credible intervals at very low success rates
+(GitHub issue #3). Mid-range results are unchanged; the change affects only how
+low-rate intervals are reported.
+
+### Fixed
+
+#### Resolution Floor on Group-Level Credible Intervals (issue #3)
+- Group-level binary and continuous credible intervals were previously floored
+  at `sigmoid(-6) = 0.00247...`, because the reported interval was read from the
+  same clamped deterministic used by the likelihood. An absent or very low-rate
+  capability was therefore unrepresentable, and the continuous pathway could
+  report a narrow sub-floor interval and stop on it.
+- The reported interval is now read from an unclipped reporting transform
+  (`Theta_report` for binary, `mu_item_report` for continuous), so the lower
+  bound can approach 0 and the interval can contain a low truth.
+- The likelihood retains the `±6` logit clamp (sampler stability), and the
+  continuous likelihood retains its separate variance clamp
+  (`clip(mu_item, 0.01, 0.99)`). Consequently, **below the resolution floor the
+  reported bounds are prior-dominated and qualitative - the hard floor is
+  removed, but sub-floor coverage is not calibrated.** Report the raw proportion
+  alongside the interval for rates below ~0.25%.
+
+#### CLI, Packaging, and CI Reliability (issue #4)
+- The CLI entry points (`optstop-posthoc`, `optstop-convergence`, and
+  `optstop-live`) now **exit non-zero** when every grouping fails (the run
+  computed nothing) or when no groupings are produced at all, printing the
+  failures to stderr. On partial failure they still exit 0 but print a loud
+  stderr warning identifying which groupings failed. Previously a run in which
+  every grouping raised still printed its "saved"/decision output and exited 0,
+  so the failure was visible only inside the summary CSV's `error` column
+  (posthoc and convergence) or the log file (live).
+- Added a version-tolerant `arviz.hdi` wrapper (`optstop._compat.hdi`) used at
+  every group-level HDI call site. It calls `az.hdi(..., hdi_prob=...)` first
+  (the validated arviz 0.x API) and falls back to `prob=` on newer arviz where
+  the keyword was renamed, so the CLI no longer fails wholesale with
+  `hdi got an unexpected keyword argument: 'hdi_prob'` on recent arviz. This
+  handles the `hdi` keyword only; full arviz-1.x support is not claimed.
+- CLI entry points now force UTF-8 on stdout/stderr, preventing
+  `UnicodeEncodeError` from non-ASCII output on Windows consoles (cp1252/cp437).
+
+### Changed
+
+#### Low-Performance Stopping Gate
+- At the **group** level, automatic precision and slope-stabilisation stops are
+  now suppressed for **all three pathways** (binary, continuous, and ordinal)
+  while observed performance is below `low_performance_threshold`. Previously the
+  width and slope thresholds were only relaxed (via `conservatism`) below the
+  threshold, so accumulated null data could still stop before a rare event was
+  ever observed - the opposite of what a low-base-rate search needs. Holding the
+  stop until the observed rate clears the threshold keeps the search sampling
+  until the event appears; the post-event interval can then trigger the ordinary
+  precision stop. This makes `low_performance_threshold` usable as a
+  detection-then-stop trigger (see README, "Detecting low base-rate
+  capabilities").
+- At the **item/sample** level the gate is applied to the binary and continuous
+  pathways only. Ordinal items need no separate gate: the ordinal estimators
+  already apply a sample-size-scaled minimum-width floor (`1/(ordinal_max_score·√n)`) that holds
+  an item off a premature stop on homogeneous near-zero data. That floor decays
+  as `1/√n`, however, so on a genuinely absent capability the ordinal group modal
+  width eventually crosses `delta_cap` - which is why the group-level suppression
+  above is applied to ordinal as well, as a backstop.
+- At very low continuous rates the reported interval could also narrow
+  spuriously, giving an additional reason to withhold the stop until the observed
+  rate clears the threshold. (Note: the continuous likelihood applies a separate
+  variance clamp, `clip(mu_item, 0.01, 0.99)`, in this regime; the interaction
+  with the reported width has not been fully characterised and is not relied on
+  here.)
+
+### Added
+- `pinned` field (default `False`) on binary/continuous group-level results and
+  in the bridge `stabilization_histories`: `True` when the whole reported
+  interval lies below the resolution floor, i.e. the estimate is qualitative.
+- `low_perf_floor` field (default `False`) on ordinal group-level results and in
+  the bridge `stabilization_histories`: `True` when the resolved normalised
+  performance is below `low_performance_threshold`. This is the ordinal
+  counterpart to `pinned`, but is telemetry only and carries no reliability
+  caveat - the ordinal estimator has no location clamp, so the low estimate is
+  data-faithful. Does not affect stopping.
+- `low_perf_stop_suppressed` field indicating a group-level stop (binary,
+  continuous, or ordinal) was withheld because observed performance was below
+  `low_performance_threshold`.
+- `LOGIT_CLAMP` and `RESOLUTION_FLOOR` module constants in `rule.py`.
+- README subsection "Detecting low base-rate capabilities" describing how to use
+  `low_performance_threshold` as a detection-then-stop trigger.
+- Python 3.13 added to the package classifiers - in both `pyproject.toml` and the
+  retained `setup.py` - and to the CI test matrix (issue #4).
+- CI now runs the test suite one file per process to avoid a full-suite PyMC
+  model-context cascade, with `fail-fast: false` and `PYTHONIOENCODING=utf-8`
+  (issue #4).
+- Installation instructions now use the GitHub `pip install "git+https://..."`
+  form, since optstop is not yet published on PyPI (issue #4).
+
+### Upgrade Notes
+- Expect wider, lower intervals **only** for group-level rates below ~0.25%;
+  mid-range and high-rate results are unchanged (the reporting transform equals
+  the old value wherever the posterior stays within `±6` logits).
+- `pinned=True` marks whole-interval-sub-floor groupings: treat the estimate
+  qualitatively and report the raw proportion as well.
+- To detect a rare capability and stop once it is observed, set
+  `low_performance_threshold` to the success rate of interest (see README,
+  "Detecting low base-rate capabilities").
+
+---
+
 ## [0.4.0] - 2026-03-18
 
 ### Added
@@ -45,6 +151,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - `setup.py` removed; `pyproject.toml` is now the sole build configuration
+  (note: `setup.py` was later reinstated and is present as of 0.5.0)
 
 ### Upgrade Notes
 - **`entropy_stabilization_threshold`**: The old parameter name still works but triggers a deprecation warning. The value semantics have changed - old values (e.g., 0.002) will be passed through but are on the wrong scale for the new mechanism. Remove custom values to use the new default (0.10), or set `entropy_convergence_threshold` explicitly.
@@ -89,13 +196,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `random_seed` parameter for `OptimalStoppingManager`
   - User can specify seed for reproducible MCMC inference
   - If not specified, auto-generates seed using system entropy
-  - Seed is always logged immediately at manager initialization
+  - Seed is always logged immediately at manager initialisation
   - Seed included in `complete_task()` diagnostics output
   - Seed passed directly to PyMC via `sampling_kwargs['random_seed']`
 
 #### Configurable Ordinal Stopping
 - `entropy_stabilization_threshold` parameter in `optstop_params`
-  - Controls ordinal hybrid Pathway 2 (entropy stabilization) sensitivity
+  - Controls ordinal hybrid Pathway 2 (entropy stabilisation) sensitivity
   - Default: 0.002 (0.2% relative change threshold)
   - Lower values = more conservative (require more stability)
   - Higher values = more aggressive (stop with less stability)
@@ -112,7 +219,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed redundant `np.random.seed()` calls in `rule.py` and `convergence.py`
   - Seed now passed directly to PyMC via sampling_kwargs
   - Cleaner, more reliable seed propagation
-  - No change in behavior for users
+  - No change in behaviour for users
 
 #### Documentation
 - Updated `BRIDGE_API_REFERENCE.md` (v1.1)
@@ -166,7 +273,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shadow mode**: Run all trials while tracking what would have stopped (for A/B testing)
 - **Score validation**: Comprehensive validation for binary vs. ordinal, discrete vs. continuous
 - **Process cleanup**: Proper ThreadPoolExecutor management with graceful shutdown
-- **Stabilization histories**: Per-grouping tracking of CI widths, slopes, and entropy
+- **Stabilisation histories**: Per-grouping tracking of CI widths, slopes, and entropy
 
 #### Infrastructure & Versioning
 - **Version management**: Created `optstop/__version__.py` for programmatic version access

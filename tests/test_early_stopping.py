@@ -44,6 +44,11 @@ except ImportError:
 # FIXTURES
 # ============================================================================
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 @pytest.fixture
 def valid_optstop_params():
     """Valid optstop_params for testing."""

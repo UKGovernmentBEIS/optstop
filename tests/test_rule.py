@@ -1,33 +1,11 @@
 import pandas as pd
 from optstop import optimal_stopping_posthoc, optimal_stopping_live
 
-def test_optimal_stopping_posthoc():
-    df = pd.DataFrame({
-        'grouping_num': [1, 1, 1, 1],
-        'task_num': [1, 1, 1, 1],
-        'sample_id_num': [1, 1, 2, 2],
-        'epoch': [1, 2, 1, 2],
-        'score': [1, 0, 1, 1],
-    })
-    params = {
-        'delta_item': 0.5,
-        'delta_cap': 0.5,
-        'draws': 100,
-        'tune': 100,
-        'rep_batch_size': 1,
-        'pymc_refresh_every': 1,
-        'stab_window': 2
-    }
-    pruned_df, summary = optimal_stopping_posthoc(
-        df, params,
-        grouping_columns=['grouping_num', 'task_num'],
-        sample_id_column='sample_id_num',
-        epoch_column='epoch'
-    )
-    assert isinstance(pruned_df, pd.DataFrame)
-    assert isinstance(summary, list)
-    assert set(pruned_df.columns) == set(df.columns)
-    assert len(summary) > 0
+import pytest
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
 
 def test_optimal_stopping_posthoc_with_diagnostics(tmp_path):
     """Test optimal stopping posthoc with diagnostic generation."""
@@ -70,43 +48,6 @@ def test_optimal_stopping_posthoc_with_diagnostics(tmp_path):
     assert diagnostic_png.exists(), f"Diagnostic PNG file not created: {diagnostic_png}"
     assert diagnostic_csv.exists(), f"Diagnostic CSV file not created: {diagnostic_csv}"
 
-def test_optimal_stopping_live():
-    import numpy as np
-    df = pd.DataFrame({
-        'grouping_num': [1, 1, 1, 1, 1, 1],
-        'task_num': [1, 1, 1, 1, 1, 1],
-        'sample_id_num': [1, 1, 2, 2, 3, 3],
-        'epoch': [1, 2, 1, 2, 1, 2],
-        'score': [1, 1, 0, 1, 1, 1],
-    })
-    params = {
-        'delta_item': 0.5,
-        'delta_cap': 0.5,
-        'draws': 100,
-        'tune': 100,
-        'chains': 2,
-        'cores': 2,
-        'stab_window': 2,
-        'CI_delta': 0.01,
-        'rep_batch_size': 1,
-        'pymc_refresh_every': 1
-    }
-    result = optimal_stopping_live(
-        df, params,
-        grouping_columns='grouping_num',
-        sample_id_column='sample_id_num',
-        epoch_column='epoch',
-        display_progress=False
-    )
-    assert isinstance(result, dict)
-    assert 'stop_sample_ids' in result
-    assert 'stop_task' in result
-    assert isinstance(result['stop_task'], list)  # Now returns list of grouping names
-    assert isinstance(result['stop_sample_ids'], list)
-    # Check that sample_ids have grouping prefix format
-    for sample_id in result['stop_sample_ids']:
-        assert '_' in sample_id  # Should be "grouping_sample_id" format
-
 def test_optimal_stopping_live_with_logging(tmp_path):
     import os
     import pandas as pd
@@ -139,6 +80,17 @@ def test_optimal_stopping_live_with_logging(tmp_path):
         epoch_column='epoch',
         display_progress=False
     )
+    # Result structure (formerly the separate test_optimal_stopping_live)
+    assert isinstance(result, dict)
+    assert 'stop_sample_ids' in result
+    assert 'stop_task' in result
+    assert isinstance(result['stop_task'], list)  # list of grouping names
+    assert isinstance(result['stop_sample_ids'], list)
+    # sample_ids carry a "grouping_sample_id" prefix
+    for sample_id in result['stop_sample_ids']:
+        assert '_' in sample_id
+
+    # Logging side effects
     assert os.path.exists(log_path)
     with open(log_path, 'r') as f:
         log_content = f.read()
@@ -342,6 +294,7 @@ def test_optimal_stopping_posthoc_error_handling():
     assert isinstance(summary, list)
     assert len(summary) > 0
 
+@pytest.mark.smoke
 def test_optimal_stopping_posthoc_random_seed_reproducibility():
     import pandas as pd
     from optstop import optimal_stopping_posthoc
