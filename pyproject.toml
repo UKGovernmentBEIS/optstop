@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "optstop"
-version = "0.4.0"
+version = "0.5.0"
 description = "Adaptive optimal stopping rule algorithms for efficient data collection and analysis"
 authors = [
     { name = "Toby D. Pilditch, PhD" }
@@ -20,18 +20,20 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering",
 ]
-# Runtime deps use lower bounds only. optstop was validated against the
-# numpy 1.x / pandas 2.x / pymc 5.x generation; rather than cap the next major
-# here (upper caps on a library constrain downstream consumers' environments),
-# the committed requirements-lock.txt pins the exact validated set - including
-# transitive deps - for a reproducible install and test run.
+# Runtime deps use lower bounds only, with one evidence-based exception: arviz
+# is capped <1.0 because arviz 1.x changed the hdi() return structure in a way
+# the package's CI extraction does not support (this also transitively pins
+# pymc<6, which requires arviz>=1.1). All other majors (numpy 2, pandas 3) are
+# verified working and left uncapped. The committed requirements-lock.txt pins
+# the exact validated set for a fully reproducible install.
 dependencies = [
     "numpy>=1.24",
     "pandas>=2.0",
     "pymc>=5.10.0",
-    "arviz>=0.17",
+    "arviz>=0.17,<1.0",
     "scipy>=1.10",
     "matplotlib>=3.7",
     "tqdm>=4.60",

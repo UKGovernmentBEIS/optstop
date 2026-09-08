@@ -15,6 +15,8 @@ CPU execution across all inference pathways (binary, ordinal, continuous).
 """
 
 import logging
+import multiprocessing
+import os
 import subprocess
 from typing import Dict, Any, Optional, Tuple, List
 
@@ -819,6 +821,46 @@ def get_sampling_kwargs(params: Dict[str, Any], gpu_available: bool, gpu_backend
         if should_log:
             logger.info(f"Configured sampling for CPU: pymc ({sampler_desc}) - chains={sampling_kwargs['chains']}, cores={sampling_kwargs['cores']}")
         # No nuts_sampler set = PyMC default
+
+    # Avoid nested-multiprocessing oversubscription inside optstop worker pools.
+    # The posthoc/live/convergence pathways run each grouping in a
+    # ProcessPoolExecutor worker; if pm.sample() there uses cores>1 it spawns
+    # grandchild chain-processes (spawn start method), which each cold-recompile
+    # PyTensor on every group refresh. When the pool already saturates the CPUs,
+    # those grandchildren oversubscribe: resource churn intermittently kills a
+    # worker ("A process in the process pool terminated abruptly") and, even when
+    # it survives, runs several times slower.
+    #
+    # The clamp is condition-aware, gated on a POSITIVE signal that we are inside
+    # an optstop pool: the parent sets OPTSTOP_WORKER_POOL_SIZE=<pool width> just
+    # before creating the pool (spawned workers inherit it) and pops it after. We
+    # then allocate cores proportionally - cpu_count // pool_width - so a
+    # single-/few-grouping pool keeps its chain parallelism (pool_width=1 -> no
+    # reduction) while a pool that already fills the CPUs drops to cores=1. Chains
+    # are unchanged (still run, just with less parallelism), so the posterior is
+    # statistically identical (bitwise with a fixed random_seed).
+    #
+    # Using the env var (not just "am I a non-main process") avoids a
+    # false-positive on hosts that run live_single/bridge inside their OWN
+    # multiprocessing child (name != MainProcess but no optstop pool, so the env
+    # var is absent -> no clamp). The main process is never clamped either (the
+    # env var is only live for the pool's lifetime, and MainProcess is excluded).
+    _pool_size_env = os.environ.get('OPTSTOP_WORKER_POOL_SIZE')
+    if _pool_size_env is not None and multiprocessing.current_process().name != 'MainProcess':
+        n_cpu = os.cpu_count() or 1
+        try:
+            pool_width = max(1, int(_pool_size_env))
+        except ValueError:
+            pool_width = n_cpu
+        # Never raise cores above what was configured; only reduce to avoid oversubscription.
+        clamped_cores = max(1, min(sampling_kwargs['cores'], n_cpu // pool_width))
+        if clamped_cores != sampling_kwargs['cores']:
+            if should_log:
+                logger.info(
+                    f"Clamping cores {sampling_kwargs['cores']} -> {clamped_cores} inside optstop "
+                    f"worker pool (pool_width={pool_width}, cpu_count={n_cpu}) to avoid oversubscription"
+                )
+            sampling_kwargs['cores'] = clamped_cores
 
     # Mark as logged after first successful configuration
     if should_log:

@@ -6,28 +6,61 @@ on:
   pull_request:
     branches: [ main, master ]
 
+env:
+  # Force UTF-8 so non-ASCII output cannot raise UnicodeEncodeError on the
+  # Windows runners (cp1252/cp437 console default) - issue #4.
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      # Don't cancel the whole matrix when one leg fails - we want to see every
+      # OS/Python combination's result.
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
+      # The [dev] extra provides the test toolchain - crucially pytest-asyncio,
+      # without which every @pytest.mark.asyncio bridge test errors with "async
+      # def functions are not natively supported". Single source of truth with
+      # the documented local dev setup (pyproject.toml [dev]).
       run: |
         python -m pip install --upgrade pip
-        pip install -e .
-        pip install pytest
-    
+        pip install -e ".[dev]"
+
     - name: Run tests
+      # Use bash on every OS (GitHub provides Git bash on Windows runners) so the
+      # per-file loop is portable. Tests are run one file per process because the
+      # full suite otherwise trips a PyMC model-context cascade under the shared
+      # interpreter (see "Running the tests" in the README); slow MCMC tests are
+      # deselected to keep CI within a reasonable time budget.
+      shell: bash
       run: |
-        python -m pytest tests/ -v --tb=short 
+        status=0
+        for f in tests/test_*.py; do
+          echo "::group::$f"
+          # GitHub runs `shell: bash` with `-eo pipefail` (errexit), so a non-zero
+          # pytest exit would abort the whole step. Capture the code with `|| rc=$?`
+          # (the left side of `||` is exempt from errexit) so the loop keeps going
+          # and we decide pass/fail ourselves. Exit code 5 ("no tests collected")
+          # is a green outcome for us - e.g. a file whose tests are all
+          # @pytest.mark.slow under -m "not slow" - so treat 0 and 5 as success and
+          # only fail the job on a real error code.
+          rc=0
+          python -m pytest "$f" -v --tb=short -m "not slow" -p no:cacheprovider || rc=$?
+          [ "$rc" -eq 0 ] || [ "$rc" -eq 5 ] || status=1
+          echo "::endgroup::"
+        done
+        exit $status

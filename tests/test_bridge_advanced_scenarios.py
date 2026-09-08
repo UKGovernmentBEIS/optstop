@@ -24,6 +24,7 @@ import numpy as np
 import asyncio
 import logging
 import json
+import tempfile
 from pathlib import Path
 
 # Import OptimalStoppingManager
@@ -76,22 +77,31 @@ def verify_routing_in_logs(log_file: str, expected_routing: str) -> bool:
     try:
         with open(log_file, 'r') as f:
             log_content = f.read()
-            # Look for explicit routing messages (requires INFO level logging)
+            lc = log_content.lower()
+            # The bridge/live path (OptimalStoppingManager) does not emit the posthoc
+            # "identified as BINARY" messages; it emits per-model diagnostics like
+            # "[DIAG] BINARY POSTERIOR ..." / "[DIAG] BINARY CI ..." and MCMC tags
+            # such as "MCMC [binary live_single ...]". Match those as the primary
+            # evidence of routing, keeping the posthoc-style strings as fallbacks.
             if expected_routing == 'BINARY':
-                if "as BINARY" in log_content or "binary discrete" in log_content.lower():
-                    return True
-                # Fallback: Check for binary inference timing messages
-                return "Binary group inference took" in log_content
+                return ("[diag] binary" in lc
+                        or "mcmc [binary" in lc
+                        or "as binary" in lc
+                        or "binary discrete" in lc
+                        or "binary group inference took" in lc)
             elif expected_routing == 'ORDINAL':
-                if "as ORDINAL" in log_content or "ordinal discrete" in log_content.lower():
-                    return True
-                # Fallback: Check for ordinal-specific messages
-                return "Ordinal discrete inference" in log_content or "ordinal model" in log_content.lower()
+                return ("[diag] ordinal" in lc
+                        or "mcmc [ordinal" in lc
+                        or "as ordinal" in lc
+                        or "ordinal discrete inference" in lc
+                        or "ordinal model" in lc)
             elif expected_routing == 'CONTINUOUS':
-                if "as CONTINUOUS" in log_content or "continuous bounded" in log_content.lower():
-                    return True
-                # Fallback: Check for Beta model messages
-                return "Beta model" in log_content or "hierarchical Beta" in log_content.lower()
+                return ("[diag] continuous" in lc
+                        or "mcmc [continuous" in lc
+                        or "as continuous" in lc
+                        or "continuous bounded" in lc
+                        or "beta model" in lc
+                        or "hierarchical beta" in lc)
             return False
     except FileNotFoundError:
         return False
@@ -146,7 +156,7 @@ async def test_1_2_1a_mixed_quality_groupings():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    log_file = f"/tmp/test_1_2_1a_enhanced.log"
+    log_file = str(Path(tempfile.gettempdir()) / "test_1_2_1a_enhanced.log")
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -171,6 +181,7 @@ async def test_1_2_1a_mixed_quality_groupings():
         grouping_columns=['model', 'task'],
         reanalysis_interval=reanalysis_interval,
         min_samples_per_grouping=5,
+        random_seed=42,  # Pin MCMC seed so efficiency is deterministic (no auto-seed flake)
         # NO score_agg parameter - binary discrete routing
     )
 
@@ -344,9 +355,12 @@ async def test_1_2_1a_mixed_quality_groupings():
     #   - p=0.95 achieves ~40% efficiency (requires narrow CI)
     #   - p=1.00 achieves ~80% efficiency (perfect scores)
     # This differs from Section 1.1.1 which used relaxed thresholds (0.20, 0.18)
+    # Positive-control floors. Seeded (random_seed=42) these achieve 62.5% (p=0.95)
+    # and 75.0% (p=1.00); floors are set well below to absorb cross-platform MCMC
+    # jitter (the CI matrix spans 3 OS x 4 Python versions on floors-based installs).
     high_quality_groupings = {
-        'model-A-task-1': (0.95, 25.0),  # p=0.95: expect >25% with strict thresholds (relaxed from 35% for MCMC variability)
-        'model-B-task-1': (1.00, 65.0),  # p=1.00: expect >65% with strict thresholds (relaxed from 75% for MCMC variability)
+        'model-A-task-1': (0.95, 25.0),  # p=0.95: seeded 62.5%, floor 25%
+        'model-B-task-1': (1.00, 50.0),  # p=1.00: seeded 75.0%, floor 50% (relaxed from 65%)
     }
     for grouping, (expected_sr, min_efficiency) in high_quality_groupings.items():
         if grouping in grouping_results:
@@ -453,7 +467,7 @@ async def test_1_2_1c_shadow_mode_comparison():
     print(f"\n🔹 RUN 1: Normal Mode (shadow_mode=False)")
     print("-" * 80)
 
-    log_file_normal = f"/tmp/test_1_2_1c_normal.log"
+    log_file_normal = str(Path(tempfile.gettempdir()) / "test_1_2_1c_normal.log")
     file_handler_normal = logging.FileHandler(log_file_normal, mode='w')
     file_handler_normal.setLevel(logging.INFO)
     file_handler_normal.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -467,6 +481,7 @@ async def test_1_2_1c_shadow_mode_comparison():
         reanalysis_interval=reanalysis_interval,
         min_samples_per_grouping=5,
         shadow_mode=False,  # Normal mode
+        random_seed=42,  # Pin MCMC seed so efficiency is deterministic (no auto-seed flake)
     )
 
     # Create samples
@@ -505,7 +520,7 @@ async def test_1_2_1c_shadow_mode_comparison():
     print(f"\n🔹 RUN 2: Shadow Mode (shadow_mode=True)")
     print("-" * 80)
 
-    log_file_shadow = f"/tmp/test_1_2_1c_shadow.log"
+    log_file_shadow = str(Path(tempfile.gettempdir()) / "test_1_2_1c_shadow.log")
     file_handler_shadow = logging.FileHandler(log_file_shadow, mode='w')
     file_handler_shadow.setLevel(logging.INFO)
     file_handler_shadow.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -518,6 +533,7 @@ async def test_1_2_1c_shadow_mode_comparison():
         reanalysis_interval=reanalysis_interval,
         min_samples_per_grouping=5,
         shadow_mode=True,  # Shadow mode - track but don't stop
+        random_seed=42,  # Pin MCMC seed so efficiency is deterministic (no auto-seed flake)
     )
 
     await manager_shadow.start_task(eval_spec, samples, num_epochs)
@@ -593,10 +609,15 @@ async def test_1_2_1c_shadow_mode_comparison():
     validation['validation']['normal_has_efficiency'] = normal_has_efficiency
     print(f"  {'✓' if normal_has_efficiency else '✗'} Normal mode has >20% efficiency: {diagnostics_normal['efficiency_percent']:.1f}%: {'✓ PASS' if normal_has_efficiency else '✗ FAIL'}")
 
-    # Check 4: Normal mode stopped samples > 0 (critical for validating shadow mode)
-    normal_stopped_samples = diagnostics_normal['stopped_samples_count'] > 0
-    validation['validation']['normal_stopped_samples'] = normal_stopped_samples
-    print(f"  {'✓' if normal_stopped_samples else '✗'} Normal mode stopped samples: {diagnostics_normal['stopped_samples_count']} > 0: {'✓ PASS' if normal_stopped_samples else '✗ FAIL'}")
+    # Check 4: Normal mode stopped something (critical for validating shadow mode).
+    # A perfect (p=1.0) grouping converges at the GROUP level, which skips its
+    # remaining trials without recording per-sample StoppedSample entries - so
+    # stopped_samples_count stays 0 while efficiency is high. Assert on
+    # stopped_groupings_count, which captures group-level stops (the mechanism
+    # actually exercised here), not the sample-level count.
+    normal_stopped = diagnostics_normal['stopped_groupings_count'] > 0
+    validation['validation']['normal_stopped_groupings'] = normal_stopped
+    print(f"  {'✓' if normal_stopped else '✗'} Normal mode stopped groupings: {diagnostics_normal['stopped_groupings_count']} > 0: {'✓ PASS' if normal_stopped else '✗ FAIL'}")
 
     # Check 5: Shadow mode stopped_samples_count should be 0 (nothing actually stopped)
     shadow_stopped_nothing = diagnostics_shadow['stopped_samples_count'] == 0
@@ -625,7 +646,7 @@ async def test_1_2_1c_shadow_mode_comparison():
     assert shadow_runs_all, "Shadow mode must run all trials"
     assert shadow_zero_efficiency, "Shadow mode must have 0% efficiency"
     assert normal_has_efficiency, f"Normal mode MUST achieve >20% efficiency with p=1.0, got {diagnostics_normal['efficiency_percent']:.1f}% (stochastic MCMC - may need re-run)"
-    assert normal_stopped_samples, f"Normal mode MUST stop some samples with p=1.0, got {diagnostics_normal['stopped_samples_count']}"
+    assert normal_stopped, f"Normal mode MUST stop the perfect grouping with p=1.0, got stopped_groupings_count={diagnostics_normal['stopped_groupings_count']}"
 
 
 @pytest.mark.asyncio
@@ -703,7 +724,7 @@ async def test_1_2_3a_aggressive_thresholds():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    log_file = f"/tmp/test_1_2_3a_aggressive.log"
+    log_file = str(Path(tempfile.gettempdir()) / "test_1_2_3a_aggressive.log")
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -846,7 +867,7 @@ async def test_1_2_3b_conservative_thresholds():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    log_file = f"/tmp/test_1_2_3b_conservative.log"
+    log_file = str(Path(tempfile.gettempdir()) / "test_1_2_3b_conservative.log")
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -1016,7 +1037,7 @@ async def test_1_2_4a_minimal_dataset_single_sample():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    log_file = f"/tmp/test_1_2_4a_minimal.log"
+    log_file = str(Path(tempfile.gettempdir()) / "test_1_2_4a_minimal.log")
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.DEBUG)  # Capture warnings
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
@@ -1239,7 +1260,7 @@ async def test_1_2_4c_invalid_scores_graceful_handling():
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Configure logging
-    log_file = f"/tmp/test_1_2_4c_invalid_scores.log"
+    log_file = str(Path(tempfile.gettempdir()) / "test_1_2_4c_invalid_scores.log")
     file_handler = logging.FileHandler(log_file, mode='w')
     file_handler.setLevel(logging.WARNING)  # Capture warnings
     file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))

@@ -30,6 +30,9 @@ import arviz as az
 from . import gpu_utils
 from . import cleanup_utils
 
+# arviz version-compatibility shim (hdi_prob -> prob rename in arviz-stats 1.0)
+from ._compat import hdi as _hdi
+
 # Import ordinal scoring utilities
 from .ordinal_utils import (
     _ordinal_ci_adaptive,
@@ -39,8 +42,8 @@ from .ordinal_utils import (
     determine_score_type_standalone
 )
 
-# Import continuous scoring utilities
-from .rule import _continuous_bounded_ci_adaptive
+# Import continuous scoring utilities and shared numerical constants
+from .rule import _continuous_bounded_ci_adaptive, LOGIT_CLAMP, _warn_ci_fallback
 
 # Suppress PyMC logging and warnings
 logging.getLogger('pymc').setLevel(logging.ERROR)
@@ -961,8 +964,10 @@ def _process_grouping(args):
                     trials_data = pm.Data("trials", np.array([1]))
                     z = pm.Normal("z", mu=0, sigma=1, shape=n_items)
                     mu_item = pm.Deterministic("mu_item", mu_group + z * sigma_group)
-                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -6.0, 6.0))
+                    mu_item_clipped = pm.Deterministic("mu_item_clipped", pm.math.clip(mu_item, -LOGIT_CLAMP, LOGIT_CLAMP))
                     Theta = pm.Deterministic("Theta", pm.math.sigmoid(mu_item_clipped))
+                    # Issue #3: report CI from the UNCLIPPED transform (no sigmoid(-6) floor); clamp stays in likelihood only
+                    Theta_report = pm.Deterministic("Theta_report", pm.math.sigmoid(mu_item))
                     pm.Binomial("obs", n=trials_data, p=Theta, observed=successes_data)
             item_ids = list(df_part['sample_id_num'].unique())
             np.random.shuffle(item_ids)
@@ -1078,8 +1083,19 @@ def _process_grouping(args):
                                     recent_slopes = epoch_CI_slopes[-3:]
                                     slope_slopes = np.polyfit(range(len(recent_slopes)), recent_slopes, 1)[0]
                                     epoch_slope_slopes.append(slope_slopes)
-                                # Only check slope/slopes if they are set
-                                if (width < delta_item) or (slope is not None and slope_slopes is not None and abs(slope) <= slope_threshold and len(epoch_CI_slopes) >= 4 and slope_slopes >= 0):
+                                # Only check slope/slopes if they are set.
+                                # Issue #3: low-performance binary AND continuous items must NOT be
+                                # marked converged - their CI collapses on near-constant near-floor
+                                # data (n=2), which would report "0 additional trials" for a genuinely
+                                # unresolved sub-floor rate. Route them to group-level governance /
+                                # projection instead by withholding the convergence mark. curr_perf_estimate
+                                # is the raw observed rate for binary (successes/trials) and is normalized
+                                # to [0,1] for continuous (see above); both are conservatism-independent.
+                                # Ordinal is out of scope (_conv_ok stays True).
+                                _conv_ok = True
+                                if score_type in ['binary', 'continuous_01', 'continuous_bounded']:
+                                    _conv_ok = curr_perf_estimate >= low_perf_threshold
+                                if _conv_ok and ((width < delta_item) or (slope is not None and slope_slopes is not None and abs(slope) <= slope_threshold and len(epoch_CI_slopes) >= 4 and slope_slopes >= 0)):
                                     epoch_scores.append(1)
                                 else:
                                     epoch_scores.append(0)
@@ -1186,19 +1202,20 @@ def _process_grouping(args):
                             if trace is not None:
                                 try:
                                     # Extract item-level Theta posterior samples (shape: chains × draws × items)
-                                    theta_samples = trace.posterior["Theta"].values
+                                    theta_samples = trace.posterior["Theta_report"].values  # Issue #3: unclipped reporting transform
                                     # Compute mean across items for each posterior sample
                                     mean_theta_samples = theta_samples.mean(axis=2)
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"mean_theta": mean_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"mean_theta": mean_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["mean_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["mean_theta"].sel(hdi="higher").values)
-                                except Exception:
+                                except Exception as _ci_exc:
+                                    _warn_ci_fallback(_ci_exc)
                                     # Fallback: use sigmoid(mu_group)
                                     mu_group_samples = trace.posterior["mu_group"].values
                                     group_theta_samples = 1.0 / (1.0 + np.exp(-mu_group_samples))
                                     with suppress_all_output():
-                                        group_hdi = az.hdi({"group_theta": group_theta_samples}, hdi_prob=cred_level)
+                                        group_hdi = _hdi({"group_theta": group_theta_samples}, cred_level)
                                     theta_lo = float(group_hdi["group_theta"].sel(hdi="lower").values)
                                     theta_hi = float(group_hdi["group_theta"].sel(hdi="higher").values)
                             else:
@@ -1296,8 +1313,20 @@ def _process_grouping(args):
                         else:
                             slope = None
                             slope_slopes = None
-                        # Only check slope/slopes if they are set
-                        if (effective_width < delta_cap) or (slope is not None and slope_slopes is not None and abs(slope) <= slope_threshold and len(CI_slopes_hist) >= 2 and slope_slopes >= 0):
+                        # Only check slope/slopes if they are set.
+                        # issue #3: mirror the item-level _conv_ok guard
+                        # (see above) - a below-threshold binary or continuous grouping must not be
+                        # marked converged, since its width can collapse spuriously at
+                        # near-zero rates rather than reflecting real precision.
+                        # NOTE: this item_scores marking block is reached only for the
+                        # ordinal branch (binary/continuous never append to item_scores
+                        # here), so the binary/continuous clause below is defensive dead code kept
+                        # for refactor-safety - it does NOT currently protect any live
+                        # binary/continuous convergence path. No effect on ordinal (stays True).
+                        _grp_conv_ok = True
+                        if score_type in ['binary', 'continuous_01', 'continuous_bounded']:
+                            _grp_conv_ok = current_perf_estimate >= low_perf_threshold
+                        if _grp_conv_ok and ((effective_width < delta_cap) or (slope is not None and slope_slopes is not None and abs(slope) <= slope_threshold and len(CI_slopes_hist) >= 2 and slope_slopes >= 0)):
                             item_scores.append(1)
                         else:
                             item_scores.append(0)
@@ -1613,6 +1642,10 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
             if mp.get_start_method() != 'spawn':
                 mp.set_start_method('spawn', force=True)
 
+            # Issue #3 crash fix: signal the pool width to workers (inherited via spawn)
+            # so get_sampling_kwargs clamps cores proportionally. Popped in finally.
+            os.environ['OPTSTOP_WORKER_POOL_SIZE'] = str(final_max_workers)
+
             with concurrent.futures.ProcessPoolExecutor(max_workers=final_max_workers) as executor:
                 # Submit tasks with individual worker initialization
                 futures = []
@@ -1649,6 +1682,8 @@ def convergence_posthoc(df: pd.DataFrame, params: dict, grouping_columns: List[s
                 except RuntimeError:
                     # Start method can only be set once, ignore if already set
                     pass
+            # Issue #3 crash fix: clear the pool-width signal (see rule.py posthoc path).
+            os.environ.pop('OPTSTOP_WORKER_POOL_SIZE', None)
 
         logger.info('Convergence analysis complete')
         output_df = pd.DataFrame(results)

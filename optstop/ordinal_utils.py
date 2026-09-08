@@ -31,6 +31,9 @@ import numpy as np
 import logging
 from typing import Tuple, Optional, Dict
 
+# arviz version-compatibility shim (hdi_prob -> prob rename in arviz-stats 1.0)
+from ._compat import hdi as _hdi
+
 # Import trace_message for inspect_ai integration (with fallback)
 try:
     from inspect_ai.util import trace_message
@@ -734,7 +737,7 @@ def _ordinal_ci_hierarchical_modal(
     modal_samples = trace.posterior["modal_group"].values.flatten()
 
     # Compute HDI on modal category
-    modal_hdi = az.hdi(trace.posterior["modal_group"], hdi_prob=cred_level)
+    modal_hdi = _hdi(trace.posterior["modal_group"], cred_level)
 
     try:
         lo_cat = float(modal_hdi["modal_group"].sel(hdi="lower").values)
@@ -916,7 +919,7 @@ def _ordinal_ci_hierarchical_entropy(
     entropy_samples_scaled = entropy_samples_raw / max_entropy
 
     # Compute HDI on scaled entropy
-    entropy_hdi = az.hdi(trace.posterior["entropy_group"], hdi_prob=cred_level)
+    entropy_hdi = _hdi(trace.posterior["entropy_group"], cred_level)
 
     try:
         lo_raw = float(entropy_hdi["entropy_group"].sel(hdi="lower").values)
