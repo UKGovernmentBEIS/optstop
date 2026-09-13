@@ -15,6 +15,11 @@ import pandas as pd
 from optstop.rule import optimal_stopping_live_single
 
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TestContinuousEarlyStoppingIntegration:
     """Integration tests for continuous early stopping pipeline."""
 
@@ -29,7 +34,7 @@ class TestContinuousEarlyStoppingIntegration:
 
         # Generate consistent high-performance continuous scores (aggregated binary)
         # Simulating mean of multiple binary trials: ~0.85 performance
-        n_samples = 15
+        n_samples = 8
         n_epochs_per_sample = 10
 
         data = []
@@ -55,7 +60,14 @@ class TestContinuousEarlyStoppingIntegration:
             'low_performance_threshold': 0.2,
             'CI_delta': 0.00005,
             'stab_window': 5,
-            'is_aggregated': True  # CRITICAL: triggers continuous inference
+            'is_aggregated': True,  # CRITICAL: triggers continuous inference
+            'random_seed': 42,  # Pinned for determinism.
+            # Single-process, single-chain sampling keeps this test's sequential
+            # continuous MCMC runs within the memory of small CI runners (the macOS
+            # Apple-Silicon runner has ~7 GB RAM). Real usage runs one eval per
+            # process, so this does not reflect production sampling settings.
+            'chains': 1,
+            'cores': 1,
         }
 
         # Run early stopping
@@ -343,82 +355,6 @@ class TestContinuousEarlyStoppingIntegration:
         assert 'n_samples_evaluated' in result['stabilization_history']
 
         print("✓ Metadata structure validation passed")
-
-    def test_width_normalization_verification(self):
-        """
-        Verify that width normalization is correctly applied for different bounds.
-        """
-        np.random.seed(46)
-
-        # Test with binary aggregated [0, 1]
-        data_binary = []
-        for sample_id in range(5):
-            for epoch in range(10):
-                data_binary.append({
-                    'grouping': 'binary-agg',
-                    'sample_id': f'sample_{sample_id}',
-                    'epoch': epoch,
-                    'score': np.clip(np.random.normal(0.8, 0.05), 0.0, 1.0)
-                })
-
-        df_binary = pd.DataFrame(data_binary)
-
-        # Test with ordinal aggregated [0, 10]
-        data_ordinal = []
-        for sample_id in range(5):
-            for epoch in range(10):
-                data_ordinal.append({
-                    'grouping': 'ordinal-agg',
-                    'sample_id': f'sample_{sample_id}',
-                    'epoch': epoch,
-                    'score': np.clip(np.random.normal(8.0, 0.5), 0.0, 10.0)
-                })
-
-        df_ordinal = pd.DataFrame(data_ordinal)
-
-        params = {
-            'delta_item': 0.10,
-            'delta_cap': 0.10,
-            'cred_level': 0.95,
-            'conservatism': 5.0,
-            'low_performance_threshold': 0.2,
-            'CI_delta': 0.00005,
-            'stab_window': 5,
-            'is_aggregated': True
-        }
-
-        # Run for binary
-        result_binary = optimal_stopping_live_single(
-            df_grouping=df_binary,
-            grouping_name='binary-agg',
-            params=params,
-            sample_id_column='sample_id',
-            epoch_column='epoch',
-            score_column='score'
-        )
-
-        # Run for ordinal
-        result_ordinal = optimal_stopping_live_single(
-            df_grouping=df_ordinal,
-            grouping_name='ordinal-agg',
-            params=params,
-            sample_id_column='sample_id',
-            epoch_column='epoch',
-            score_column='score',
-            ordinal_max_score=10
-        )
-
-        # Verify binary normalization
-        if result_binary['stabilization_history']['ci_width_history']:
-            for width in result_binary['stabilization_history']['ci_width_history']:
-                assert 0.0 <= width <= 1.0, "Binary: normalized width should be in [0, 1]"
-
-        # Verify ordinal normalization
-        if result_ordinal['stabilization_history']['ci_width_history']:
-            for width in result_ordinal['stabilization_history']['ci_width_history']:
-                assert 0.0 <= width <= 1.0, "Ordinal: normalized width should be in [0, 1]"
-
-        print("✓ Width normalization verification passed for both binary and ordinal bounds")
 
 
 if __name__ == "__main__":

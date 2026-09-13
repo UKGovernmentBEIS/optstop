@@ -3,6 +3,7 @@ Command-line interface for the optstop package.
 """
 
 import argparse
+import sys
 import pandas as pd
 from .rule import configure_optstop_logging, optimal_stopping_posthoc, optimal_stopping_live
 from .convergence import convergence_posthoc
@@ -17,7 +18,24 @@ def close_all_log_handlers():
         handler.close()
         root.removeHandler(handler)
 
+def _ensure_utf8_stdio():
+    """Force UTF-8 on stdout/stderr so non-ASCII output cannot crash the CLI.
+
+    On Windows the console default is often cp1252/cp437, and any non-encodable
+    glyph raises UnicodeEncodeError mid-run (issue #4). Reconfiguring to UTF-8
+    makes CLI output encoding-robust. Guarded because pytest's capture objects
+    (and other redirected streams) may not expose ``reconfigure``.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if callable(reconfigure):
+            try:
+                reconfigure(encoding="utf-8")
+            except (ValueError, OSError):
+                pass
+
 def main():
+    _ensure_utf8_stdio()
     import warnings
     warnings.filterwarnings('ignore', message='.*effective sample size.*')
     warnings.filterwarnings('ignore', message='.*rhat.*')
@@ -61,7 +79,7 @@ def main():
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
         parser.add_argument('--generate_diagnostics', action='store_true', help='Generate diagnostic plots comparing full vs pruned datasets')
         parser.add_argument('--diagnostics_prefix', default='optstop_diagnostics', help='Prefix for diagnostic output files')
-        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which conservative stopping is applied (default: 0.01)')
+        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)')
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
@@ -140,9 +158,40 @@ def main():
         print(f"Pruned data saved to {args.output}")
         if args.summary:
             print(f"Summary saved to {args.summary}")
+
+        # Fail-loud policy (issue #4): grouping-level failures are otherwise
+        # visible only inside the summary CSV 'error' column, so a run that
+        # computes nothing still exits 0 and reports its files "saved". Surface
+        # failures on stderr, and exit non-zero when the run computed nothing.
+        n_total = len(summary)
+        failed = [s for s in summary if s.get('error')]
+        n_failed = len(failed)
+
+        if n_total == 0:
+            print("ERROR: no groupings were produced - the run computed nothing "
+                  "(check the input CSV and the grouping/column arguments).",
+                  file=sys.stderr)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed == n_total:
+            print(f"ERROR: all {n_total} grouping(s) failed - no statistics were "
+                  f"computed (see the 'error' column in the summary):",
+                  file=sys.stderr)
+            for s in failed:
+                print(f"  - grouping {s.get('grouping', '?')}: {s.get('error')}",
+                      file=sys.stderr)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed > 0:
+            print(f"WARNING: {n_failed} of {n_total} grouping(s) failed (see the "
+                  f"'error' column in the summary):", file=sys.stderr)
+            for s in failed:
+                print(f"  - grouping {s.get('grouping', '?')}: {s.get('error')}",
+                      file=sys.stderr)
     close_all_log_handlers()
 
 def main_live():
+    _ensure_utf8_stdio()
     import warnings
     warnings.filterwarnings('ignore', message='.*effective sample size.*')
     warnings.filterwarnings('ignore', message='.*rhat.*')
@@ -182,7 +231,7 @@ def main_live():
         parser.add_argument('--stab_window', type=int, default=15, help='Window size for assessing CI stabilization (default: 15)')
         parser.add_argument('--random_seed', type=int, default=None, help='Random seed for reproducible results (optional)')
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
-        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which conservative stopping is applied (default: 0.01)')
+        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)')
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
@@ -246,10 +295,46 @@ def main_live():
         )
         print("Sample IDs to stop:", result['stop_sample_ids'])
         print("Stop task/grouping?", result['stop_task'])
+
+        # Fail-loud policy (issue #4): optimal_stopping_live catches worker
+        # exceptions (both process death and internal MCMC/hdi crashes) and logs
+        # them to the (console-silenced) log file, so a run where every grouping
+        # crashed returns empty stop-lists that look exactly like a clean
+        # "nothing to stop" result. Surface the failure count and the per-grouping
+        # (name, error) - as the posthoc/convergence paths do - and exit non-zero
+        # when the run computed nothing. Internal failures carry the grouping
+        # name; a dead worker process is reported as '?' (name unrecoverable).
+        n_total = result.get('n_total', 0)
+        n_failed = result.get('n_failed', 0)
+        failed = result.get('failed_groupings', [])
+
+        def _print_failed_live(failed):
+            for f in failed:
+                name = f.get('grouping') or '?'
+                print(f"  - grouping {name}: {f.get('error')}", file=sys.stderr)
+
+        if n_total == 0:
+            print("ERROR: no groupings were produced - the run computed nothing "
+                  "(check the input CSV and the grouping/column arguments).",
+                  file=sys.stderr)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed == n_total:
+            print(f"ERROR: all {n_total} grouping(s) failed - no stopping "
+                  f"decisions were computed (see the log file '{args.log}'):",
+                  file=sys.stderr)
+            _print_failed_live(failed)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed > 0:
+            print(f"WARNING: {n_failed} of {n_total} grouping(s) failed (see the "
+                  f"log file '{args.log}'):", file=sys.stderr)
+            _print_failed_live(failed)
     close_all_log_handlers()
 
 
 def main_convergence():
+    _ensure_utf8_stdio()
     import warnings
     warnings.filterwarnings('ignore', message='.*effective sample size.*')
     warnings.filterwarnings('ignore', message='.*rhat.*')
@@ -294,7 +379,7 @@ def main_convergence():
         parser.add_argument('--no_progress', action='store_true', help='Disable progress bar display')
         parser.add_argument('--no_diagnostics', action='store_true', help='Disable generation of convergence diagnostic figures (default: diagnostics ON)')
         parser.add_argument('--diagnostics_prefix', default='convergence_eval', help='Prefix for convergence diagnostic output files')
-        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which conservative stopping is applied (default: 0.01)')
+        parser.add_argument('--low_performance_threshold', type=float, default=0.01, help='Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)')
         parser.add_argument('--ordinal_tasks', type=str, default=None, help='Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")')
         parser.add_argument('--ordinal_max_score', type=int, default=10, help='Maximum score for ordinal data (default: 10)')
         parser.add_argument('--ordinal_inference', type=str, default='modal', choices=['modal', 'entropy', 'hybrid'], help='Ordinal inference method: modal, entropy, or hybrid (default: modal)')
@@ -362,4 +447,41 @@ def main_convergence():
         )
         result.to_csv(args.output, index=False)
         print(f"Convergence stats saved to {args.output}")
-    close_all_log_handlers() 
+
+        # Fail-loud policy (issue #4): convergence_posthoc records per-grouping
+        # failures in the 'error' column rather than raising, so a run where every
+        # grouping failed still writes a CSV and exits 0, reporting the file
+        # "saved". Surface failures on stderr and exit non-zero when the run
+        # computed nothing.
+        n_total = len(result)
+        if 'error' in result.columns:
+            failed = result[result['error'].notna()]
+        else:
+            failed = result.iloc[0:0]
+        n_failed = len(failed)
+
+        def _grouping_label(row):
+            return row.get('group_label') or row.get('grouping', '?')
+
+        if n_total == 0:
+            print("ERROR: no groupings were produced - the run computed nothing "
+                  "(check the input CSV and the grouping/column arguments).",
+                  file=sys.stderr)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed == n_total:
+            print(f"ERROR: all {n_total} grouping(s) failed - no convergence "
+                  f"statistics were computed (see the 'error' column in the "
+                  f"output):", file=sys.stderr)
+            for _, row in failed.iterrows():
+                print(f"  - grouping {_grouping_label(row)}: {row.get('error')}",
+                      file=sys.stderr)
+            close_all_log_handlers()
+            sys.exit(1)
+        elif n_failed > 0:
+            print(f"WARNING: {n_failed} of {n_total} grouping(s) failed (see the "
+                  f"'error' column in the output):", file=sys.stderr)
+            for _, row in failed.iterrows():
+                print(f"  - grouping {_grouping_label(row)}: {row.get('error')}",
+                      file=sys.stderr)
+    close_all_log_handlers()

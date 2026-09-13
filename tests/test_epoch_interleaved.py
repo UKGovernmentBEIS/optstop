@@ -11,6 +11,11 @@ from optstop.rule import _init_item_state, _build_item_summary
 # Shared fixtures
 # ---------------------------------------------------------------------------
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 def _make_binary_df(n_items=10, n_epochs=5, seed=42):
     """Create a synthetic binary DataFrame for testing."""
     rng = np.random.RandomState(seed)
@@ -69,6 +74,7 @@ BASE_PARAMS = {
     'delta_cap': 0.5,
     'stab_window': 2,
     'CI_delta': 0.01,
+    'random_seed': 20240611,  # Pinned so the @pytest.mark.smoke cases are deterministic.
 }
 
 EXPECTED_SUMMARY_KEYS = {
@@ -203,6 +209,7 @@ class TestParameterValidation:
 class TestEpochInterleavedBinary:
     """Test epoch-interleaved mode with binary scoring."""
 
+    @pytest.mark.smoke
     def test_basic_binary(self):
         """Epoch-interleaved binary produces valid results with correct structure."""
         df = _make_binary_df(n_items=10, n_epochs=5)
@@ -225,21 +232,9 @@ class TestEpochInterleavedBinary:
         assert 0.0 <= s['theta_ci_low'] <= s['theta_ci_high'] <= 1.0
         assert s['theta_ci_width'] >= 0
         assert s['processing_order'] == 'epoch_interleaved'
-
-    def test_binary_pruned_df_structure(self):
-        """Pruned DataFrame retains same columns as input."""
-        df = _make_binary_df(n_items=10, n_epochs=5)
-        pruned_df, _ = optimal_stopping_posthoc(
-            df, BASE_PARAMS,
-            grouping_columns=['task'],
-            sample_id_column='sample_id',
-            epoch_column='epoch',
-            processing_order='epoch_interleaved',
-            reanalysis_interval=5
-        )
+        # Pruned DataFrame retains the same columns as the input and is a subset
         assert set(pruned_df.columns) == set(df.columns)
-        assert len(pruned_df) <= len(df)
-        assert len(pruned_df) > 0
+        assert 0 < len(pruned_df) <= len(df)
 
 
 # ---------------------------------------------------------------------------
@@ -249,6 +244,7 @@ class TestEpochInterleavedBinary:
 class TestEpochInterleavedContinuous:
     """Test epoch-interleaved mode with continuous scoring."""
 
+    @pytest.mark.smoke
     def test_basic_continuous(self):
         """Epoch-interleaved continuous produces valid results."""
         df = _make_continuous_df(n_items=10, n_epochs=5)
@@ -277,6 +273,7 @@ class TestEpochInterleavedContinuous:
 class TestEpochInterleavedOrdinal:
     """Test epoch-interleaved mode with ordinal scoring."""
 
+    @pytest.mark.smoke
     def test_ordinal_hybrid(self):
         """Epoch-interleaved ordinal hybrid produces valid results."""
         df = _make_ordinal_df(n_items=10, n_epochs=5, max_score=10)

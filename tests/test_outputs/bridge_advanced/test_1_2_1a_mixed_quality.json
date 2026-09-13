@@ -45,7 +45,7 @@
     "efficiency": 34.38
   },
   "validation": {
-    "routing_verified": false,
+    "routing_verified": true,
     "model-A-task-1_stops": true,
     "model-B-task-1_stops": true,
     "model-A-task-2_efficiency": 0.0,

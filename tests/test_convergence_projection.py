@@ -16,6 +16,11 @@ from optstop.convergence import (
 # Helper: generate synthetic CI width trajectories
 # ---------------------------------------------------------------------------
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.convergence
+
+
 def make_decreasing_widths(n, start=0.15, end=0.04, noise=0.0):
     """Linearly decreasing widths with optional Gaussian noise."""
     widths = np.linspace(start, end, n)
@@ -42,6 +47,7 @@ def make_slopes_from_widths(widths, stab_window=15):
 
 class TestPointEstimate:
 
+    @pytest.mark.smoke
     def test_converges_within_cap(self):
         """Sufficient data, converges within max_steps."""
         widths = make_decreasing_widths(25, start=0.10, end=0.055)
@@ -433,10 +439,11 @@ class TestBridgeIntegration:
         }
 
         with patch('optstop.convergence.project_convergence', return_value={'projected_additional_steps': 5}) as mock_pc:
-            # Low performance
+            # Low performance: slope_threshold = CI_delta / conservatism, and the
+            # mock manager sets conservatism=5 (the current default; was 10 pre-2026-03).
             history_low = {**base_history, 'current_perf_estimate': 0.0005}
             self._call_build(manager, 'low-perf', history_low)
-            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 10)
+            assert mock_pc.call_args.kwargs['slope_threshold'] == pytest.approx(0.00001 / 5)
 
             mock_pc.reset_mock()
 

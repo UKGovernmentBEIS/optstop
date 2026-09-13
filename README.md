@@ -36,20 +36,30 @@ If you use `optstop` in your research, please cite the paper:
 ## Features
 - Post-hoc (batch) optimal stopping for retrospective analysis and dataset pruning
 - Live (incremental) optimal stopping for real-time data collection
-- Flexible, parameterized stopping criteria
+- Flexible, parameterised stopping criteria
 - Flexible column mapping for groupings, sample IDs, and epochs
 - Bayesian and frequentist hybrid methodology
-- GPU acceleration support via JAX/numpyro for significantly faster PyMC sampling
+- GPU acceleration via JAX/numpyro for faster PyMC sampling
 - Ordinal scoring support for ordinal data (e.g., 0-10), bounded continuous support (e.g., for bounded aggregates), in addition to binary (0/1) scoring
 - Convergence projection: estimates additional trials needed when evaluation ends before convergence
 - inspect_ai integration for LLM evaluation workflows with adaptive early stopping
 
 ## Installation
 
+optstop is not yet published on PyPI - install directly from GitHub:
+
 ```bash
-pip install optstop            # Core package
-pip install optstop[inspect]   # With inspect_ai integration
-pip install optstop[gpu]       # With GPU acceleration (NVIDIA/Apple Silicon)
+pip install "git+https://github.com/UKGovernmentBEIS/optstop.git"                    # Core package
+pip install "optstop[inspect] @ git+https://github.com/UKGovernmentBEIS/optstop.git" # With inspect_ai integration
+pip install "optstop[gpu] @ git+https://github.com/UKGovernmentBEIS/optstop.git"     # With GPU acceleration (NVIDIA/Apple Silicon)
+```
+
+Once optstop is published to PyPI the `pip install optstop` form (with the same extras) will also work.
+
+**Reproducible install:** dependencies are specified with lower bounds only (with a single cap, `arviz<1.0`, which also holds `pymc<6`). For the exact validated dependency set, install against the committed lockfile after cloning:
+
+```bash
+pip install -r requirements-lock.txt
 ```
 
 See [detailed installation options](#installation-1) for development setup and platform-specific notes.
@@ -129,13 +139,16 @@ for entry in summary:
 | Field | Description |
 |-------|-------------|
 | `grouping` | Grouping name (hyphen-joined from grouping columns) |
-| `theta_estimate` | Point estimate of group performance (posterior mean) |
-| `theta_ci_low`, `theta_ci_high` | Credible interval bounds |
+| `theta_ci_low`, `theta_ci_high` | Credible interval bounds on group performance (a point estimate, if needed, is the interval midpoint) |
 | `theta_ci_width` | CI width (lower = more precise) |
 | `percent_items_used` | Fraction of items evaluated before stopping (0-1; format with `:.1%`) |
 | `n_items_used` | Number of items evaluated |
 | `avg_reps_per_item` | Mean epochs per item at stopping |
 | `convergence_projection` | For non-converged groupings: estimated additional trials needed (dict or `None`) |
+| `low_perf_stop_suppressed` | `True` if an automatic stop was suppressed because observed performance was below `low_performance_threshold` - the low-base-rate safeguard, so all available samples were used (issue #3) |
+| `pinned` | Binary/continuous only: `True` when the whole reported credible interval sits below the resolution floor, so the bounds are prior-dominated and qualitative (issue #3). `False` for ordinal |
+| `low_perf_floor` | Ordinal counterpart to `pinned` (telemetry only, does not affect stopping): `True` when the resolved normalised performance is below `low_performance_threshold`. `False` for binary/continuous |
+| `boundary_diagnostic` | Warning string if performance resolved near the floor/ceiling, else `None` |
 | `error` | Error message if inference failed for this grouping (`None` if successful) |
 
 ### Adjusting to your needs
@@ -187,7 +200,7 @@ For the full parameter reference, see [Setting Parameters](#setting-parameters).
 
 ## Using optstop with inspect_ai
 
-`optstop` now provides seamless integration with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Safety Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, enabling **statistically-rigorous adaptive early stopping** for your LLM evaluations.
+`optstop` integrates with [inspect_ai](https://inspect.aisi.org.uk/), the UK AI Security Institute's framework for LLM evaluations. The `OptimalStoppingManager` implements the `EarlyStopping` protocol, adding Bayesian adaptive early stopping to your LLM evaluations.
 
 For those using this package in conjunction with inspect_ai, please see [`BRIDGE_API_REFERENCE.md`](BRIDGE_API_REFERENCE.md) for more relevant documentation.
 
@@ -205,11 +218,11 @@ Optimal stopping helps you **stop evaluating intelligently** when you have enoug
 #### Installation
 
 ```bash
-# Install optstop with inspect_ai support
-pip install optstop[inspect]
+# Install optstop with inspect_ai support (from GitHub - not yet on PyPI)
+pip install "optstop[inspect] @ git+https://github.com/UKGovernmentBEIS/optstop.git"
 
 # Or with GPU acceleration
-pip install optstop[inspect,gpu]
+pip install "optstop[inspect,gpu] @ git+https://github.com/UKGovernmentBEIS/optstop.git"
 ```
 
 #### Basic Example
@@ -333,10 +346,10 @@ OptimalStoppingManager(
 )
 ```
 
-**Note:** Ordinal scores are expected to be **0-indexed** (range [0, ordinal_max_score]). If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), transform them to 0-indexed before use, or contact the developer.
+**Note:** Ordinal scores are expected to be **0-indexed** (range [0, ordinal_max_score]). If your scorer produces 1-indexed scores (e.g., 1-5 star ratings), transform them to 0-indexed before use, or open an issue on the GitHub repository.
 
 **Performance Note for Ordinal Discrete Tasks:**
-Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are more computationally intensive than binary or continuous pathways (~2-3 minutes per inference call vs ~10-30 seconds, for typical 5-11 category scales with ~100 items). However, inference runs in a background thread that overlaps with LLM processing, so in practice ordinal inference adds no observable delay to overall evaluation time (in comparative testing, ordinal and continuous evaluations completed in virtually identical wall time). The more important difference is **convergence behaviour**: ordinal's entropy validation gate typically requires more data to converge, resulting in lower efficiency than binary or continuous pathways at the same precision threshold. GPU acceleration (2-4x speedup) may help for evaluations with very fast-completing trials or large ordinal scales (20+ categories). See [GPU Acceleration](#gpu-acceleration) for setup details.
+Ordinal discrete inference (without score aggregation) uses entropy-based Bayesian models that are more computationally intensive than binary or continuous pathways (~2-3 minutes per inference call vs ~10-30 seconds, for typical 5-11 category scales with ~100 items). However, inference runs in a background thread that overlaps with LLM processing, so in practice ordinal inference adds no observable delay to overall evaluation time (in comparative testing, ordinal and continuous evaluations completed in virtually identical wall time). The more important difference is **convergence behaviour**: ordinal's entropy validation gate typically requires more data to converge, resulting in lower efficiency than binary or continuous pathways at the same precision threshold. GPU acceleration may help for evaluations with very fast-completing trials or large ordinal scales (20+ categories). See [GPU Acceleration](#gpu-acceleration) for setup details.
 
 ```python
 # Enable GPU for ordinal evaluations
@@ -345,7 +358,7 @@ manager = OptimalStoppingManager(
     grouping_columns=['model', 'task'],
     ordinal_tasks=['rating'],
     ordinal_inference='hybrid',
-    gpu_ids=[0]  # 2-4× MCMC speedup
+    gpu_ids=[0]  # GPU-accelerated MCMC sampling
 )
 ```
 
@@ -395,8 +408,8 @@ for log in logs:
 **Using informed priors:** If you have recent results for the same model on the same benchmark, setting `prior_mu` to the logit of that known performance (e.g., `scipy.special.logit(0.75)` ≈ 1.1 for 75% accuracy) improves the accuracy of early point estimates and credible interval placement. Because credible intervals are computed on the probability scale via the logistic transform, a well-placed posterior also produces narrower probability-scale intervals than one centred near 0.5 at the same level of precision - which may modestly accelerate stopping for groupings whose true performance is far from 50%. When `prior_sigma` is not specified (None), pathway-specific defaults apply: 1.5 for binary/continuous, 2.0 for ordinal. If you explicitly set `prior_sigma`, that value applies to all pathways. The default values ensure that a mis-specified prior is overridden by data within approximately 15-20 items.
 
 **Note on `ordinal_inference` defaults:**
-- **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` — prioritizes safety in automated evaluation contexts where stopping decisions have real cost implications.
-- **Standalone functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, CLI)**: Defaults to `'modal'` — prioritizes speed for interactive/exploratory analysis where users can iterate quickly.
+- **inspect_ai bridge (`OptimalStoppingManager`)**: Defaults to `'hybrid'` - prioritises safety in automated evaluation contexts where stopping decisions have real cost implications.
+- **Standalone functions (`optimal_stopping_posthoc`, `optimal_stopping_live`, CLI)**: Defaults to `'modal'` - prioritises speed for interactive/exploratory analysis where users can iterate quickly.
 
 Both modes are valid; choose based on your use case. Use `'hybrid'` when accuracy is critical, `'modal'` when speed matters more.
 
@@ -467,7 +480,7 @@ See the Convergence Projection Fields section in `BRIDGE_API_REFERENCE.md` for t
 
 ### Compatibility
 
-- **optstop version**: 0.4.0
+- **optstop version**: 0.5.0
 - **inspect_ai version**: 0.3.0+
 - **Python version**: 3.10+
 
@@ -491,7 +504,7 @@ if optstop.check_inspect_ai_compatibility("0.3.5"):
 ### Troubleshooting
 
 **Issue**: `ImportError: No module named 'inspect_ai'`
-- **Solution**: Install with `pip install optstop[inspect]`
+- **Solution**: Install the inspect extra: `pip install "optstop[inspect] @ git+https://github.com/UKGovernmentBEIS/optstop.git"`
 
 **Issue**: Early stopping not triggering
 - **Solution**: Check `reanalysis_interval` and `min_samples_per_grouping` settings. Increase epochs if needed.
@@ -500,13 +513,13 @@ if optstop.check_inspect_ai_compatibility("0.3.5"):
 - **Solution**: Verify scores are in valid range (0-1 for binary, 0-ordinal_max_score for ordinal)
 
 **Issue**: GPU not detected
-- **Solution**: Install JAX with GPU support: `pip install optstop[gpu]`
+- **Solution**: Install the GPU extra: `pip install "optstop[gpu] @ git+https://github.com/UKGovernmentBEIS/optstop.git"`
 
 For more issues, see the development roadmap or open a GitHub issue.
 
 ## GPU Acceleration
 
-`optstop` now supports GPU acceleration for PyMC sampling operations, providing significant performance improvements for large datasets and complex models.
+`optstop` supports GPU acceleration for PyMC sampling operations, which speeds up MCMC sampling for large datasets and complex models.
 
 ### Prerequisites
 - NVIDIA GPU with CUDA support
@@ -514,7 +527,7 @@ For more issues, see the development roadmap or open a GitHub issue.
 
 ### Automatic GPU Detection
 The package automatically detects GPU availability and configures optimal sampling parameters:
-- **GPU Available**: Uses JAX/numpyro sampler with optimized chain/core settings
+- **GPU Available**: Uses JAX/numpyro sampler with optimised chain/core settings
 - **CPU Only**: Falls back to standard PyMC sampling
 
 ### Manual GPU Control
@@ -539,9 +552,8 @@ optstop-posthoc --csv data.csv --output pruned.csv --disable_gpu [other options]
 ```
 
 ### Performance Benefits
-- **2-4x MCMC speedup** for typical workloads
-- **Even greater speedups** for large datasets and complex models
-- Automatic optimization of chain/core parameters for GPU
+- Faster MCMC sampling on typical workloads
+- Automatic optimisation of chain/core parameters for GPU
 
 ### GPU Status Logging
 Check your log file for GPU detection and usage information:
@@ -584,7 +596,7 @@ PyMC will use GPU acceleration via JAX/numpyro
 - Cumulative link model that respects ordinal structure
 - Uses identified cutpoints (first cutpoint fixed at 0 for model identification)
 - Adaptive priors that scale with number of categories
-- ~3x faster than Dirichlet-Multinomial due to fewer parameters
+- Faster than Dirichlet-Multinomial due to fewer parameters
 - Best for truly ordinal data where category ordering matters
 
 **Dirichlet-Multinomial**:
@@ -749,7 +761,7 @@ The continuous bounded pathway uses a hierarchical Beta model with the following
 - **phi_group**: Group-level precision parameter
 - **mu_item**: Item-level means (hierarchical, derived from mu_group + z * sigma_group)
 
-This hierarchical structure correctly accounts for between-item variance when computing group-level confidence intervals.
+This hierarchical structure correctly accounts for between-item variance when computing group-level credible intervals.
 
 ### How It Works
 
@@ -771,7 +783,7 @@ This hierarchical structure correctly accounts for between-item variance when co
 
 **Expected Group Accuracy via mean(Theta)**
 
-The package computes group-level confidence intervals using the **expected group accuracy**: `mean(Theta)` across all items, rather than using individual item Theta values or `sigmoid(mu_group)`.
+The package computes group-level credible intervals using the **expected group accuracy**: `mean(Theta)` across all items, rather than using individual item Theta values or `sigmoid(mu_group)`.
 
 **Why this matters:**
 - In hierarchical models, `Theta_i = sigmoid(mu_group + z_i * sigma_group)` for each item
@@ -784,7 +796,7 @@ The package computes group-level confidence intervals using the **expected group
 - `sigmoid(mu_group)`: Measures "typical item" (z=0), not expected accuracy
 - `mean(Theta)`: Correctly computes expected group accuracy ✓
 
-This methodology correctly accounts for between-item variance (`sigma_group`) when computing confidence intervals, providing more accurate stopping decisions for hierarchical data structures.
+This methodology correctly accounts for between-item variance (`sigma_group`) when computing credible intervals, providing more accurate stopping decisions for hierarchical data structures.
 
 ### Score Type Support Status
 
@@ -834,7 +846,7 @@ optstop-posthoc --csv mixed_data.csv --output pruned.csv \
 pip install .
 ```
 
-**Note**: Basic installation includes all core functionality. Ordinal inference will work but use slower PyMC default sampling (~2-3× slower than with performance extras).
+**Note**: Basic installation includes all core functionality. Ordinal inference will work but use the slower PyMC default sampler instead of the numpyro backend from the performance extras.
 
 ### Recommended: Performance Extras
 For optimal performance, especially with **ordinal scoring**, install with performance extras:
@@ -843,13 +855,13 @@ pip install .[performance]
 ```
 
 This installs:
-- **JAX** (CPU backend): Enables fast ordinal inference (2-3× speedup)
+- **JAX** (CPU backend): Enables faster ordinal inference
 - **numpyro** (JAX-based sampler): Handles OrderedLogistic models efficiently
 
 **Performance impact:**
 - **Binary inference**: No difference (uses PyMC default for speed)
 - **Continuous inference**: No difference (uses PyMC default for speed)
-- **Ordinal inference**: ~2-3× faster with numpyro compared to PyMC default
+- **Ordinal inference**: faster with numpyro compared to PyMC default
 
 ### Installation with inspect_ai Integration
 For using optstop with inspect_ai evaluations:
@@ -906,7 +918,7 @@ This is the recommended way to run the full suite. The tests build many PyMC mod
 | Installation | Binary | Continuous | Ordinal | Use Case |
 |-------------|--------|------------|---------|----------|
 | `pip install .` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ⚠ Slower (PyMC default) | Basic usage, no ordinal tasks |
-| `pip install .[performance]` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ✓ Fast (numpyro, 2-3× faster) | **Recommended for ordinal tasks** |
+| `pip install .[performance]` | ✓ Fast (PyMC default) | ✓ Fast (PyMC default) | ✓ Fast (numpyro) | **Recommended for ordinal tasks** |
 | `pip install .[gpu]` | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | ✓ Fastest (numpyro GPU) | GPU hardware available |
 
 ## Logging
@@ -935,7 +947,9 @@ The log file will contain all stopping decisions and the reasons for them, makin
 
 ## Setting Parameters
 
-You can control the behavior of the optimal stopping algorithms by passing a `params` dictionary to either `optimal_stopping_posthoc` or `optimal_stopping_live`. Any omitted parameters will use their default values.
+You can control the behaviour of the optimal stopping algorithms through `optimal_stopping_posthoc` and `optimal_stopping_live`. Settings are supplied through two channels: a `params` dictionary and direct **keyword arguments**. Any omitted setting uses its default value.
+
+> **Which channel?** Task routing and model selection (`ordinal_tasks`, `continuous_tasks`, `ordinal_max_score`, `ordinal_inference`, `ordinal_model_type`, `entropy_threshold`, `prior_mu`, `prior_sigma`), along with `processing_order`, `reanalysis_interval`, `shuffle_items`, `shuffle_seed`, `score_column`, `display_progress`, `generate_diagnostics`, and `diagnostics_prefix`, are **keyword arguments** - pass them directly in the function call (as the examples do), not inside `params`. A value placed in `params` for one of these is **silently ignored**; for the routing options that means the grouping is scored with the default binary pathway, with no warning. The CI thresholds, conservatism, and MCMC settings in the table below are read from the `params` dict.
 
 ### All Available Parameters
 
@@ -952,9 +966,9 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `delta_cap`              | 0.05      | Both         | Max acceptable CI width for task/grouping                                   |
 | `cred_level`             | 0.97      | Both         | Credibility level for intervals (e.g., 0.97 for 97% CI)                     |
 | `conservatism`           | 5         | Both         | Factor for rare event conservatism (higher = more conservative)             |
-| `low_performance_threshold` | 0.01   | Both         | Below this success rate, use conservative stopping                          |
+| `low_performance_threshold` | 0.01   | Both         | Below this rate: suppress automatic stops (all pathways); ordinal groupings additionally report an inflated (floored) CI width |
 
-**Parameter interaction - `conservatism` and `low_performance_threshold`:** When a grouping's estimated performance falls below `low_performance_threshold`, the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01 - achievable with moderate data. If you raise `low_performance_threshold`, more groupings will trigger conservatism; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect.
+**Parameter interaction - `conservatism` and `low_performance_threshold` (ordinal):** For ordinal groupings, when estimated performance falls below `low_performance_threshold` the effective CI-width target tightens to `delta_cap / conservatism`. With defaults (`conservatism=5`, `delta_cap=0.05`), this target is 0.01 - achievable with moderate data. If you raise `low_performance_threshold`, more groupings enter this conservative regime; if you also keep `conservatism` high, the tightened target may become unreachable within your data budget. When adjusting either parameter, check that `delta_cap / conservatism` remains achievable for the sample sizes you expect. (For binary and continuous groupings the below-threshold behaviour is *suppression* rather than a tightened target - see "Detecting low base-rate capabilities" below.)
 
 | `draws`                  | 1000      | Both         | Number of MCMC samples for PyMC (affects speed/accuracy)                    |
 | `tune`                   | 1000      | Both         | Number of tuning steps for PyMC                                             |
@@ -962,8 +976,8 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `cores`                  | 4         | Both         | Number of CPU cores for PyMC sampling                                       |
 | `rep_batch_size`         | 1         | Both         | Number of repetitions to process in each batch                              |
 | `pymc_refresh_every`     | 2         | Both         | How often to run the PyMC model (every N items)                             |
-| `stab_window`            | 15         | Both         | Window size for assessing CI stabilization                                  |
-| `CI_delta`               | 0.00001    | Both         | Slope threshold for determining CI stabilization                            |
+| `stab_window`            | 15         | Both         | Window size for assessing CI stabilisation                                  |
+| `CI_delta`               | 0.00001    | Both         | Slope threshold for determining CI stabilisation                            |
 | `target_accept`          | 0.95      | Both         | NUTS sampler target acceptance rate (higher = fewer divergences, slower) |
 | `use_gpu`                | Auto      | Both         | Enable/disable GPU acceleration (True/False, auto-detected if not set)     |
 | `force_gpu`              | False     | Both         | Force GPU usage, fail if unavailable (for CLI --force_gpu)                 |
@@ -976,14 +990,14 @@ You can control the behavior of the optimal stopping algorithms by passing a `pa
 | `prior_mu`               | 0.0       | All          | Centre of group-level Normal prior on logit scale (0.0 = 50% probability) |
 | `prior_sigma`            | None      | All          | Scale of group-level Normal prior. None→pathway defaults (binary/cont: 1.5, ordinal: 2.0)|
 | `continuous_tasks`       | None      | All          | List of substrings to identify continuous bounded [0,1] groupings        |
-| `shuffle_items`          | False     | Post-hoc     | Randomize item order within each grouping before processing (recommended to avoid selection bias from sorted input) |
+| `shuffle_items`          | False     | Post-hoc     | Randomise item order within each grouping before processing (recommended to avoid selection bias from sorted input) |
 | `shuffle_seed`           | None      | Post-hoc     | Random seed for reproducible shuffling (only used with `shuffle_items=True`) |
 | `processing_order`       | 'item_greedy' | Post-hoc | Processing order: `'item_greedy'` (all epochs per item, fast) or `'epoch_interleaved'` (all items per epoch, matches production bridge behaviour) |
 | `reanalysis_interval`    | 10        | Post-hoc     | Trials between group model refreshes in `epoch_interleaved` mode (matches bridge default) |
 
 ### Example: Setting Parameters
 
-You can set any combination of these in your `params` dict. For example:
+You can set any combination of the `params`-dict rows above. For example:
 
 ```python
 params = {
@@ -998,8 +1012,8 @@ params = {
     'cores': 4,                       # Number of CPU cores for sampling
     'rep_batch_size': 2,              # (post-hoc only) Process 2 reps at a time
     'pymc_refresh_every': 1,          # (post-hoc only) Run PyMC every item
-    'stab_window': 15,                # Stabilization window size
-    'CI_delta': 0.00001,              # Stabilization threshold
+    'stab_window': 15,                # Stabilisation window size
+    'CI_delta': 0.00001,              # Stabilisation threshold
 }
 ```
 
@@ -1042,7 +1056,7 @@ The diagnostic plot includes:
 2. **Bland-Altman Plot**: Displays the agreement between full and pruned estimates
 3. **Efficiency Distribution**: Histogram of epochs saved per task
 4. **Sample IDs Saved by Grouping**: Bar chart showing percentage of sample IDs saved for each grouping
-5. **Confidence Intervals Comparison**: Side-by-side comparison of CIs from full vs. pruned datasets
+5. **Credible Intervals Comparison**: Side-by-side comparison of credible intervals from full vs. pruned datasets
 
 ### Diagnostic Statistics
 
@@ -1151,8 +1165,8 @@ params = {
     'CI_delta': 0.00001,
     'rep_batch_size': 1,
     'pymc_refresh_every': 2,
-    'item_seqs': 3,      # Randomization sequences
-    'epoch_seqs': 3      # Randomization sequences
+    'item_seqs': 3,      # Randomisation sequences
+    'epoch_seqs': 3      # Randomisation sequences
 }
 
 result = convergence_posthoc(
@@ -1175,8 +1189,8 @@ print(result)
 
 The package provides functions for adaptive optimal stopping, allowing you to determine when enough data has been collected for reliable inference, either retrospectively (post-hoc) or during live data collection.
 
-### Parallelization (Post-hoc)
-- The `optimal_stopping_posthoc` function now parallelizes across groupings (unique combinations of the columns you specify for grouping), using all available CPU cores for efficient processing of large datasets.
+### Parallelisation (Post-hoc)
+- The `optimal_stopping_posthoc` function now parallelises across groupings (unique combinations of the columns you specify for grouping), using all available CPU cores for efficient processing of large datasets.
 - Each grouping-task is processed independently and in parallel, with results aggregated at the end.
 
 ### Live Mode (Multiple Groupings)
@@ -1224,12 +1238,12 @@ The package provides a function for post-hoc convergence analysis, allowing you 
 ### Function: `convergence_posthoc`
 
 - **Purpose:**
-  - Runs a post-hoc convergence analysis on a full dataset, parallelizing across groupings (using all available CPU cores).
+  - Runs a post-hoc convergence analysis on a full dataset, parallelising across groupings (using all available CPU cores).
   - Returns a DataFrame detailing the required numbers of trials at epoch and sample_ID levels, split by the user's desired grouping.
 - **Parameters:**
   - Accepts the same `params` dictionary as other functions (see table above), plus:
-    - `item_seqs`: Number of randomized item orderings per grouping (default: 20)
-    - `epoch_seqs`: Number of randomized epoch orderings per item (default: 20)
+    - `item_seqs`: Number of randomised item orderings per grouping (default: 20)
+    - `epoch_seqs`: Number of randomised epoch orderings per item (default: 20)
 - **Returns:**
   - A DataFrame with one row per grouping-task, containing detailed convergence statistics and summary metrics. Key columns include:
     - `mean_needed_items` / `var_needed_items`: Mean and population variance of projected additional items needed across randomised orderings
@@ -1286,7 +1300,7 @@ result = convergence_posthoc(
 print(result)
 ```
 
-The resulting DataFrame contains all the convergence metrics for each grouping-task. The analysis is parallelized for speed.
+The resulting DataFrame contains all the convergence metrics for each grouping-task. The analysis is parallelised for speed.
 
 ## Convergence Diagnostics
 
@@ -1294,7 +1308,7 @@ When you run `convergence_posthoc`, the package now automatically generates two 
 - **{prefix}_grouped_needed.png**: Two vertically stacked plots showing mean needed items and mean needed epochs (with std error bars) by grouping (descending order).
 - **{prefix}_score_scatter.png**: Scatter plots of mean needed items/epochs vs. performance, as before.
 
-You can control this behavior:
+You can control this behaviour:
 - **Python:** Pass `generate_diagnostics=False` to `convergence_posthoc` to turn off diagnostics, or set `diagnostics_prefix` to change the output file prefix.
 - **CLI:** Use `--no_diagnostics` to turn off diagnostics, and `--diagnostics_prefix` to set the output file prefix (default: `convergence_eval`).
 
@@ -1325,11 +1339,11 @@ See the CLI help (`optstop-convergence --help`) for all options.
 ### Specifying Groupings
 - **Required columns:** Your input DataFrame must include the columns you specify for grouping, sample ID, epoch, and score (see Flexible Column Mapping section above).
 - **Group labels:** If you want human-readable group labels in your output, include a `grouping` column (e.g., system/model name) in addition to your grouping columns.
-- **Parallelization:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
+- **Parallelisation:** Each unique combination of the columns you specify for grouping will be processed in parallel, so ensure these columns are set appropriately for your experimental design.
 
 ### Input Ordering and Selection Bias (Post-hoc)
 - **Items are processed in dataframe order** (within each grouping). If your input data is sorted (e.g., alphabetically by sample ID), early stopping may select a biased subsample if early-alphabet items happen to have systematically different scores than late-alphabet items.
-- **Use `shuffle_items=True`** to randomize item order within each grouping before processing. This is recommended for unbiased post-hoc analysis. In `epoch_interleaved` mode, shuffling controls the order items are processed within each epoch.
+- **Use `shuffle_items=True`** to randomise item order within each grouping before processing. This is recommended for unbiased post-hoc analysis. In `epoch_interleaved` mode, shuffling controls the order items are processed within each epoch.
 - **Use `shuffle_seed`** with `shuffle_items=True` for reproducible shuffling.
 - **The package warns automatically** if sorted input is detected and `shuffle_items=False`, but using explicit shuffling is recommended.
 
@@ -1362,13 +1376,15 @@ pruned_df, summary = optimal_stopping_posthoc(
 - **CI width thresholds:**
   - `delta_item`: 0.05 is a common choice for high precision; 0.1 is more lenient.
   - `delta_cap`: 0.05 for group-level precision; increase for faster but less precise stopping.
-- **Stabilization parameter:**
+- **Stabilisation parameter:**
   - `CI_delta` controls how stable the CI slope must be before stopping. Smaller values (e.g., 0.0002) require more stability; larger values allow earlier stopping.
 - **Conservatism:**
   - `conservatism=5` is typical; increase for more caution in low-performance scenarios.
+- **Low base-rate capabilities:**
+  - To detect a rare capability and stop once it is observed, set `low_performance_threshold` to the success rate of interest. See ["Detecting low base-rate capabilities"](#detecting-low-base-rate-capabilities) below.
 - **Reproducibility:**
   - For reproducible pruned DataFrames, set a random seed before running your analysis (e.g., `np.random.seed(42)` or pass `random_seed` in params).
-  - **Note:** Due to the stochastic nature of MCMC and parallelization, summary statistics (e.g., CI bounds, widths) are not guaranteed to be bitwise reproducible, even with the same random seed. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
+  - **Note:** Due to the stochastic nature of MCMC and parallelisation, summary statistics (e.g., CI bounds, widths) are not guaranteed to be bitwise reproducible, even with the same random seed. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
 - **Logging:**
   - Use `configure_optstop_logging()` to log all stopping decisions to file (console output is suppressed by default).
 
@@ -1416,6 +1432,81 @@ In stress-test conditions (e.g., 18-30 items per grouping with many boundary per
 
 This limitation affects both live and post-hoc modes equally, as it is structural to hierarchical Bayesian models rather than a bug in the implementation.
 
+### Detecting low base-rate capabilities
+
+Some evaluations target a capability that is expected to be very rare - for
+example a hazardous behaviour that should occur at most once in a few thousand
+trials. Two properties of the package matter here.
+
+**The resolution floor.** Group-level inference clamps the likelihood logit to
+`±6`, so the likelihood cannot distinguish rates below `sigmoid(-6) ≈ 0.0025`
+(about 1 in 400). Since version 0.5.0 the *reported* credible interval is read
+from an unclipped transform, so its lower bound can approach 0 and the interval
+can contain a near-zero truth. However, below the resolution floor the interval
+is prior-dominated: it is a qualitative indication that the rate is very small,
+not a calibrated bound. When the whole reported interval lies below the floor,
+the result carries `pinned=True`; report the raw observed proportion alongside
+it. (Continuous scores have a second, independent variance clamp in the
+likelihood, so sub-1% continuous intervals are doubly heuristic.)
+
+**Using `low_performance_threshold` as a detection trigger.** Set
+`low_performance_threshold` to the success rate of interest (e.g. `0.0005` for
+1 in 2,000). While the cumulative observed rate stays below the threshold you
+have not yet seen the event, so for both the **binary** and **continuous**
+pathways the automatic precision and slope-stabilisation stops are suppressed at
+every level - item, sample, and grouping - and sampling continues (at the
+grouping level this is surfaced as `low_perf_stop_suppressed=True`). This holds
+even if the accumulated null data would otherwise satisfy the width or slope
+criterion - the gate keeps the search open until the event actually appears.
+
+When the rare event occurs it lifts the cumulative observed rate to or above the
+threshold, which releases the hold. The ordinary precision stop can then fire
+once the interval is narrow enough. In effect you sample until you have seen
+roughly one event's worth of evidence at your rate of interest, then stop.
+
+Two caveats:
+
+1. The trigger is the *cumulative* observed rate crossing the threshold, which is
+   stochastic. The first event is expected near `1/p` trials, so a late first
+   event may need a second before the running rate clears the bar, and an early
+   one clears it immediately.
+2. Set the threshold *to* the rate of interest, not above it (a higher threshold
+   oversamples, waiting for more events) or below it (releases the hold before you
+   have the evidence).
+
+If your rate of interest is below the resolution floor (~0.25%), the event still
+lifts the observed rate and releases the hold, but the reported bound remains
+qualitative (`pinned=True`): you have confirmed and halted on the capability, not
+precisely quantified how rare it is.
+
+**The ordinal pathway.** The `pinned` reliability caveat is specific to the
+binary and continuous pathways, which map a logit through a sigmoid that is
+clamped at `±6` - the source of the resolution floor. The ordinal estimator has
+no such location clamp, so its low-performance estimates are data-faithful and
+carry no equivalent reliability caveat. For symmetry, an ordinal grouping that
+resolves at a very low normalised performance level (below
+`low_performance_threshold`) still reports a telemetry flag, `low_perf_floor=True`,
+so low-capability ordinal groupings are as easy to detect as low-rate
+binary/continuous ones. Unlike `pinned`, it is keyed off the normalised
+performance *point estimate* (so it is independent of the modal/entropy inference
+mode) and is not a reliability warning - the ordinal estimate below it is still
+trustworthy. It is telemetry only and does not affect stopping. Group-level stop
+suppression via `low_performance_threshold` applies to all three pathways
+(surfaced as `low_perf_stop_suppressed=True`); the item-level suppression
+described above is binary/continuous only, because on homogeneous near-zero data
+the ordinal item-level interval is held open by a separate minimum-width floor
+rather than by the low-performance gate.
+
+**Log visibility.** Suppression is silent by default in the returned results
+beyond the `low_perf_stop_suppressed` field. To make it visible while a run is in
+progress, the first time a stop is suppressed for a grouping optstop emits a
+single `INFO`-level log on the relevant `optstop.*` logger naming the grouping and
+quoting the *resolved* `low_performance_threshold` value (so it reflects any value
+you passed, not the default). Enable it with
+`configure_optstop_logging(console_output=True)` (its default level is already
+`INFO`) or by attaching your own handler to the `optstop` logger. Per-check detail
+(each individual suppressed width/slope stop) is available at `DEBUG`.
+
 ## License
 MIT
 
@@ -1425,14 +1516,14 @@ MIT
 - Make sure your DataFrame includes all required columns that you specify for grouping, sample ID, epoch, and score.
 
 **Q: My summary statistics are not exactly reproducible, even with the same random seed.**
-- This is expected due to the stochastic nature of MCMC and parallelization. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
+- This is expected due to the stochastic nature of MCMC and parallelisation. Only the pruned DataFrame is guaranteed to be reproducible; summary values may differ slightly between runs.
 
-**Q: I get PyMC or sampling errors (e.g., "Too few samples", "NUTS initialization failed").**
+**Q: I get PyMC or sampling errors (e.g., "Too few samples", "NUTS initialisation failed").**
 - Increase `tune` up to 2000 if you see many divergences or R-hat issues, and `draws` up to 4000 if HDIs lack precision. For very small test runs, warnings are expected.
 - Ensure your data is not empty or all-NaN for any grouping.
 
 **Q: The code is slow or uses a lot of CPU.**
-- The package parallelizes across groupings. If you have many groupings, this can use all available CPU cores. You can reduce the number of groupings or run on a machine with more resources.
+- The package parallelises across groupings. If you have many groupings, this can use all available CPU cores. You can reduce the number of groupings or run on a machine with more resources.
 
 **Q: How do I get more detailed logs?**
 - Use `configure_optstop_logging()` to log to file (console output is suppressed by default). Check the log file for detailed stopping decisions and errors.
@@ -1466,13 +1557,13 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--tune**: Number of tuning steps for PyMC (default: 1000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
+- **--CI_delta**: Slope threshold for determining CI stabilisation (default: 0.00001)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 15)
+- **--stab_window**: Window size for assessing CI stabilisation (default: 15)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
+- **--low_performance_threshold**: Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -1482,7 +1573,7 @@ optstop-posthoc --csv mydata.csv --output pruned.csv --summary summary.csv --gro
 - **--entropy_threshold**: Proportion of max entropy for false peak detection in hybrid mode (default: 0.8)
 - **--prior_mu**: Centre of group-level Normal prior on logit scale (default: 0.0 = 50% probability)
 - **--prior_sigma**: Scale of group-level Normal prior. If not set, uses pathway defaults (binary/cont: 1.5, ordinal: 2.0)
-- **--shuffle_items**: Randomize item order within each grouping before processing. Recommended to avoid selection bias from sorted input.
+- **--shuffle_items**: Randomise item order within each grouping before processing. Recommended to avoid selection bias from sorted input.
 - **--shuffle_seed**: Random seed for reproducible shuffling (only used with --shuffle_items)
 - **--processing_order**: Processing order: `item_greedy` (all epochs per item, fast) or `epoch_interleaved` (all items per epoch, matches production). Default: `item_greedy`
 - **--reanalysis_interval**: Group model refresh interval in trials for `epoch_interleaved` mode (default: 10)
@@ -1506,13 +1597,13 @@ optstop-live --csv current_data.csv --grouping_columns subject --sample_id_colum
 - **--tune**: Number of tuning steps for PyMC (default: 1000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
+- **--CI_delta**: Slope threshold for determining CI stabilisation (default: 0.00001)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 15)
+- **--stab_window**: Window size for assessing CI stabilisation (default: 15)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
+- **--low_performance_threshold**: Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)
 - **--disable_gpu**: Disable GPU acceleration even if available
 - **--force_gpu**: Force GPU usage (will fail if GPU unavailable)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
@@ -1546,15 +1637,15 @@ optstop-convergence --csv mydata.csv --output convergence_stats.csv --grouping_c
 - **--tune**: Number of tuning steps for PyMC (default: 1000)
 - **--chains**: Number of MCMC chains for PyMC (default: 4)
 - **--cores**: Number of CPU cores for PyMC (default: 4)
-- **--CI_delta**: Slope threshold for determining CI stabilization (default: 0.00001)
+- **--CI_delta**: Slope threshold for determining CI stabilisation (default: 0.00001)
 - **--conservatism**: Factor for rare event conservatism (default: 5)
 - **--rep_batch_size**: Number of repetitions to process in each batch (default: 1)
 - **--pymc_refresh_every**: How often to run the PyMC model (default: 2)
-- **--stab_window**: Window size for assessing CI stabilization (default: 15)
-- **--item_seqs**: Number of randomized item orderings per grouping (default: 20)
-- **--epoch_seqs**: Number of randomized epoch orderings per item (default: 20)
+- **--stab_window**: Window size for assessing CI stabilisation (default: 15)
+- **--item_seqs**: Number of randomised item orderings per grouping (default: 20)
+- **--epoch_seqs**: Number of randomised epoch orderings per item (default: 20)
 - **--random_seed**: Random seed for reproducible results (optional)
-- **--low_performance_threshold**: Success rate below which conservative stopping is applied (default: 0.01)
+- **--low_performance_threshold**: Success rate below which automatic stops are suppressed to avoid a false stop on an unresolved low base rate; ordinal groupings additionally report an inflated (floored) CI width (default: 0.01)
 - **--ordinal_tasks**: Comma-separated list of substrings to identify ordinal groupings (e.g., "confidence,rating")
 - **--ordinal_max_score**: Maximum score for ordinal data (default: 10)
 - **--ordinal_inference**: Ordinal inference method: modal, entropy, or hybrid (default: modal)

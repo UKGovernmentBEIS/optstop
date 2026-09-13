@@ -1503,10 +1503,31 @@ class OptimalStoppingManager(EarlyStopping):
             'final_ci_width': history['ci_width_history'][-1] if history.get('ci_width_history') else None,
             'final_slope': history['ci_slope_history'][-1] if history.get('ci_slope_history') else None,
             'n_group_checks': len(history.get('ci_width_history', [])),
+            # issue #3: True when the whole reported credible interval sits below the
+            # resolution floor (sigmoid(-LOGIT_CLAMP)); such bounds are prior-dominated
+            # and qualitative. Default False for backward compatibility.
+            'pinned': history.get('pinned', False),
+            # issue #3 (Option C): ordinal-only telemetry counterpart to `pinned`. True when
+            # the normalised performance estimate sits at/below low_performance_threshold
+            # (the grouping resolved at a very-low performance level). Unlike `pinned` this carries
+            # NO reliability caveat - the ordinal estimator has no sigmoid location clamp, so the
+            # low estimate is data-faithful. Does not affect stopping. Default False for back-compat.
+            'low_perf_floor': history.get('low_perf_floor', False),
+            # issue #3: True when a binary or continuous grouping met a stop criterion
+            # but the stop was suppressed because observed performance is below
+            # low_performance_threshold. Such a grouping samples to exhaustion so a
+            # not-yet-observed rare event is not stopped out. Default False for back-compat.
+            'low_perf_stop_suppressed': history.get('low_perf_stop_suppressed', False),
         }
 
-        # Convergence projection for non-stopped groupings
-        if grouping_name not in self._stopped_groupings and entry['final_ci_width'] is not None:
+        # Convergence projection for non-stopped groupings.
+        # issue #3: skip projection when the stop was suppressed for a below-threshold
+        # binary or continuous grouping - its reported width is already < delta_cap, so
+        # project_convergence would spuriously report "already converged". This matches
+        # the posthoc aggregator, which returns projection=None once theta_ci_width < delta_cap.
+        if (grouping_name not in self._stopped_groupings
+                and entry['final_ci_width'] is not None
+                and not history.get('low_perf_stop_suppressed', False)):
             from .convergence import project_convergence
             # Apply conservatism-adjusted slope_threshold when performance is low,
             # matching the logic in rule.py (CI_delta / conservatism for low-perf).

@@ -1,17 +1,19 @@
 """
 Comprehensive Integration Tests for OptimalStoppingManager (early_stopping.py)
 
-Tests all score types with realistic scenarios:
+Tests each score-type inference path end-to-end through the bridge manager:
 1. Binary discrete (0/1)
-2. Ordinal discrete (0-10)
-3. Binary aggregated (continuous 0-1)
-4. Ordinal aggregated (continuous 0-10)
+2. Ordinal discrete (0-10, modal inference)
+3. Continuous [0, 1] (binary aggregated, mean)
+4. Continuous [0, 10] (ordinal aggregated, median)
 
-Each test uses:
-- High sample counts (50-100)
-- Multiple epochs (10-20)
-- Different variance patterns
-- Edge cases for robustness
+Plus the distinct structural/edge regimes: zero-variance, single-epoch
+(insufficient data), and simultaneous multi-grouping.
+
+These are end-to-end structural checks (the manager runs to completion and
+compiles the expected dataset). Numeric stopping behaviour is asserted in the
+pathway-specific unit suites; large-N stress is covered by the slow-marked
+test_large_datasets_ordered_logistic.py.
 """
 
 import pytest
@@ -22,8 +24,6 @@ from unittest.mock import Mock, AsyncMock
 from typing import List, Any
 
 import time
-# Add to path
-import sys
 
 from optstop.early_stopping import OptimalStoppingManager, StoppedSample
 
@@ -31,6 +31,11 @@ from optstop.early_stopping import OptimalStoppingManager, StoppedSample
 # =============================================================================
 # HELPER FUNCTIONS
 # =============================================================================
+
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
 
 def create_mock_sample(sample_id: str, metadata: dict = None):
     """Create a mock Sample object."""
@@ -62,7 +67,7 @@ def create_mock_score(value: float, metadata: dict = None):
 
 
 # =============================================================================
-# TEST 1: BINARY DISCRETE (0/1) - HIGH CONSISTENT PERFORMANCE
+# BINARY DISCRETE (0/1)
 # =============================================================================
 
 class TestBinaryDiscreteHighPerformance:
@@ -130,67 +135,7 @@ class TestBinaryDiscreteHighPerformance:
 
 
 # =============================================================================
-# TEST 2: BINARY DISCRETE (0/1) - VARIABLE PERFORMANCE
-# =============================================================================
-
-class TestBinaryDiscreteVariablePerformance:
-    """Test binary discrete with variable performance across samples."""
-
-    @pytest.mark.asyncio
-    async def test_binary_discrete_variable_performance_100_samples(self):
-        """
-        Binary discrete: 100 samples, 12 epochs each, variable performance.
-        Some samples high (90%), some medium (60%), some low (30%).
-        """
-        np.random.seed(101)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.10,
-                'delta_cap': 0.10,
-                'cred_level': 0.95,
-                'conservatism': 5.0,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['model'],
-            reanalysis_interval=300  # 25%, 50%, 75% of 1200 trials
-        )
-
-        task = create_mock_task('claude', 'reasoning')
-        samples = [create_mock_sample(f'item_{i:03d}') for i in range(100)]
-
-        await manager.start_task(task, samples, epochs=12)
-
-        # Variable performance: divide samples into three groups
-        for epoch in range(12):
-            for idx, sample in enumerate(samples):
-                if idx < 33:
-                    # High performance group
-                    success_prob = 0.90
-                elif idx < 66:
-                    # Medium performance group
-                    success_prob = 0.60
-                else:
-                    # Low performance group
-                    success_prob = 0.30
-
-                score_value = float(np.random.random() < success_prob)
-                score = create_mock_score(score_value)
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        # Assertions
-        print(f"✓ Binary discrete (variable): {len(final_result['stopped_samples'])} samples stopped out of 100")
-        print(f"  Groupings stopped: {final_result['stopped_groupings']}")
-
-        # High performance samples should stop earlier
-        assert len(manager.compiled_dataset) == 100 * 12
-
-
-# =============================================================================
-# TEST 3: ORDINAL DISCRETE (0-10) - HIGH CONSISTENT PERFORMANCE
+# ORDINAL DISCRETE (0-10) - MODAL INFERENCE
 # =============================================================================
 
 class TestOrdinalDiscreteHighPerformance:
@@ -243,60 +188,7 @@ class TestOrdinalDiscreteHighPerformance:
 
 
 # =============================================================================
-# TEST 4: ORDINAL DISCRETE (0-10) - BIMODAL DISTRIBUTION
-# =============================================================================
-
-class TestOrdinalDiscreteBimodal:
-    """Test ordinal discrete with bimodal performance (some high, some low)."""
-
-    @pytest.mark.asyncio
-    async def test_ordinal_discrete_bimodal_80_samples(self):
-        """
-        Ordinal discrete: 80 samples, 10 epochs each, bimodal distribution.
-        Half score ~8/10, half score ~3/10.
-        """
-        np.random.seed(103)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.12,
-                'delta_cap': 0.12,
-                'cred_level': 0.95,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['task'],
-            reanalysis_interval=200,  # reanalysis_interval=200,  # 25%, 50%, 75% of 800 trials
-            ordinal_tasks=['rating'],
-            ordinal_max_score=10
-        )
-
-        task = create_mock_task('model_a', 'rating_task')
-        samples = [create_mock_sample(f'item_{i:03d}') for i in range(80)]
-
-        await manager.start_task(task, samples, epochs=10)
-
-        for epoch in range(10):
-            for idx, sample in enumerate(samples):
-                if idx < 40:
-                    # High rating group (8 ± 1)
-                    score_value = int(np.clip(np.round(np.random.normal(8.0, 1.0)), 0, 10))
-                else:
-                    # Low rating group (3 ± 1)
-                    score_value = int(np.clip(np.round(np.random.normal(3.0, 1.0)), 0, 10))
-
-                score = create_mock_score(float(score_value))
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        print(f"✓ Ordinal discrete (bimodal): {len(final_result['stopped_samples'])} samples stopped out of 80")
-
-        assert len(manager.compiled_dataset) == 80 * 10
-
-
-# =============================================================================
-# TEST 5: BINARY AGGREGATED (CONTINUOUS 0-1) - HIGH PERFORMANCE
+# CONTINUOUS [0, 1] - BINARY AGGREGATED (MEAN)
 # =============================================================================
 
 class TestBinaryAggregatedHighPerformance:
@@ -348,55 +240,7 @@ class TestBinaryAggregatedHighPerformance:
 
 
 # =============================================================================
-# TEST 6: BINARY AGGREGATED (CONTINUOUS 0-1) - LOW VARIANCE
-# =============================================================================
-
-class TestBinaryAggregatedLowVariance:
-    """Test binary aggregated with very low variance (tight distributions)."""
-
-    @pytest.mark.asyncio
-    async def test_binary_aggregated_low_variance_50_samples(self):
-        """
-        Binary aggregated: 50 samples, 20 epochs each, very tight around 0.75.
-        Low variance should lead to narrow CIs and early stopping.
-        """
-        np.random.seed(105)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.08,
-                'delta_cap': 0.08,
-                'cred_level': 0.95,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['model'],
-            score_agg='mean',
-            reanalysis_interval=250  # 25%, 50%, 75% of 1000 trials
-        )
-
-        task = create_mock_task('claude', 'classification')
-        samples = [create_mock_sample(f'item_{i:03d}') for i in range(50)]
-
-        await manager.start_task(task, samples, epochs=20)
-
-        # Very tight distribution: 0.75 ± 0.02
-        for epoch in range(20):
-            for sample in samples:
-                score_value = np.clip(np.random.normal(0.75, 0.02), 0.0, 1.0)
-                score = create_mock_score(score_value)
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        print(f"✓ Binary aggregated (low var): {len(final_result['stopped_samples'])} samples stopped out of 50")
-        print(f"  Low variance should lead to more stopping")
-
-        assert len(manager.compiled_dataset) == 50 * 20
-
-
-# =============================================================================
-# TEST 7: ORDINAL AGGREGATED (CONTINUOUS 0-10) - HIGH PERFORMANCE
+# CONTINUOUS [0, 10] - ORDINAL AGGREGATED (MEDIAN)
 # =============================================================================
 
 class TestOrdinalAggregatedHighPerformance:
@@ -448,57 +292,7 @@ class TestOrdinalAggregatedHighPerformance:
 
 
 # =============================================================================
-# TEST 8: ORDINAL AGGREGATED (CONTINUOUS 0-10) - HIGH VARIANCE
-# =============================================================================
-
-class TestOrdinalAggregatedHighVariance:
-    """Test ordinal aggregated with high variance across epochs."""
-
-    @pytest.mark.asyncio
-    async def test_ordinal_aggregated_high_variance_70_samples(self):
-        """
-        Ordinal aggregated: 70 samples, 10 epochs each, high variance.
-        Wide spread in scores should make CIs wider, delaying stopping.
-        """
-        np.random.seed(107)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.15,
-                'delta_cap': 0.15,
-                'cred_level': 0.95,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['task'],
-            score_agg='mean',
-            reanalysis_interval=175,  # reanalysis_interval=175,  # 25%, 50%, 75% of 700 trials
-            ordinal_tasks=['rating'],
-            ordinal_max_score=10
-        )
-
-        task = create_mock_task('model_b', 'rating_variable')
-        samples = [create_mock_sample(f'item_{i:03d}') for i in range(70)]
-
-        await manager.start_task(task, samples, epochs=10)
-
-        # High variance: mean=6.0, std=2.0
-        for epoch in range(10):
-            for sample in samples:
-                score_value = np.clip(np.random.normal(6.0, 2.0), 0.0, 10.0)
-                score = create_mock_score(score_value)
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        print(f"✓ Ordinal aggregated (high var): {len(final_result['stopped_samples'])} samples stopped out of 70")
-        print(f"  High variance should delay stopping")
-
-        assert len(manager.compiled_dataset) == 70 * 10
-
-
-# =============================================================================
-# TEST 9: EDGE CASE - ALL SAMPLES IDENTICAL SCORES
+# EDGE CASE - ALL SAMPLES IDENTICAL SCORES (ZERO VARIANCE)
 # =============================================================================
 
 class TestEdgeCaseIdenticalScores:
@@ -545,12 +339,13 @@ class TestEdgeCaseIdenticalScores:
 
 
 # =============================================================================
-# TEST 10: EDGE CASE - SINGLE EPOCH (NO VARIANCE)
+# EDGE CASE - SINGLE EPOCH (INSUFFICIENT DATA)
 # =============================================================================
 
 class TestEdgeCaseSingleEpoch:
     """Test edge case with only one epoch per sample."""
 
+    @pytest.mark.smoke
     @pytest.mark.asyncio
     async def test_single_epoch_binary_aggregated(self):
         """
@@ -564,7 +359,8 @@ class TestEdgeCaseSingleEpoch:
                 'delta_item': 0.10,
                 'delta_cap': 0.10,
                 'draws': 500,
-                'tune': 500
+                'tune': 500,
+                'random_seed': 109,  # Pinned for the smoke selection.
             },
             grouping_columns=['model'],
             score_agg='mean',
@@ -591,7 +387,7 @@ class TestEdgeCaseSingleEpoch:
 
 
 # =============================================================================
-# TEST 11: MULTI-GROUPING WITH MIXED SCORE TYPES
+# MULTI-GROUPING WITH MIXED SCORE TYPES
 # =============================================================================
 
 class TestMultiGroupingMixedScores:
@@ -658,111 +454,6 @@ class TestMultiGroupingMixedScores:
             print(f"  Grouping {i+1}: {len(result['stopped_samples'])}/{len(samples)} stopped")
 
         assert len(manager.compiled_dataset) > 0
-
-
-# =============================================================================
-# TEST 12: GRADUAL PERFORMANCE IMPROVEMENT
-# =============================================================================
-
-class TestGradualPerformanceImprovement:
-    """Test scenario where performance improves over epochs."""
-
-    @pytest.mark.asyncio
-    async def test_learning_curve_binary_aggregated(self):
-        """
-        Binary aggregated: 50 samples, 20 epochs, performance improves over time.
-        Starts at ~0.5, improves to ~0.9 by epoch 20.
-        """
-        np.random.seed(111)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.10,
-                'delta_cap': 0.10,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['model'],
-            score_agg='mean',
-            reanalysis_interval=250  # 25%, 50%, 75% of 1000 trials
-        )
-
-        task = create_mock_task('learning_model', 'improving_task')
-        samples = [create_mock_sample(f'sample_{i:03d}') for i in range(50)]
-
-        await manager.start_task(task, samples, epochs=20)
-
-        # Performance improves linearly from 0.5 to 0.9
-        for epoch in range(20):
-            performance_level = 0.5 + (0.4 * epoch / 19)  # Linear improvement
-
-            for sample in samples:
-                score_value = np.clip(np.random.normal(performance_level, 0.05), 0.0, 1.0)
-                score = create_mock_score(score_value)
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        print(f"✓ Learning curve: {len(final_result['stopped_samples'])} samples stopped out of 50")
-        print(f"  Performance improved from 0.5 to 0.9 over epochs")
-
-        assert len(manager.compiled_dataset) == 50 * 20
-
-
-# =============================================================================
-# TEST 13: STRESS TEST - LARGE SCALE
-# =============================================================================
-
-class TestStressTestLargeScale:
-    """Stress test with very large number of samples."""
-
-    @pytest.mark.asyncio
-    async def test_large_scale_150_samples(self):
-        """
-        Stress test: 150 samples, 15 epochs each = 2,250 total trials.
-        Tests system performance with large datasets.
-        """
-        np.random.seed(112)
-
-        manager = OptimalStoppingManager(
-            optstop_params={
-                'delta_item': 0.10,
-                'delta_cap': 0.10,
-                'draws': 500,
-                'tune': 500
-            },
-            grouping_columns=['model'],
-            score_agg='mean',
-            reanalysis_interval=563  # 25%, 50%, 75% of 2250 trials  # Reduced inference frequency for performance
-        )
-
-        task = create_mock_task('stress_test_model', 'large_scale_task')
-        samples = [create_mock_sample(f'sample_{i:04d}') for i in range(150)]
-
-        await manager.start_task(task, samples, epochs=15)
-
-        # Mixed performance across samples
-        for epoch in range(15):
-            for idx, sample in enumerate(samples):
-                # Performance varies by sample index
-                if idx < 50:
-                    mean_perf = 0.85
-                elif idx < 100:
-                    mean_perf = 0.70
-                else:
-                    mean_perf = 0.55
-
-                score_value = np.clip(np.random.normal(mean_perf, 0.08), 0.0, 1.0)
-                score = create_mock_score(score_value)
-                await manager.complete_sample(sample.id, epoch, {'score': score})
-
-        final_result = await manager.complete_task()
-
-        print(f"✓ Stress test: {len(final_result['stopped_samples'])} samples stopped out of 150")
-        print(f"  Dataset size: {len(manager.compiled_dataset)} rows")
-        print(f"  Efficiency: {final_result['efficiency_percent']}")
-
-        assert len(manager.compiled_dataset) == 150 * 15
 
 
 if __name__ == "__main__":

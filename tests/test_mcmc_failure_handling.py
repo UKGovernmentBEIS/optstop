@@ -14,6 +14,11 @@ from unittest.mock import MagicMock, patch
 
 # --- Tests for _log_mcmc_diagnostics ---
 
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TestLogMcmcDiagnostics:
     """Test the diagnostic logging helper function."""
 

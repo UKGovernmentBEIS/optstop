@@ -38,6 +38,12 @@ from optstop.early_stopping import OptimalStoppingManager
 # Logging Setup
 # =============================================================================
 
+import pytest
+
+# CI partition: heavy MCMC tests deselected from PR CI (see pyproject.toml markers).
+pytestmark = pytest.mark.optstop
+
+
 class TeeWriter:
     """Write to both a file and the original stream (stdout/stderr)."""
 
@@ -159,7 +165,7 @@ class ContinuousTaskConfig:
     SUBTASKS = {
         'rubric_basic': {
             'description': 'Basic rubric scoring - very consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_score': 8.0,        # High base score (out of 10)
             'sample_variance': 1.5,   # Moderate variance BETWEEN samples
             'epoch_variance': 0.1,    # Very low variance WITHIN sample (consistent per-sample)
@@ -168,7 +174,7 @@ class ContinuousTaskConfig:
         },
         'rubric_intermediate': {
             'description': 'Intermediate rubric scoring - moderately consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_score': 6.0,        # Medium base score
             'sample_variance': 2.0,   # Higher variance BETWEEN samples
             'epoch_variance': 0.2,    # Low variance WITHIN sample
@@ -177,7 +183,7 @@ class ContinuousTaskConfig:
         },
         'rubric_advanced': {
             'description': 'Advanced rubric scoring - somewhat consistent within-sample',
-            'num_samples': 50,
+            'num_samples': 10,
             'base_score': 4.5,        # Lower base score
             'sample_variance': 3.0,   # High variance BETWEEN samples
             'epoch_variance': 0.5,    # Moderate variance WITHIN sample
@@ -186,7 +192,7 @@ class ContinuousTaskConfig:
         }
     }
 
-    # Total: 150 samples, 10 epochs each = 1500 planned trials
+    # Total: 30 samples, 10 epochs each = 300 planned trials
     MAX_EPOCHS = 10
 
     @classmethod

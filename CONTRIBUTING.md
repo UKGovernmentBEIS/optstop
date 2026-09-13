@@ -76,7 +76,7 @@ When reporting issues, please include:
 - Python version
 - Operating system
 - Steps to reproduce
-- Expected vs actual behavior
+- Expected vs actual behaviour
 - Any error messages or log output
 
 ## Questions?

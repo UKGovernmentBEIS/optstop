@@ -12,6 +12,11 @@ import numpy as np
 from optstop.rule import _continuous_bounded_ci_adaptive
 
 
+
+# CI partition: real MCMC via _continuous_bounded_ci_adaptive - deselected from PR CI.
+pytestmark = pytest.mark.optstop
+
+
 class TestContinuousBoundedCoverage:
     """Coverage validation tests for continuous bounded CI."""
 
