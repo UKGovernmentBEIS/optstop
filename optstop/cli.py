@@ -5,18 +5,36 @@ Command-line interface for the optstop package.
 import argparse
 import sys
 import pandas as pd
-from .rule import configure_optstop_logging, optimal_stopping_posthoc, optimal_stopping_live
+from .rule import INPUT_ORDER_LOGGER, configure_optstop_logging, optimal_stopping_posthoc, optimal_stopping_live
 from .convergence import convergence_posthoc
 from .__version__ import __version__
 
 def close_all_log_handlers():
     """Close all logging handlers to release file locks (needed for Windows test cleanup)."""
     import logging
-    root = logging.getLogger()
-    handlers = root.handlers[:]
-    for handler in handlers:
+    for name in (None, INPUT_ORDER_LOGGER):
+        log = logging.getLogger(name)
+        for handler in log.handlers[:]:
+            handler.close()
+            log.removeHandler(handler)
+
+def _surface_input_order_warning():
+    """Also print the sorted-input warning on stderr.
+
+    The CLI logs to a file only (console_output=False), so this warning was visible only in the log
+    file, although it describes an input condition that can change the post-hoc result. Only this
+    logger is surfaced; every other warning still goes to the log file alone, and the exit code is
+    unchanged (same shape as the partial-failure notice of the issue #4 fail-loud policy).
+    """
+    import logging
+    order_logger = logging.getLogger(INPUT_ORDER_LOGGER)
+    for handler in order_logger.handlers[:]:
         handler.close()
-        root.removeHandler(handler)
+        order_logger.removeHandler(handler)
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setLevel(logging.WARNING)
+    handler.setFormatter(logging.Formatter("WARNING: %(message)s"))
+    order_logger.addHandler(handler)
 
 def _ensure_utf8_stdio():
     """Force UTF-8 on stdout/stderr so non-ASCII output cannot crash the CLI.
@@ -97,6 +115,7 @@ def main():
         args = parser.parse_args()
 
         configure_optstop_logging(args.log, console_output=False)
+        _surface_input_order_warning()
         df = pd.read_csv(args.csv)
         params = {
             'delta_item': args.delta_item,
