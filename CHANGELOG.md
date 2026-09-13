@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+#### Sorted-Input Warning: Natural ID Order, and Visible from the CLI
+- `optimal_stopping_posthoc` warns when a grouping's sample IDs appear in sorted
+  order and `shuffle_items` is off. The check compared IDs as strings only, so IDs
+  numbered `0, 1, 2, ..., 10` or `item_1, item_2, ..., item_10` - which are not
+  sorted as strings - were never flagged. The check now also recognises natural
+  order (runs of digits compared as numbers), ascending or descending.
+- `optstop-posthoc` logs to a file only, so this warning never reached the
+  console. It is now also printed on stderr as a single `WARNING:` line; the exit
+  code is unchanged and every other warning still goes to the log file alone. The
+  warning is emitted on a dedicated child logger, `optstop.posthoc.input_order`,
+  so it is still written to the log file as before.
+
 ## [0.5.0] - 2026-09-03
 
 Behavioural fix for group-level credible intervals at very low success rates

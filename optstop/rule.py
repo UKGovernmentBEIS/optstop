@@ -25,6 +25,7 @@ from typing import Dict, Any, List, Tuple, Optional, Union
 from tqdm import tqdm
 import contextlib
 import io
+import re
 import sys
 import warnings
 
@@ -4195,6 +4196,36 @@ def _get_logfile_path(default='optstop_run.log'):
             return handler.baseFilename
     return default
 
+# Logger for the sorted-input warning. It is a child of 'optstop.posthoc', so the warning still reaches
+# the log file through propagation; the CLI attaches a stderr handler to this logger alone.
+INPUT_ORDER_LOGGER = 'optstop.posthoc.input_order'
+
+
+def _natural_key(value):
+    """Sort key comparing runs of digits as integers, so 2 < 10 and 'item_2' < 'item_10'."""
+    return [(0, int(part), '') if part.isdigit() else (1, 0, part)
+            for part in re.split(r'(\d+)', str(value)) if part != '']
+
+
+def _ids_appear_sorted(ids, min_ids: int = 5) -> bool:
+    """Return True when IDs, in their order of first appearance, are monotonically sorted.
+
+    Two orders are checked, ascending or descending: lexicographic (IDs compared as strings) and
+    natural (runs of digits compared as numbers). The natural order covers the most common layout,
+    IDs numbered 0, 1, 2, ..., 10, ... or item_1, item_2, ..., item_10, ..., which is not sorted as
+    strings ("10" < "2") and so was not recognised by a lexicographic check alone.
+    Needs more than ``min_ids`` IDs to judge.
+    """
+    ids = list(ids)
+    if len(ids) <= min_ids:
+        return False
+    for key in (str, _natural_key):
+        keys = [key(i) for i in ids]
+        if keys == sorted(keys) or keys == sorted(keys, reverse=True):
+            return True
+    return False
+
+
 # --- Post-hoc mode ---
 def optimal_stopping_posthoc(
     df: pd.DataFrame,
@@ -4367,24 +4398,23 @@ def optimal_stopping_posthoc(
         # Check if sample_ids appear to be sorted within any grouping (potential ordering bias)
         # Only warn once to avoid log spam
         _warned_sorted = False
+        order_logger = logging.getLogger(INPUT_ORDER_LOGGER)
         for grouping_name in df['grouping'].unique():
             if _warned_sorted:
                 break
             grouping_mask = df['grouping'] == grouping_name
             # Get unique sample_ids in their order of first appearance
             grouping_ids = df.loc[grouping_mask, sample_id_column].drop_duplicates().tolist()
-            if len(grouping_ids) > 5:
-                # Check if IDs are monotonically sorted (alphabetically)
-                sorted_ids = sorted(grouping_ids, key=str)
-                reverse_sorted_ids = sorted(grouping_ids, key=str, reverse=True)
-                if grouping_ids == sorted_ids or grouping_ids == reverse_sorted_ids:
-                    logger.warning(
-                        f"Sample IDs in grouping '{grouping_name}' appear to be sorted. "
-                        f"This may cause selection bias in posthoc analysis if early-alphabet "
-                        f"items have systematically different scores. Consider using "
-                        f"shuffle_items=True or randomizing input order before calling this function."
-                    )
-                    _warned_sorted = True
+            # Lexicographic or natural order (0, 1, 2, ..., 10), ascending or descending
+            if _ids_appear_sorted(grouping_ids):
+                order_logger.warning(
+                    f"Sample IDs in grouping '{grouping_name}' appear to be sorted. "
+                    f"This may cause selection bias in posthoc analysis if items early in the sort "
+                    f"order have systematically different scores. Consider using "
+                    f"shuffle_items=True (--shuffle_items on the command line) or randomizing "
+                    f"input order before calling this function."
+                )
+                _warned_sorted = True
 
     df['sample_id_num'] = df[sample_id_column].astype('category').cat.codes
     df['epoch_num'] = df[epoch_column].astype(int)
