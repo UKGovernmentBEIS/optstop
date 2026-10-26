@@ -589,8 +589,8 @@ def _log_mcmc_diagnostics(trace, diag_logger, context: str) -> None:
         n_div = int(trace.sample_stats['diverging'].values.sum()) if hasattr(trace, 'sample_stats') else 0
         ess_vals = az.ess(trace)
         rhat_vals = az.rhat(trace)
-        ess_min = float(ess_vals.to_array().min().item())
-        rhat_max = float(rhat_vals.to_array().max().item())
+        ess_min = float(np.nanmin([float(v.min()) for v in ess_vals.data_vars.values()]))
+        rhat_max = float(np.nanmax([float(v.max()) for v in rhat_vals.data_vars.values()]))
         if n_div > 0 or ess_min < 100 or rhat_max > 1.05:
             diag_logger.warning(
                 f"MCMC [{context}]: divergences={n_div}, ess_min={ess_min:.0f}, rhat_max={rhat_max:.4f}"

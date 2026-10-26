@@ -39,12 +39,18 @@ class TestLogMcmcDiagnostics:
         logger = logging.getLogger('test.clean')
 
         with patch('optstop.rule.az') as mock_az:
+            mock_ess_var = MagicMock()
+            mock_ess_var.min.return_value = 500.0
             mock_ess = MagicMock()
-            mock_ess.to_array.return_value.min.return_value.item.return_value = 500.0
+            mock_ess.data_vars.values.return_value = [mock_ess_var]
+            mock_az.ess.return_value = mock_ess
             mock_az.ess.return_value = mock_ess
 
+            mock_rhat_var = MagicMock()
+            mock_rhat_var.max.return_value = 1.001
             mock_rhat = MagicMock()
-            mock_rhat.to_array.return_value.max.return_value.item.return_value = 1.001
+            mock_rhat.data_vars.values.return_value = [mock_rhat_var]
+            mock_az.rhat.return_value = mock_rhat
             mock_az.rhat.return_value = mock_rhat
 
             with caplog.at_level(logging.DEBUG, logger='test.clean'):
@@ -60,12 +66,18 @@ class TestLogMcmcDiagnostics:
         logger = logging.getLogger('test.divergent')
 
         with patch('optstop.rule.az') as mock_az:
+            mock_ess_var = MagicMock()
+            mock_ess_var.min.return_value = 500.0
             mock_ess = MagicMock()
-            mock_ess.to_array.return_value.min.return_value.item.return_value = 500.0
+            mock_ess.data_vars.values.return_value = [mock_ess_var]
+            mock_az.ess.return_value = mock_ess
             mock_az.ess.return_value = mock_ess
 
+            mock_rhat_var = MagicMock()
+            mock_rhat_var.max.return_value = 1.001
             mock_rhat = MagicMock()
-            mock_rhat.to_array.return_value.max.return_value.item.return_value = 1.001
+            mock_rhat.data_vars.values.return_value = [mock_rhat_var]
+            mock_az.rhat.return_value = mock_rhat
             mock_az.rhat.return_value = mock_rhat
 
             with caplog.at_level(logging.WARNING, logger='test.divergent'):
@@ -81,12 +93,18 @@ class TestLogMcmcDiagnostics:
         logger = logging.getLogger('test.low_ess')
 
         with patch('optstop.rule.az') as mock_az:
+            mock_ess_var = MagicMock()
+            mock_ess_var.min.return_value = 50.0
             mock_ess = MagicMock()
-            mock_ess.to_array.return_value.min.return_value.item.return_value = 50.0  # Below 100
+            mock_ess.data_vars.values.return_value = [mock_ess_var]
+            mock_az.ess.return_value = mock_ess  # Below 100
             mock_az.ess.return_value = mock_ess
 
+            mock_rhat_var = MagicMock()
+            mock_rhat_var.max.return_value = 1.001
             mock_rhat = MagicMock()
-            mock_rhat.to_array.return_value.max.return_value.item.return_value = 1.001
+            mock_rhat.data_vars.values.return_value = [mock_rhat_var]
+            mock_az.rhat.return_value = mock_rhat
             mock_az.rhat.return_value = mock_rhat
 
             with caplog.at_level(logging.WARNING, logger='test.low_ess'):
@@ -165,3 +183,43 @@ class TestSamplingFailureFallbacks:
         assert hi == 1.0
         assert width == 1.0
         assert 'error' in diagnostics
+
+
+class TestLogMcmcDiagnosticsMultiVar:
+    """Focused regression tests for per-variable reduction semantics."""
+
+    def test_different_dimensions_and_nan_handling(self, caplog):
+        """Per-variable min/max must not broadcast; NaNs must be skipped."""
+        import logging
+        import numpy as np
+        import xarray as xr
+        from unittest.mock import patch
+
+        from optstop.rule import _log_mcmc_diagnostics
+
+        trace = object()
+        # Two vars with different dims and a NaN in one.
+        ess_ds = xr.Dataset({
+            "a": xr.DataArray(np.array([[100.0, 200.0], [300.0, np.nan]]), dims=("chain", "draw")),
+            "b": xr.DataArray(np.array([50.0, 60.0]), dims=("draw",)),
+        })
+        rhat_ds = xr.Dataset({
+            "a": xr.DataArray(np.array([[1.01, 1.02], [1.03, np.nan]]), dims=("chain", "draw")),
+            "b": xr.DataArray(np.array([1.04, 1.05]), dims=("draw",)),
+        })
+
+        logger = logging.getLogger("test.multivar")
+        with patch("optstop.rule.az") as mock_az:
+            mock_az.ess.return_value = ess_ds
+            mock_az.rhat.return_value = rhat_ds
+
+            trace_mock = type("T", (), {})()
+            trace_mock.sample_stats = {"diverging": type("D", (), {"values": type("V", (), {"sum": lambda self: 0})()})()}
+
+            with caplog.at_level(logging.WARNING, logger="test.multivar"):
+                _log_mcmc_diagnostics(trace_mock, logger, "ctx")
+
+        # ess_min should be 50 (from b), NaN skipped in a (min of a non-nan is 100)
+        # rhat_max should be 1.05 (from b)
+        assert any("ess_min=50" in r.message for r in caplog.records)
+        assert any("rhat_max=1.0500" in r.message for r in caplog.records)
